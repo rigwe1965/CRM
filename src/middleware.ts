@@ -16,7 +16,7 @@ export default auth((req) => {
   const user = req.auth?.user;
 
   if (!user) {
-    if (isApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (isApi) return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     const url = new URL("/sign-in", nextUrl);
     url.searchParams.set("callbackUrl", path + nextUrl.search);
     return NextResponse.redirect(url);
@@ -24,7 +24,7 @@ export default auth((req) => {
 
   const roles = requiredRolesFor(path);
   if (roles && !hasRole(user.role, roles)) {
-    if (isApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (isApi) return NextResponse.json({ error: "Forbidden", code: "FORBIDDEN" }, { status: 403 });
     return NextResponse.redirect(new URL("/unauthorized", nextUrl));
   }
 });

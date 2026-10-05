@@ -4,6 +4,8 @@ import { parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
 import { updateProfileSchema } from "@/lib/validations/auth";
 
+export const dynamic = "force-dynamic";
+
 const select = { id: true, email: true, name: true, role: true, createdAt: true } as const;
 
 export async function GET() {

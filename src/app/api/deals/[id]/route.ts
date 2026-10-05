@@ -1,0 +1,58 @@
+import { db } from "@/lib/db";
+import { noContent, ok, readBody } from "@/lib/api";
+import { authed } from "@/lib/route";
+import { dealInclude } from "@/lib/includes";
+import { assertLinks, notFound, ownerScope, resolveOwner } from "@/lib/access";
+import { dealDto, stageTransition } from "@/lib/deals";
+import { updateDealSchema } from "@/lib/validations/crm";
+
+export const dynamic = "force-dynamic";
+
+type P = { id: string };
+
+/** GET /api/deals/:id (admins can also fetch soft-deleted rows). */
+export const GET = authed<P>(async ({ user, params }) => {
+  const deal = await db.deal.findFirst({
+    where: { id: params.id, ...ownerScope(user), ...(user.role === "ADMIN" ? {} : { deletedAt: null }) },
+    include: dealInclude,
+  });
+  if (!deal) throw notFound("Deal");
+  return ok(dealDto(deal));
+});
+
+/**
+ * PATCH /api/deals/:id: partial update. Changing `stage` also resets probability/closedAt/lostReason
+ * (same as POST /:id/stage); an explicit `probability` in the same request wins.
+ */
+export const PATCH = authed<P>(async ({ req, user, params }) => {
+  const body = await readBody(req, updateDealSchema);
+  const existing = await db.deal.findFirst({
+    where: { id: params.id, deletedAt: null, ...ownerScope(user) },
+    select: { stage: true },
+  });
+  if (!existing) throw notFound("Deal");
+  await assertLinks(user, { organizationId: body.organizationId, contactId: body.contactId });
+  const ownerId = body.ownerId === undefined ? undefined : ((await resolveOwner(user, body.ownerId)) ?? undefined);
+
+  const moving = body.stage !== undefined && body.stage !== existing.stage;
+  const transition = moving
+    ? stageTransition(body.stage!, { probability: body.probability, lostReason: body.lostReason })
+    : {};
+
+  const deal = await db.deal.update({
+    where: { id: params.id },
+    data: { ...body, ownerId, ...transition },
+    include: dealInclude,
+  });
+  return ok(dealDto(deal));
+});
+
+/** DELETE /api/deals/:id: soft delete (admins can restore via POST /restore). */
+export const DELETE = authed<P>(async ({ user, params }) => {
+  const { count } = await db.deal.updateMany({
+    where: { id: params.id, deletedAt: null, ...ownerScope(user) },
+    data: { deletedAt: new Date() },
+  });
+  if (count === 0) throw notFound("Deal");
+  return noContent();
+});

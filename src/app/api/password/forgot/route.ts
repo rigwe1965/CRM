@@ -5,6 +5,8 @@ import { appUrl, sendMail } from "@/lib/mail";
 import { createPasswordResetToken } from "@/lib/tokens";
 import { forgotPasswordSchema } from "@/lib/validations/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   const body = await parseBody(req, forgotPasswordSchema);
   if ("response" in body) return body.response;

@@ -1,6 +1,6 @@
 # CRM
 
-A modern full-stack CRM. Done so far: database foundation and authentication. The dashboard, CRM API routes and email features come next.
+A modern full-stack CRM. Done so far: database foundation, authentication and the REST API. The dashboard UI and email features come next.
 
 ## Stack
 
@@ -25,7 +25,28 @@ A modern full-stack CRM. Done so far: database foundation and authentication. Th
 - **Self-hosting:** set `AUTH_TRUST_HOST=true` when using `next start` behind your own domain.
 - **Not included yet:** rate limiting on sign-in, sign-up and reset endpoints, and email verification for password sign-ups. Add both before going public.
 
-After pulling this change, run `npm run db:migrate` again: the schema gained `User.passwordChangedAt`.
+## REST API
+
+All endpoints live under `/api`, return JSON and need a signed-in session (cookie). The machine-readable spec is generated from the same Zod schemas the handlers validate with: **`GET /api/openapi.json`** (OpenAPI 3.1; import it into Swagger UI, Postman or Insomnia).
+
+| Resource | Endpoints |
+| --- | --- |
+| Organizations | `GET/POST /api/organizations`, `GET/PATCH/DELETE /api/organizations/:id`, `POST …/:id/restore` (admin) |
+| Contacts (leads, customers) | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, `POST …/:id/convert`, `POST …/:id/restore` (admin) |
+| Deals | `GET/POST /api/deals`, `GET/PATCH/DELETE /api/deals/:id`, `POST …/:id/stage`, `POST …/:id/restore` (admin), `GET /api/deals/pipeline` |
+| Activities | `GET/POST /api/activities`, `GET/PATCH/DELETE /api/activities/:id` |
+| Tasks | `GET/POST /api/tasks`, `GET/PATCH/DELETE /api/tasks/:id` |
+| Dashboard | `GET /api/dashboard` (counts, pipeline value, revenue and win rate, recent activity, upcoming tasks) |
+
+Conventions:
+- **Responses:** `{ "data": … }`, and lists add `"meta": { page, pageSize, total, totalPages }`. Errors are `{ "error": "message", "code": "NOT_FOUND", "fieldErrors"?: { "field": ["msg"] } }` with 400/401/403/404/409/422 status codes. Deletes return 204.
+- **Lists:** `page`, `pageSize` (max 100), `sort`, `order`, `q` (text search) plus resource filters, for example `GET /api/deals?stage=PROPOSAL,NEGOTIATION&minAmount=10000&sort=amount&order=desc`. Unknown sort fields are rejected with 422.
+- **Authorization:** non-admins only see and edit their own data: organizations, contacts and deals they own, activities they authored, and tasks assigned to or created by them. They can't assign records to other users or link records to data they don't own. Admins see everything. SALES and SUPPORT have the same scope.
+- **Soft delete:** organizations, contacts and deals get `deletedAt` and vanish from the API. Admins can list them with `includeDeleted=true` and restore them. Activities and tasks are hard-deleted. A soft-deleted contact still holds its unique email (and an organization its domain), so creating a duplicate returns 409 until an admin restores or edits the original.
+- **Deals:** moving a deal sets its probability from the stage (10/25/50/75/100/0). Closing sets `closedAt`, and reopening clears `closedAt` and `lostReason`. An explicit `probability` in the same request wins. Amounts are JSON numbers rounded to cents, and dashboard totals assume one currency.
+- **Where the code is:** handlers are in `src/app/api/**/route.ts` and wrapped with `authed()` (`src/lib/route.ts`). Ownership rules are in `src/lib/access.ts`, schemas in `src/lib/validations/crm.ts` and the OpenAPI operation table in `src/lib/openapi.ts`.
+
+Database changes: this repo now includes the initial migration (`prisma/migrations`), so `npm run db:migrate` applies the whole schema, including `User.passwordChangedAt` and the `deletedAt` columns.
 
 ## Prerequisites
 
@@ -40,7 +61,7 @@ cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
 # Optional local Postgres via Docker:
 docker compose up -d
 npm run db:generate
-npm run db:migrate -- --name init
+npm run db:migrate
 npm run db:seed
 npm run dev
 ```
@@ -118,7 +139,6 @@ docker-compose.yml  optional local Postgres
 
 ## Next steps
 
-1. Auth (Auth.js with credentials and role-based access)
-2. API routes with Zod validation
-3. UI (dashboard, contacts, deals pipeline, tasks)
-4. Email
+1. UI (dashboard, contacts, deals pipeline, tasks)
+2. Email (notifications, templates)
+3. Hardening: rate limiting, email verification

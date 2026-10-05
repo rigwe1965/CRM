@@ -5,6 +5,8 @@ import { requireApiUser } from "@/lib/auth-helpers";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { changePasswordSchema } from "@/lib/validations/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   const guard = await requireApiUser();
   if (!guard.ok) return guard.response;

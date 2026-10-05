@@ -5,6 +5,8 @@ import { hashPassword } from "@/lib/password";
 import { consumePasswordResetToken } from "@/lib/tokens";
 import { resetPasswordSchema } from "@/lib/validations/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   const body = await parseBody(req, resetPasswordSchema);
   if ("response" in body) return body.response;

@@ -24,7 +24,7 @@ export async function requireRole(...roles: Role[]) {
   return user;
 }
 
-type SessionUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+export type SessionUser =NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 /**
  * For route handlers. Usage:

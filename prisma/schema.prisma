@@ -64,20 +64,20 @@ enum TaskPriority {
 // ─── Users & Auth.js tables ─────────────────────────────
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String
-  passwordHash  String?
-  role          Role      @default(SALES)
-  isActive      Boolean   @default(true)
-  emailVerified DateTime?
-  image         String?
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String
+  passwordHash      String?
+  role              Role      @default(SALES)
+  isActive          Boolean   @default(true)
+  emailVerified     DateTime?
+  image             String?
   // Sessions issued before this moment are rejected (set on password change/reset).
   passwordChangedAt DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  accounts          Account[]
+  accounts           Account[]
   sessions           Session[]
   ownedOrganizations Organization[] @relation("OrganizationOwner")
   ownedContacts      Contact[]      @relation("ContactOwner")
@@ -131,9 +131,9 @@ model VerificationToken {
 // ─── CRM core ───────────────────────────────────────────
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
-  domain    String?  @unique
+  domain    String?   @unique
   industry  String?
   size      Int?
   website   String?
@@ -143,8 +143,10 @@ model Organization {
   state     String?
   country   String?
   ownerId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Soft delete: rows with deletedAt set are hidden by the API.
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   owner      User?      @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   contacts   Contact[]
@@ -154,6 +156,7 @@ model Organization {
   @@index([name])
   @@index([ownerId])
   @@index([industry])
+  @@index([deletedAt])
 }
 
 model Contact {
@@ -168,6 +171,8 @@ model Contact {
   source         String?
   organizationId String?
   ownerId        String?
+  // Soft delete: rows with deletedAt set are hidden by the API.
+  deletedAt      DateTime?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
@@ -182,6 +187,7 @@ model Contact {
   @@index([leadStatus])
   @@index([organizationId])
   @@index([ownerId])
+  @@index([deletedAt])
 }
 
 model Deal {
@@ -197,6 +203,8 @@ model Deal {
   organizationId    String?
   contactId         String?
   ownerId           String
+  // Soft delete: rows with deletedAt set are hidden by the API.
+  deletedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -211,6 +219,7 @@ model Deal {
   @@index([ownerId, stage])
   @@index([organizationId])
   @@index([contactId])
+  @@index([deletedAt])
 }
 
 model Activity {

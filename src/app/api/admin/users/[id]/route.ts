@@ -5,6 +5,8 @@ import { apiError, parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
 import { adminUpdateUserSchema } from "@/lib/validations/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const guard = await requireApiUser("ADMIN");
   if (!guard.ok) return guard.response;

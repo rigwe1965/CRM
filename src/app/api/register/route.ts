@@ -5,6 +5,8 @@ import { apiError, parseBody } from "@/lib/api";
 import { hashPassword } from "@/lib/password";
 import { signUpSchema } from "@/lib/validations/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   const body = await parseBody(req, signUpSchema);
   if ("response" in body) return body.response;
