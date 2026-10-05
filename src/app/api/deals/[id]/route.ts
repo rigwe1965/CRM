@@ -2,8 +2,9 @@ import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
-import { assertLinks, notFound, ownerScope, resolveOwner } from "@/lib/access";
+import { assertLinks, displayName, notFound, ownerScope, resolveOwner } from "@/lib/access";
 import { dealDto, stageTransition } from "@/lib/deals";
+import { notifyDealStageChange } from "@/lib/notifications";
 import { updateDealSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,14 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
     data: { ...body, ownerId, ...transition },
     include: dealInclude,
   });
+  if (moving) {
+    await notifyDealStageChange({
+      deal,
+      from: existing.stage,
+      to: deal.stage,
+      actor: { id: user.id, name: displayName(user) },
+    });
+  }
   return ok(dealDto(deal));
 });
 

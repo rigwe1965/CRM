@@ -6,7 +6,10 @@ import type { Adapter } from "next-auth/adapters";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { getDummyHash, verifyPassword } from "@/lib/password";
-import { FROM, sendMail } from "@/lib/mail";
+import { headers } from "next/headers";
+import { FROM, sendMail, trySendMail } from "@/lib/mail";
+import { magicLinkEmail, welcomeEmail } from "@/lib/email-templates";
+import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
 import { signInSchema } from "@/lib/validations/auth";
 
 const prismaAdapter = PrismaAdapter(db);
@@ -14,8 +17,12 @@ const prismaAdapter = PrismaAdapter(db);
 // User.name is required in our schema, but magic-link sign-up only provides an email.
 const adapter: Adapter = {
   ...prismaAdapter,
-  createUser: (data) =>
-    prismaAdapter.createUser!({ ...data, name: data.name ?? data.email.split("@")[0] }),
+  // Magic-link sign-up is the only path through here, so this is also where its welcome email goes.
+  createUser: async (data) => {
+    const user = await prismaAdapter.createUser!({ ...data, name: data.name ?? data.email.split("@")[0] });
+    await trySendMail({ to: user.email, ...welcomeEmail(user.name ?? user.email) });
+    return user;
+  },
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -29,6 +36,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
 
+        // Throttle password guessing per IP+account. A blocked attempt looks like a wrong password.
+        const ip = clientIp(await headers());
+        for (const key of [`signin:${ip}:${email}`, `signin-ip:${ip}`]) {
+          const limit = await rateLimit(key, key.startsWith("signin-ip") ? { max: 50, windowMs: LIMITS.signIn.windowMs } : LIMITS.signIn);
+          if (!limit.allowed) return null;
+        }
+
         const user = await db.user.findUnique({ where: { email } });
         const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
         if (!user || !user.passwordHash || !valid || !user.isActive) return null;
@@ -41,12 +55,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       from: FROM,
       maxAge: 15 * 60,
       async sendVerificationRequest({ identifier, url }) {
-        await sendMail({
-          to: identifier,
-          subject: "Your CRM sign-in link",
-          text: `Sign in to CRM:\n${url}\n\nThis link expires in 15 minutes. If you didn't request it, ignore this email.`,
-          html: `<p>Sign in to CRM:</p><p><a href="${url}">Sign in</a></p><p>This link expires in 15 minutes. If you didn't request it, ignore this email.</p>`,
-        });
+        const limit = await rateLimit(`magic:${identifier}`, LIMITS.magicLink);
+        if (!limit.allowed) throw new Error("Too many sign-in link requests");
+        await sendMail({ to: identifier, ...magicLinkEmail(url) });
       },
     }),
   ],

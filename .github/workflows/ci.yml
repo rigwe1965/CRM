@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: crm
+          POSTGRES_PASSWORD: crm
+          POSTGRES_DB: crm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U crm" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
+      DIRECT_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
+      NEXTAUTH_SECRET: ci-only-secret-ci-only-secret-0123456789
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Migrations apply cleanly to an empty database
+        run: npm run db:deploy
+      - name: Schema and migrations are in sync
+        run: >-
+          npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma
+          --shadow-database-url "$DATABASE_URL" --exit-code
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build

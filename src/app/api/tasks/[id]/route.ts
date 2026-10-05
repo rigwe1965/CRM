@@ -24,7 +24,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const body = await readBody(req, updateTaskSchema);
   const existing = await db.task.findFirst({
     where: { AND: [{ id: params.id }, taskScope(user)] },
-    select: { completedAt: true },
+    select: { completedAt: true, dueDate: true, assigneeId: true },
   });
   if (!existing) throw notFound("Task");
   await assertLinks(user, body);
@@ -34,9 +34,14 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const completedAt =
     body.status === undefined ? undefined : body.status === "DONE" ? (existing.completedAt ?? new Date()) : null;
 
+  // A new due date (or a new assignee) deserves a fresh reminder.
+  const dueChanged =
+    body.dueDate !== undefined && (body.dueDate?.getTime() ?? null) !== (existing.dueDate?.getTime() ?? null);
+  const reminderSentAt = dueChanged || (assigneeId !== undefined && assigneeId !== existing.assigneeId) ? null : undefined;
+
   const task = await db.task.update({
     where: { id: params.id },
-    data: { ...body, assigneeId, completedAt },
+    data: { ...body, assigneeId, completedAt, reminderSentAt },
     include: taskInclude,
   });
   return ok(task);

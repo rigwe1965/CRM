@@ -39,6 +39,7 @@ export function FormShell({
   title,
   description,
   submitLabel,
+  pendingLabel = "Saving…",
   pending,
   formError,
   onSubmit,
@@ -48,6 +49,7 @@ export function FormShell({
   title: string;
   description?: string;
   submitLabel: string;
+  pendingLabel?: string;
   pending: boolean;
   formError: string | null;
   onSubmit: () => void;
@@ -78,7 +80,7 @@ export function FormShell({
           Cancel
         </Button>
         <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : submitLabel}
+          {pending ? pendingLabel : submitLabel}
         </Button>
       </DialogFooter>
     </form>

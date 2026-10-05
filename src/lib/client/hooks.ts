@@ -63,6 +63,15 @@ export function useConvertContact() {
   });
 }
 
+export function useSendContactEmail(contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { subject: string; message: string }) =>
+      request("POST", `/api/contacts/${contactId}/email`, body),
+    onSuccess: () => refreshAll(qc), // the email is logged on the contact's timeline
+  });
+}
+
 export const errorMessage = (e: unknown) =>
   e instanceof ApiClientError ? e.message : "Something went wrong. Please try again.";
 

@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/common/page";
 import { OrganizationPicker } from "@/components/common/pickers";
 import { CONTACT_TYPES, LEAD_STATUSES } from "@/lib/client/constants";
-import { useSave } from "@/lib/client/hooks";
+import { useSave, useSendContactEmail } from "@/lib/client/hooks";
 import type { Contact, ContactType, LeadStatus, Organization } from "@/lib/client/types";
 import { FormShell, Grid2, nullable, useFormState } from "./form-kit";
 
@@ -262,6 +262,58 @@ function OrganizationForm({ organization: org, onClose }: { organization?: Organ
         {text("state", "State / region")}
       </Grid2>
       {text("country", "Country")}
+    </FormShell>
+  );
+}
+
+// ─── Email a contact ────────────────────────────────────
+
+export function EmailContactDialog({
+  open,
+  onOpenChange,
+  contact,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  contact: Pick<Contact, "id" | "firstName" | "email">;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <EmailContactForm contact={contact} onClose={() => onOpenChange(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EmailContactForm({ contact, onClose }: { contact: Pick<Contact, "id" | "firstName" | "email">; onClose: () => void }) {
+  const send = useSendContactEmail(contact.id);
+  const form = useFormState();
+  const [v, setV] = useState({ subject: "", message: "" });
+
+  return (
+    <FormShell
+      title={`Email ${contact.firstName}`}
+      description={`Sent to ${contact.email}. Replies go to your own address, and the email is logged on the timeline.`}
+      submitLabel="Send email"
+      pendingLabel="Sending…"
+      pending={send.isPending}
+      formError={form.formError}
+      onCancel={onClose}
+      onSubmit={async () => {
+        const ok = await form.run(() => send.mutateAsync(v));
+        if (ok) {
+          toast.success(`Email sent to ${contact.email}`);
+          onClose();
+        }
+      }}
+    >
+      <FormField label="Subject" error={form.err("subject")}>
+        <Input value={v.subject} maxLength={200} onChange={(e) => setV((s) => ({ ...s, subject: e.target.value }))} autoFocus />
+      </FormField>
+      <FormField label="Message" error={form.err("message")}>
+        <Textarea value={v.message} rows={8} maxLength={10000} onChange={(e) => setV((s) => ({ ...s, message: e.target.value }))} />
+      </FormField>
     </FormShell>
   );
 }

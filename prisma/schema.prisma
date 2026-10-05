@@ -248,19 +248,21 @@ model Activity {
 }
 
 model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus   @default(TODO)
-  priority    TaskPriority @default(MEDIUM)
-  dueDate     DateTime?
-  completedAt DateTime?
-  assigneeId  String
-  createdById String
-  contactId   String?
-  dealId      String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  title          String
+  description    String?
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  // Set when the due-soon reminder email went out; cleared when the due date changes.
+  reminderSentAt DateTime?
+  assigneeId     String
+  createdById    String
+  contactId      String?
+  dealId         String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   assignee  User     @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
   createdBy User     @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)

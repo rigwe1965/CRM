@@ -89,3 +89,6 @@ export async function assertLinks(
 }
 
 export const notFound = (what: string) => new ApiError(404, `${what} not found`);
+
+/** Name shown in notification emails (session fields are typed as optional by Auth.js). */
+export const displayName = (user: SessionUser) => user.name || user.email || "A teammate";

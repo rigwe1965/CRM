@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityItem, DealMiniRow, TaskRow } from "@/components/common/items";
 import { ConfirmDialog, EmptyState, ErrorState } from "@/components/common/page";
-import { ContactDialog } from "@/components/forms/contact-org-dialogs";
+import { ContactDialog, EmailContactDialog } from "@/components/forms/contact-org-dialogs";
 import { ActivityDialog, DealDialog, TaskDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
@@ -43,6 +43,7 @@ export default function ContactDetailPage() {
   const removeTask = useRemove("tasks");
 
   const [editing, setEditing] = useState(false);
+  const [emailing, setEmailing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [activityDialog, setActivityDialog] = useState<{ open: boolean; activity?: Activity }>({ open: false });
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; task?: Task }>({ open: false });
@@ -116,6 +117,11 @@ export default function ContactDetailPage() {
                 }
               >
                 <UserCheck /> {convert.isPending ? "Converting…" : "Convert to customer"}
+              </Button>
+            )}
+            {contact.email && (
+              <Button onClick={() => setEmailing(true)}>
+                <Mail /> Send email
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditing(true)}>
@@ -242,6 +248,7 @@ export default function ContactDetailPage() {
       </div>
 
       {editing && <ContactDialog open onOpenChange={(o) => !o && setEditing(false)} contact={contact} />}
+      {emailing && contact.email && <EmailContactDialog open onOpenChange={(o) => !o && setEmailing(false)} contact={contact} />}
       {activityDialog.open && <ActivityDialog open onOpenChange={(o) => !o && setActivityDialog({ open: false })} activity={activityDialog.activity} defaults={{ contactId: contact.id }} />}
       {taskDialog.open && <TaskDialog open onOpenChange={(o) => !o && setTaskDialog({ open: false })} task={taskDialog.task} defaults={{ contactId: contact.id }} />}
       {dealDialog.open && <DealDialog open onOpenChange={(o) => !o && setDealDialog({ open: false })} deal={dealDialog.deal} defaults={{ contactId: contact.id, organizationId: contact.organizationId }} />}

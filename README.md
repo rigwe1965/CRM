@@ -1,6 +1,6 @@
 # CRM
 
-A modern full-stack CRM. Done so far: database foundation, authentication, the REST API and the web app. Email features come next.
+A modern full-stack CRM. Includes authentication, the REST API, the web app, transactional email and a production setup for Vercel. Deploying? Jump to [Deploy to production](#deploy-to-production).
 
 ## Stack
 
@@ -9,6 +9,7 @@ A modern full-stack CRM. Done so far: database foundation, authentication, the R
 - PostgreSQL + Prisma 6
 - Zod for validation
 - Auth.js v5 (`next-auth@beta`) with the Prisma adapter and JWT sessions
+- Resend for email (Nodemailer/SMTP fallback), deployed on Vercel
 
 ## Authentication
 
@@ -22,9 +23,9 @@ A modern full-stack CRM. Done so far: database foundation, authentication, the R
   - `requireApiUser("SALES")` for route handlers (returns 401/403 responses)
 - **Sessions:** JWT cookies (30 days). Each session read re-checks the user in the database, so deactivating a user or changing their role takes effect immediately. Changing or resetting a password signs out all existing sessions.
 - **Password reset:** one-hour, single-use token. Only its SHA-256 hash is stored (in the `VerificationToken` table). The forgot-password endpoint never reveals whether an email is registered.
-- **Email in development:** with `EMAIL_SERVER` unset, magic and reset links are printed to the **server console**. Production requires `EMAIL_SERVER`.
+- **Email:** see [Email](#email). With no provider configured in development, links are printed to the **server console**.
 - **Self-hosting:** set `AUTH_TRUST_HOST=true` when using `next start` behind your own domain.
-- **Not included yet:** rate limiting on sign-in, sign-up and reset endpoints, and email verification for password sign-ups. Add both before going public.
+- **Rate limiting:** sign-in, sign-up, forgot/reset password, magic links and contact emails are throttled (see the [Security checklist](#security-checklist)). Email verification for password sign-ups is not included.
 
 ## Web app
 
@@ -53,7 +54,7 @@ All endpoints live under `/api`, return JSON and need a signed-in session (cooki
 | Resource | Endpoints |
 | --- | --- |
 | Organizations | `GET/POST /api/organizations`, `GET/PATCH/DELETE /api/organizations/:id`, `POST …/:id/restore` (admin) |
-| Contacts (leads, customers) | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, `POST …/:id/convert`, `POST …/:id/restore` (admin) |
+| Contacts (leads, customers) | `GET/POST /api/contacts`, `GET/PATCH/DELETE /api/contacts/:id`, `POST …/:id/convert`, `POST …/:id/email`, `POST …/:id/restore` (admin) |
 | Deals | `GET/POST /api/deals`, `GET/PATCH/DELETE /api/deals/:id`, `POST …/:id/stage`, `POST …/:id/restore` (admin), `GET /api/deals/pipeline` |
 | Activities | `GET/POST /api/activities`, `GET/PATCH/DELETE /api/activities/:id` |
 | Tasks | `GET/POST /api/tasks`, `GET/PATCH/DELETE /api/tasks/:id` |
@@ -68,6 +69,128 @@ Conventions:
 - **Where the code is:** handlers are in `src/app/api/**/route.ts` and wrapped with `authed()` (`src/lib/route.ts`). Ownership rules are in `src/lib/access.ts`, schemas in `src/lib/validations/crm.ts` and the OpenAPI operation table in `src/lib/openapi.ts`.
 
 Database changes: this repo now includes the initial migration (`prisma/migrations`), so `npm run db:migrate` applies the whole schema, including `User.passwordChangedAt` and the `deletedAt` columns.
+
+## Email
+
+All mail goes through `src/lib/mail.ts`, which picks a provider from the environment: **Resend** (`RESEND_API_KEY`, preferred) → **SMTP** via Nodemailer (`EMAIL_SERVER`) → **console** in development. Production refuses to start without one of the first two.
+
+| Email | When | Recipient |
+| --- | --- | --- |
+| Welcome | After sign-up (password or magic link) | The new user |
+| Password reset | `POST /api/password/forgot` (one-hour, single-use link) | The account owner |
+| Magic link | Sign in with a link | The user |
+| Deal stage change | A deal moves stage (drag, menu, `PATCH` or `POST …/stage`) | The deal owner, plus all active admins when it is closed won or lost. The person who made the change is never emailed. |
+| Task reminders | Daily cron, `GET /api/cron/task-reminders` | Each assignee gets one digest of open tasks that are overdue or due within 24 hours. Each task is reminded once; changing its due date or assignee re-arms it. |
+| Email a contact | **Send email** on a contact page, or `POST /api/contacts/:id/email` | The contact. `Reply-To` is you, and the email is logged as an EMAIL activity. |
+
+Notes:
+- Delivery failures never fail the action that triggered them (a stage change still succeeds); they are logged as `[mail] failed to send …`. Emailing a contact is the exception: you get an error, because sending was the whole point.
+- Set `EMAIL_FROM` to an address on a domain you have **verified in Resend** (DNS records). Resend's `onboarding@resend.dev` test sender only delivers to your own account email.
+- Contact emails are sent from `"Your Name via CRM" <EMAIL_FROM address>` with your address as Reply-To. The sender address is never spoofed, so SPF/DKIM stay aligned.
+- Reminders run once a day (`0 8 * * *` UTC in `vercel.json`; Vercel's Hobby plan only allows daily crons). On a Pro plan or any other scheduler you can run it hourly: the endpoint is idempotent. Trigger it manually with `curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/cron/task-reminders`.
+- Templates live in `src/lib/email-templates.ts`; every interpolated value is HTML-escaped.
+- Gotcha worth knowing: Next.js caches identical `POST` fetches made from `GET` route handlers. The cron route sets `fetchCache = "force-no-store"` so a repeated, identical email is never swallowed. Keep that line if you add other mail-sending `GET` handlers.
+
+## Deploy to production
+
+Recommended: **Vercel** (app + cron) with a hosted **Postgres** (Neon, Supabase or Vercel Postgres) and **Resend** (email). Any Node host also works; see "Self-hosting" below.
+
+### 1. Services
+
+1. **Database.** Create a Postgres database. With a pooled provider (Neon, Supabase) you get two URLs: the **pooled** one for `DATABASE_URL` and the **direct** one for `DIRECT_URL` (migrations need a direct connection). With plain Postgres, use the same URL for both. Put the database in the same region as your Vercel functions.
+2. **Resend.** Create an API key and verify your sending domain (Domains → add the DNS records). Wait until it shows *Verified*.
+3. **Recommended: Upstash Redis** (free tier) so rate limits are shared across serverless instances. Copy its REST URL and token.
+
+### 2. Environment variables
+
+Set these in Vercel → Project → Settings → Environment Variables (`.env.example` has the full list):
+
+| Variable | Production value |
+| --- | --- |
+| `DATABASE_URL` | Pooled connection string |
+| `DIRECT_URL` | Direct connection string (used by `prisma migrate deploy`) |
+| `NEXTAUTH_SECRET` | `npx auth secret` or `openssl rand -base64 32` (32+ characters) |
+| `NEXTAUTH_URL` | Your public URL, e.g. `https://crm.example.com`. Used in email links; on Vercel it falls back to the deployment URL if omitted, but set it so links use your real domain. |
+| `RESEND_API_KEY` | `re_…` |
+| `EMAIL_FROM` | `CRM <noreply@your-verified-domain.com>` |
+| `CRON_SECRET` | A random string, 16+ characters. Vercel sends it to the cron endpoint automatically. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Recommended |
+
+The server **checks this list at startup** (`src/instrumentation.ts`) and exits with a readable message if something is missing or weak, so a bad config fails the deploy instead of the first user. Do **not** set `SEED_USER_PASSWORD`, and never run the seed in production.
+
+> **Use a separate database for Preview deployments.** Every build runs `prisma migrate deploy`. In Vercel, scope the production `DATABASE_URL`/`DIRECT_URL` to **Production** only and give **Preview** its own database, or a pull-request build will migrate production.
+
+### 3. Deploy
+
+1. Push the repo to GitHub and import it in Vercel (framework: Next.js; `vercel.json` sets the build command).
+2. Deploy. The build runs `prisma migrate deploy && next build` (`npm run vercel-build`), so migrations are applied before the new code goes live.
+3. Verify: `curl https://your-app/api/health` returns `{"status":"ok"}`.
+
+### 4. First admin
+
+Sign up in the app, then promote yourself against the production database:
+
+```bash
+DATABASE_URL="<direct production url>" npm run make-admin -- you@example.com
+```
+
+(Or run `UPDATE "User" SET role = 'ADMIN' WHERE email = '…';` in your database console.) Roles are re-read on every request, so no sign-out is needed.
+
+### 5. Smoke test
+
+- Sign up with a real address: the welcome email arrives.
+- "Forgot password": the reset email arrives and the link works.
+- Open a contact with an email, click **Send email**: it arrives, replying goes to you, and the timeline shows it.
+- As an admin, move another user's deal (or close one of your own): the owner / admins are notified.
+- Vercel → Project → Cron Jobs → run `/api/cron/task-reminders` once; the response is `{"ok":true,…}`.
+
+### Database migrations
+
+- Migrations are plain SQL files in `prisma/migrations`, committed to git. **Never edit one that has been deployed**; add a new one.
+- Develop: change `schema.prisma`, run `npm run db:migrate -- --name what_changed`, commit the generated folder.
+- Deploy: `prisma migrate deploy` applies only the pending migrations, in order. It runs on every Vercel build. CI runs it against an empty database and also checks that `schema.prisma` and the migrations agree (`prisma migrate diff --exit-code`).
+- Never use `db push` or `migrate reset` against production.
+- **Zero-downtime changes:** old code keeps serving while a migration runs, so ship destructive changes in two steps (expand, then contract). Add a column as nullable or with a default, deploy code that uses it, backfill, and only then make it required. To drop or rename, deploy code that no longer uses the column first, then drop it in a later migration.
+- **Rollback:** Prisma has no down migrations. Roll the *app* back with Vercel's Instant Rollback (safe if you followed expand/contract) and fix the database forward with a new migration. Take a backup or branch (Neon branches are instant) before risky migrations.
+- A failed `migrate deploy` fails the build, so the previous deployment stays live. Fix the migration; if Prisma reports a failed record, clear it with `prisma migrate resolve`.
+
+### CI/CD
+
+- **GitHub Actions** (`.github/workflows/ci.yml`) runs on every PR and push to `master`: install, apply all migrations to a throwaway Postgres, check schema/migration drift, typecheck, lint and build.
+- **Vercel's Git integration** deploys: every PR gets a preview, and merging to `master` deploys production. In GitHub → Settings → Branches, require the CI check on `master` so only green code reaches production.
+
+### Self-hosting (any Node host)
+
+```bash
+npm ci && npx prisma migrate deploy && npm run build && npm start
+```
+
+Also set `AUTH_TRUST_HOST=true` and `NEXTAUTH_URL`, serve it over HTTPS (the app sends HSTS), and call `GET /api/cron/task-reminders` with `Authorization: Bearer $CRON_SECRET` from your scheduler. Without Upstash, rate limits are per process, which is fine for a single instance.
+
+## Security checklist
+
+Done in code:
+
+- [x] **Secrets:** nothing secret is committed; `.env` is git-ignored; the production env is validated at startup (secret length, email provider, cron secret).
+- [x] **Auth:** bcrypt passwords, JWT sessions re-validated against the database on each request, sessions revoked on password change/reset, hashed single-use one-hour reset tokens, no account enumeration on forgot-password.
+- [x] **Rate limiting** (429 when exceeded): sign-in 10 per 15 min per IP+email and 50 per IP; sign-up 5/h per IP; forgot-password 5/h per IP and per address; reset 10/h per IP; magic link 5 per 15 min per address; contact email 30/h per user. Upstash-backed when configured, otherwise in memory (best effort across serverless instances).
+- [x] **CORS:** the API sends no CORS headers, so browsers block cross-origin reads, and preflights get no `Access-Control-Allow-*`. If you ever need a third-party origin, add it explicitly in `src/middleware.ts`; never combine `*` with cookies.
+- [x] **CSRF:** cookies are `SameSite=Lax`, and `src/middleware.ts` rejects state-changing `/api` requests whose `Origin` is not this host (403). Auth.js has its own CSRF token for its routes.
+- [x] **Headers** (`next.config.mjs`): CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; `X-Powered-By` removed; API responses are `Cache-Control: no-store`. The CSP allows inline scripts and styles (needed by Next.js and the theme switch); tighten it with nonces if you add third-party content.
+- [x] **Input:** every body and query is validated with Zod; Prisma parameterises all SQL; email subjects reject line breaks (header injection) and email HTML escapes user text.
+- [x] **Authorization:** non-admins can only read, edit and email their own records; the cron endpoint requires `CRON_SECRET` (constant-time compare, closed when unset).
+- [x] **Errors:** unexpected errors return a generic 500; details go to the server log only.
+
+Do before going live:
+
+- [ ] Verify your domain with Resend and publish SPF/DKIM (Resend shows the records); add a DMARC record.
+- [ ] Add Upstash Redis for shared rate limits.
+- [ ] Separate Preview and Production databases and secrets.
+- [ ] Turn on database backups / point-in-time recovery.
+- [ ] Rotate `NEXTAUTH_SECRET` and `CRON_SECRET` if they were ever shared (rotating the auth secret signs everyone out).
+- [ ] Decide whether to require email verification for password sign-ups, and add 2FA for admins (not implemented).
+- [ ] Add error monitoring (Sentry or Vercel log drains) and an uptime check on `/api/health`.
+- [ ] Enable GitHub secret scanning and Dependabot; run `npm audit` regularly.
 
 ## Prerequisites
 
@@ -130,9 +253,12 @@ Deal ─┬─< Activity
 | --- | --- |
 | `npm run dev` | Start the Next.js dev server |
 | `npm run build` / `start` | Production build and serve |
+| `npm run vercel-build` | Migrate, then build (used by Vercel) |
 | `npm run typecheck` | TypeScript check |
 | `npm run db:generate` | Generate the Prisma client |
 | `npm run db:migrate` | Create and apply a migration (dev) |
+| `npm run db:deploy` | Apply pending migrations (production, CI) |
+| `npm run make-admin -- <email>` | Promote a user to admin |
 | `npm run db:push` | Push the schema without a migration |
 | `npm run db:seed` | Seed sample data |
 | `npm run db:reset` | Drop, re-migrate and re-seed |
@@ -141,25 +267,18 @@ Deal ─┬─< Activity
 ## Project structure
 
 ```
-prisma/
-  schema.prisma     data model
-  seed.ts           sample data
+prisma/             schema, migrations (committed), seed
+scripts/            make-admin.ts (promote the first admin in production)
 src/
-  app/              Next.js App Router (starter page only)
+  app/              App Router: pages in (app) and (auth), REST API under api/
+  instrumentation.ts   validates the production environment at server start
+  middleware.ts     auth gate + same-origin check for API writes
   lib/
-    db.ts           Prisma client singleton
-    utils.ts        cn() helper (shadcn)
-    validations/    Zod schemas (later)
-components.json     shadcn/ui config
-docker-compose.yml  optional local Postgres
+    mail.ts         provider selection (Resend / SMTP / console) and sendMail
+    email-templates.ts   all email content (HTML + text)
+    notifications.ts     deal-stage notifications and task reminders
+    rate-limit.ts   fixed-window limiter (Upstash Redis or in-memory)
+    env.ts          production environment contract
+.github/workflows/ci.yml   migrations check, typecheck, lint, build
+vercel.json         build command and the daily reminder cron
 ```
-
-## shadcn/ui
-
-`components.json` and `cn()` are in place. When you start the UI step, run `npx shadcn@latest init` to add the CSS variables and theme, then `npx shadcn@latest add <component>`.
-
-## Next steps
-
-1. UI (dashboard, contacts, deals pipeline, tasks)
-2. Email (notifications, templates)
-3. Hardening: rate limiting, email verification

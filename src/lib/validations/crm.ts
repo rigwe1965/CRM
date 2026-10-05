@@ -163,6 +163,13 @@ export const dealListQuery = z.object({
   includeDeleted: bool.optional(),
 });
 
+// ─── Email ──────────────────────────────────────────────
+
+export const sendContactEmailSchema = z.object({
+  subject: requiredText(200).refine((v) => !/[\r\n]/.test(v), "Subject must be a single line"),
+  message: requiredText(10_000),
+});
+
 // ─── Activities ─────────────────────────────────────────
 
 const activityFields = z.object({

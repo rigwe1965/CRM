@@ -12,6 +12,7 @@ import {
   organizationListQuery,
   taskListQuery,
   updateActivitySchema,
+  sendContactEmailSchema,
   updateContactSchema,
   updateDealSchema,
   updateOrganizationSchema,
@@ -52,6 +53,7 @@ const OPERATIONS: Op[] = [
   { method: "patch", path: "/contacts/{id}", tag: "Contacts", summary: "Update a contact", body: updateContactSchema },
   { method: "delete", path: "/contacts/{id}", tag: "Contacts", summary: "Soft-delete a contact", success: 204 },
   { method: "post", path: "/contacts/{id}/convert", tag: "Contacts", summary: "Convert a lead/prospect to a customer", description: "409 ALREADY_CONVERTED if the contact is already a customer." },
+  { method: "post", path: "/contacts/{id}/email", tag: "Contacts", summary: "Email a contact", description: "Sends the message to the contact (Reply-To is the signed-in user) and logs an EMAIL activity. 422 NO_EMAIL if the contact has no address, 429 when rate limited, 502 EMAIL_FAILED if the provider rejects it.", body: sendContactEmailSchema, success: 201 },
   { method: "post", path: "/contacts/{id}/restore", tag: "Contacts", summary: "Restore a soft-deleted contact", admin: true },
   // Deals
   { method: "get", path: "/deals", tag: "Deals", summary: "List deals", query: dealListQuery, list: true },
