@@ -39,6 +39,14 @@ function DealCardBody({ deal, menu }: { deal: Deal; menu?: React.ReactNode }) {
   const open = deal.stage !== "CLOSED_WON" && deal.stage !== "CLOSED_LOST";
   const overdue = open && isOverdue(deal.expectedCloseDate);
   const subtitle = deal.organization?.name ?? (deal.contact ? `${deal.contact.firstName} ${deal.contact.lastName}` : "No company");
+  const hairSummary = [
+    deal.quantity ? `${deal.quantity}×` : null,
+    deal.productType,
+    deal.texture,
+    deal.lengthInches ? `${deal.lengthInches}"` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -46,6 +54,7 @@ function DealCardBody({ deal, menu }: { deal: Deal; menu?: React.ReactNode }) {
         {menu}
       </div>
       <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>
+      {hairSummary && <p className="mt-1 truncate text-xs text-muted-foreground">{hairSummary}</p>}
       <div className="mt-3 flex items-center justify-between">
         <span className="text-sm font-semibold tabular-nums">{money(deal.amount, deal.currency)}</span>
         <span className="text-xs text-muted-foreground">{deal.probability}%</span>

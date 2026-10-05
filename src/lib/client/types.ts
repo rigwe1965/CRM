@@ -66,6 +66,12 @@ export type Deal = {
   expectedCloseDate: string | null;
   closedAt: string | null;
   lostReason: string | null;
+  productType: string | null;
+  texture: string | null;
+  lengthInches: string | null;
+  color: string | null;
+  laceType: string | null;
+  quantity: number | null;
   organizationId: string | null;
   contactId: string | null;
   ownerId: string;

@@ -54,6 +54,12 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
     probability: String(deal?.probability ?? DEAL_STAGES.find((s) => s.value === initialStage)!.probability),
     expectedCloseDate: toDateInput(deal?.expectedCloseDate),
     lostReason: deal?.lostReason ?? "",
+    productType: deal?.productType ?? "",
+    texture: deal?.texture ?? "",
+    lengthInches: deal?.lengthInches ?? "",
+    color: deal?.color ?? "",
+    laceType: deal?.laceType ?? "",
+    quantity: deal?.quantity ? String(deal.quantity) : "",
     organizationId: (deal?.organizationId ?? defaults?.organizationId ?? null) as string | null,
     contactId: (deal?.contactId ?? defaults?.contactId ?? null) as string | null,
   });
@@ -76,6 +82,12 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
             probability: v.probability.trim() === "" ? undefined : Number(v.probability),
             expectedCloseDate: v.expectedCloseDate || null,
             lostReason: v.stage === "CLOSED_LOST" ? nullable(v.lostReason) : undefined,
+            productType: nullable(v.productType),
+            texture: nullable(v.texture),
+            lengthInches: nullable(v.lengthInches),
+            color: nullable(v.color),
+            laceType: nullable(v.laceType),
+            quantity: v.quantity.trim() === "" ? null : Number(v.quantity),
             organizationId: v.organizationId,
             contactId: v.contactId,
           }),
@@ -130,6 +142,45 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
           <Textarea value={v.lostReason} onChange={(e) => set("lostReason", e.target.value)} rows={2} />
         </FormField>
       )}
+      <Grid2>
+        <FormField label="Product" error={form.err("productType")}>
+          <Input list="hair-products" value={v.productType} onChange={(e) => set("productType", e.target.value)} placeholder="e.g. Bundles" />
+          <datalist id="hair-products">
+            {["Bundles", "Closure", "Frontal", "Lace wig", "Full lace wig", "Headband wig", "Clip-ins", "Custom wig"].map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
+        </FormField>
+        <FormField label="Texture" error={form.err("texture")}>
+          <Input list="hair-textures" value={v.texture} onChange={(e) => set("texture", e.target.value)} placeholder="e.g. Body wave" />
+          <datalist id="hair-textures">
+            {["Straight", "Body wave", "Deep wave", "Loose wave", "Water wave", "Curly", "Kinky curly"].map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
+        </FormField>
+      </Grid2>
+      <Grid2>
+        <FormField label="Length (inches)" error={form.err("lengthInches")}>
+          <Input value={v.lengthInches} onChange={(e) => set("lengthInches", e.target.value)} placeholder="e.g. 18, 20, 22" />
+        </FormField>
+        <FormField label="Quantity" error={form.err("quantity")}>
+          <Input type="number" min={1} step={1} value={v.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="e.g. 3" />
+        </FormField>
+      </Grid2>
+      <Grid2>
+        <FormField label="Color" error={form.err("color")}>
+          <Input value={v.color} onChange={(e) => set("color", e.target.value)} placeholder="e.g. Natural black, 613" />
+        </FormField>
+        <FormField label="Lace type" error={form.err("laceType")}>
+          <Input list="hair-laces" value={v.laceType} onChange={(e) => set("laceType", e.target.value)} placeholder="e.g. HD lace" />
+          <datalist id="hair-laces">
+            {["HD lace", "Transparent lace", "Swiss lace", "4x4 closure", "5x5 closure", "13x4 frontal", "13x6 frontal"].map((o) => (
+              <option key={o} value={o} />
+            ))}
+          </datalist>
+        </FormField>
+      </Grid2>
       <Grid2>
         <FormField label="Company" error={form.err("organizationId")}>
           <OrganizationPicker value={v.organizationId} onChange={(id) => set("organizationId", id)} placeholder="Select a company" fallback={deal?.organization} />

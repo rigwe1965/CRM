@@ -200,6 +200,13 @@ model Deal {
   expectedCloseDate DateTime?
   closedAt          DateTime?
   lostReason        String?
+  // Hair order details (all optional)
+  productType       String?
+  texture           String?
+  lengthInches      String?
+  color             String?
+  laceType          String?
+  quantity          Int?
   organizationId    String?
   contactId         String?
   ownerId           String
