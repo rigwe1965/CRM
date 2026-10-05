@@ -11,17 +11,17 @@ export type BadgeTone = "default" | "secondary" | "outline" | "success" | "warni
 
 export const CONTACT_TYPES: { value: ContactType; label: string; tone: BadgeTone }[] = [
   { value: "LEAD", label: "Lead", tone: "info" },
-  { value: "PROSPECT", label: "Prospect", tone: "warning" },
+  { value: "PROSPECT", label: "Interested Buyer", tone: "warning" },
   { value: "CUSTOMER", label: "Customer", tone: "success" },
-  { value: "PARTNER", label: "Partner", tone: "default" },
+  { value: "PARTNER", label: "Reseller / Partner", tone: "default" },
   { value: "OTHER", label: "Other", tone: "secondary" },
 ];
 
 export const LEAD_STATUSES: { value: LeadStatus; label: string; tone: BadgeTone }[] = [
-  { value: "NEW", label: "New", tone: "info" },
-  { value: "CONTACTED", label: "Contacted", tone: "warning" },
-  { value: "QUALIFIED", label: "Qualified", tone: "success" },
-  { value: "UNQUALIFIED", label: "Unqualified", tone: "secondary" },
+  { value: "NEW", label: "New Inquiry", tone: "info" },
+  { value: "CONTACTED", label: "In Conversation", tone: "warning" },
+  { value: "QUALIFIED", label: "Ready to Order", tone: "success" },
+  { value: "UNQUALIFIED", label: "Not a Fit", tone: "secondary" },
 ];
 
 export const DEAL_STAGES: {
