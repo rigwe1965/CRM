@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CRM
 
-## Getting Started
+A modern full-stack CRM. This step is the **foundation and database only**: project scaffold, Prisma schema and seed data. Auth, API routes, UI and email come in later steps.
 
-First, run the development server:
+## Stack
+
+- Next.js 14 (App Router) + TypeScript + Tailwind CSS (shadcn/ui config prepared)
+- PostgreSQL + Prisma 6
+- Zod for validation (used in later steps)
+- Auth.js tables are already in the schema; auth itself is not implemented yet
+
+## Prerequisites
+
+- Node.js 18.18+ (tested on 24)
+- A PostgreSQL 14+ database: local install, Docker, or hosted (Neon, Supabase)
+
+## Setup
 
 ```bash
+npm install
+cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
+# Optional local Postgres via Docker:
+docker compose up -d
+npm run db:generate
+npm run db:migrate -- --name init
+npm run db:seed
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+If your package manager skips install scripts, run `npm run db:generate` manually to generate the Prisma client.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Seeded users (all use `SEED_USER_PASSWORD`, default `ChangeMe123!`):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Email | Role |
+| --- | --- |
+| admin@crm.test | ADMIN |
+| sales@crm.test | SALES |
+| support@crm.test | SUPPORT |
 
-## Learn More
+The seed also creates 5 organizations, 12 contacts, 8 deals, 10 activities and 8 tasks. It is re-runnable: it clears existing CRM data first.
 
-To learn more about Next.js, take a look at the following resources:
+## Data model
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+User ─┬─< Organization (owner)
+      ├─< Contact (owner)
+      ├─< Deal (owner)
+      ├─< Activity (author)
+      └─< Task (assignee / creator)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Organization ─┬─< Contact
+              ├─< Deal
+              └─< Activity
+Contact ─┬─< Deal
+         ├─< Activity
+         └─< Task
+Deal ─┬─< Activity
+      └─< Task
+```
 
-## Deploy on Vercel
+- **Roles:** `ADMIN`, `SALES`, `SUPPORT`
+- **Contact types:** `LEAD`, `PROSPECT`, `CUSTOMER`, `PARTNER`, `OTHER`, with a `LeadStatus` for lead qualification
+- **Deal stages:** `QUALIFICATION`, `DISCOVERY`, `PROPOSAL`, `NEGOTIATION`, `CLOSED_WON`, `CLOSED_LOST`
+- Foreign keys are indexed, and there are extra indexes on deal stage and close date, contact name and type, and task assignee/status/due date.
+- Deleting a user who owns deals, activities or tasks is blocked (`Restrict`). Optional ownership links are set to null.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Next.js dev server |
+| `npm run build` / `start` | Production build and serve |
+| `npm run typecheck` | TypeScript check |
+| `npm run db:generate` | Generate the Prisma client |
+| `npm run db:migrate` | Create and apply a migration (dev) |
+| `npm run db:push` | Push the schema without a migration |
+| `npm run db:seed` | Seed sample data |
+| `npm run db:reset` | Drop, re-migrate and re-seed |
+| `npm run db:studio` | Open Prisma Studio |
+
+## Project structure
+
+```
+prisma/
+  schema.prisma     data model
+  seed.ts           sample data
+src/
+  app/              Next.js App Router (starter page only)
+  lib/
+    db.ts           Prisma client singleton
+    utils.ts        cn() helper (shadcn)
+    validations/    Zod schemas (later)
+components.json     shadcn/ui config
+docker-compose.yml  optional local Postgres
+```
+
+## shadcn/ui
+
+`components.json` and `cn()` are in place. When you start the UI step, run `npx shadcn@latest init` to add the CSS variables and theme, then `npx shadcn@latest add <component>`.
+
+## Next steps
+
+1. Auth (Auth.js with credentials and role-based access)
+2. API routes with Zod validation
+3. UI (dashboard, contacts, deals pipeline, tasks)
+4. Email
