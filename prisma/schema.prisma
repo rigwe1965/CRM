@@ -72,10 +72,12 @@ model User {
   isActive      Boolean   @default(true)
   emailVerified DateTime?
   image         String?
+  // Sessions issued before this moment are rejected (set on password change/reset).
+  passwordChangedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts           Account[]
+  accounts          Account[]
   sessions           Session[]
   ownedOrganizations Organization[] @relation("OrganizationOwner")
   ownedContacts      Contact[]      @relation("ContactOwner")

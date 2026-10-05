@@ -1,13 +1,31 @@
 # CRM
 
-A modern full-stack CRM. This step is the **foundation and database only**: project scaffold, Prisma schema and seed data. Auth, API routes, UI and email come in later steps.
+A modern full-stack CRM. Done so far: database foundation and authentication. The dashboard, CRM API routes and email features come next.
 
 ## Stack
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS (shadcn/ui config prepared)
 - PostgreSQL + Prisma 6
-- Zod for validation (used in later steps)
-- Auth.js tables are already in the schema; auth itself is not implemented yet
+- Zod for validation
+- Auth.js v5 (`next-auth@beta`) with the Prisma adapter and JWT sessions
+
+## Authentication
+
+- **Pages:** `/sign-in`, `/sign-up`, `/forgot-password`, `/reset-password`, `/verify-request`, `/profile`, `/unauthorized`
+- **Methods:** email + password, or a magic link ("Use a magic link instead" on the sign-in page)
+- **Roles:** `ADMIN`, `SALES`, `SUPPORT`. `ADMIN` passes every role check. Sign-up always creates a `SALES` user; promote users with `PATCH /api/admin/users/:id` (admin only) or in Prisma Studio. The seed creates an admin.
+- **Route protection:** `src/middleware.ts` is a coarse JWT-based gate (everything is private except the public paths in `src/lib/rbac.ts`). Role-restricted prefixes (`/admin`, `/api/admin`) are listed in the same file. Pages and handlers re-check against the database with the helpers below.
+- **Server helpers** (`src/lib/auth-helpers.ts`):
+  - `getCurrentUser()`
+  - `requireUser()` and `requireRole("ADMIN")` for pages (redirect)
+  - `requireApiUser("SALES")` for route handlers (returns 401/403 responses)
+- **Sessions:** JWT cookies (30 days). Each session read re-checks the user in the database, so deactivating a user or changing their role takes effect immediately. Changing or resetting a password signs out all existing sessions.
+- **Password reset:** one-hour, single-use token. Only its SHA-256 hash is stored (in the `VerificationToken` table). The forgot-password endpoint never reveals whether an email is registered.
+- **Email in development:** with `EMAIL_SERVER` unset, magic and reset links are printed to the **server console**. Production requires `EMAIL_SERVER`.
+- **Self-hosting:** set `AUTH_TRUST_HOST=true` when using `next start` behind your own domain.
+- **Not included yet:** rate limiting on sign-in, sign-up and reset endpoints, and email verification for password sign-ups. Add both before going public.
+
+After pulling this change, run `npm run db:migrate` again: the schema gained `User.passwordChangedAt`.
 
 ## Prerequisites
 
