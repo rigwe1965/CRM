@@ -37,11 +37,11 @@ async function main() {
 
   // ── Organizations ──
   const orgData = [
-    { name: "Acme Corp", domain: "acme.com", industry: "Manufacturing", size: 1200, city: "Chicago", state: "IL", country: "US" },
-    { name: "Globex Inc", domain: "globex.io", industry: "Software", size: 340, city: "Austin", state: "TX", country: "US" },
-    { name: "Initech", domain: "initech.com", industry: "Consulting", size: 85, city: "Denver", state: "CO", country: "US" },
-    { name: "Umbrella Health", domain: "umbrellahealth.org", industry: "Healthcare", size: 5000, city: "Boston", state: "MA", country: "US" },
-    { name: "Stark Logistics", domain: "starklogistics.co", industry: "Logistics", size: 600, city: "Seattle", state: "WA", country: "US" },
+    { name: "Crown Beauty Supply", domain: "crownbeautysupply.com", industry: "Beauty supply", size: 12, city: "Atlanta", state: "GA", country: "US" },
+    { name: "Luxe Lace Salon", domain: "luxelacesalon.com", industry: "Salon", size: 8, city: "Houston", state: "TX", country: "US" },
+    { name: "Glam Studio Boutique", domain: "glamstudioboutique.com", industry: "Boutique", size: 4, city: "Los Angeles", state: "CA", country: "US" },
+    { name: "Royal Tresses Beauty", domain: "royaltresses.ng", industry: "Wholesale", size: 25, city: "Lagos", state: null, country: "NG" },
+    { name: "Velvet Strands Collective", domain: "velvetstrands.co", industry: "Wig reseller", size: 6, city: "Miami", state: "FL", country: "US" },
   ];
   const orgs = [];
   for (const [i, o] of orgData.entries()) {
@@ -54,18 +54,18 @@ async function main() {
 
   // ── Contacts ──
   const contactData = [
-    { firstName: "Wile", lastName: "Coyote", title: "Procurement Lead", type: "CUSTOMER", leadStatus: null, org: 0 },
-    { firstName: "Road", lastName: "Runner", title: "VP Operations", type: "CUSTOMER", leadStatus: null, org: 0 },
-    { firstName: "Hank", lastName: "Scorpio", title: "CEO", type: "PROSPECT", leadStatus: "QUALIFIED", org: 1 },
-    { firstName: "Cathy", lastName: "Morris", title: "CTO", type: "LEAD", leadStatus: "CONTACTED", org: 1 },
-    { firstName: "Bill", lastName: "Lumbergh", title: "Director", type: "CUSTOMER", leadStatus: null, org: 2 },
-    { firstName: "Peter", lastName: "Gibbons", title: "Engineer", type: "LEAD", leadStatus: "NEW", org: 2 },
-    { firstName: "Alice", lastName: "Wong", title: "Chief Medical Officer", type: "PROSPECT", leadStatus: "QUALIFIED", org: 3 },
-    { firstName: "Victor", lastName: "Reyes", title: "IT Manager", type: "LEAD", leadStatus: "NEW", org: 3 },
-    { firstName: "Pepper", lastName: "Potts", title: "COO", type: "CUSTOMER", leadStatus: null, org: 4 },
-    { firstName: "Happy", lastName: "Hogan", title: "Fleet Manager", type: "LEAD", leadStatus: "UNQUALIFIED", org: 4 },
-    { firstName: "Dana", lastName: "Scully", title: "Consultant", type: "PARTNER", leadStatus: null, org: null },
-    { firstName: "Fox", lastName: "Mulder", title: "Freelancer", type: "LEAD", leadStatus: "CONTACTED", org: null },
+    { firstName: "Tasha", lastName: "Brown", title: "Buyer", type: "CUSTOMER", leadStatus: null, org: 0 },
+    { firstName: "Marcus", lastName: "Reed", title: "Store Manager", type: "CUSTOMER", leadStatus: null, org: 0 },
+    { firstName: "Imani", lastName: "Carter", title: "Salon Owner", type: "PROSPECT", leadStatus: "QUALIFIED", org: 1 },
+    { firstName: "Jasmine", lastName: "Lee", title: "Lead Stylist", type: "LEAD", leadStatus: "CONTACTED", org: 1 },
+    { firstName: "Keisha", lastName: "Johnson", title: "Boutique Owner", type: "CUSTOMER", leadStatus: null, org: 2 },
+    { firstName: "Brianna", lastName: "Cole", title: "Stylist", type: "LEAD", leadStatus: "NEW", org: 2 },
+    { firstName: "Adaeze", lastName: "Okafor", title: "Director", type: "PROSPECT", leadStatus: "QUALIFIED", org: 3 },
+    { firstName: "Chioma", lastName: "Eze", title: "Purchasing Manager", type: "LEAD", leadStatus: "NEW", org: 3 },
+    { firstName: "Nia", lastName: "Thompson", title: "Founder", type: "CUSTOMER", leadStatus: null, org: 4 },
+    { firstName: "Camille", lastName: "Dupont", title: "Buyer", type: "LEAD", leadStatus: "UNQUALIFIED", org: 4 },
+    { firstName: "Simone", lastName: "Harris", title: "Hair Influencer", type: "PARTNER", leadStatus: null, org: null },
+    { firstName: "Dominique", lastName: "Ward", title: "Freelance Stylist", type: "LEAD", leadStatus: "CONTACTED", org: null },
   ] as const;
   const contacts = [];
   for (const [i, c] of contactData.entries()) {
@@ -79,7 +79,7 @@ async function main() {
           title: c.title,
           type: c.type,
           leadStatus: c.leadStatus,
-          source: ["Website", "Referral", "Conference", "Cold outreach"][i % 4],
+          source: ["Instagram", "Referral", "Website", "WhatsApp"][i % 4],
           organizationId: c.org === null ? null : orgs[c.org].id,
           ownerId: i % 3 === 0 ? admin.id : sales.id,
         },
@@ -89,14 +89,14 @@ async function main() {
 
   // ── Deals ──
   const dealData = [
-    { title: "Acme – Annual Supply Renewal", amount: 120000, stage: "CLOSED_WON", prob: 100, org: 0, contact: 0, close: -20 },
-    { title: "Globex – Platform License", amount: 85000, stage: "NEGOTIATION", prob: 75, org: 1, contact: 2, close: 14 },
-    { title: "Globex – Pilot Program", amount: 15000, stage: "DISCOVERY", prob: 30, org: 1, contact: 3, close: 45 },
-    { title: "Initech – Process Audit", amount: 22000, stage: "PROPOSAL", prob: 55, org: 2, contact: 4, close: 21 },
-    { title: "Umbrella – Clinic Rollout", amount: 340000, stage: "QUALIFICATION", prob: 15, org: 3, contact: 6, close: 90 },
-    { title: "Umbrella – IT Support Plan", amount: 48000, stage: "PROPOSAL", prob: 50, org: 3, contact: 7, close: 30 },
-    { title: "Stark – Fleet Tracking", amount: 67000, stage: "CLOSED_LOST", prob: 0, org: 4, contact: 9, close: -10 },
-    { title: "Stark – Warehouse Automation", amount: 210000, stage: "DISCOVERY", prob: 25, org: 4, contact: 8, close: 60 },
+    { title: "Crown Beauty – Wholesale Bundle Restock", amount: 4800, stage: "CLOSED_WON", prob: 100, org: 0, contact: 0, close: -20, productType: "Bundles", texture: "Body wave", lengthInches: "18, 20, 22, 24", color: "Natural black", laceType: null, quantity: 40 },
+    { title: "Luxe Lace – Salon Starter Pack", amount: 3200, stage: "NEGOTIATION", prob: 75, org: 1, contact: 2, close: 14, productType: "Lace wig", texture: "Deep wave", lengthInches: "20, 22", color: "Natural black", laceType: "HD lace", quantity: 8 },
+    { title: "Luxe Lace – Sample Order", amount: 650, stage: "DISCOVERY", prob: 30, org: 1, contact: 3, close: 45, productType: "Bundles", texture: "Straight", lengthInches: "16, 18, 20", color: "1B", laceType: null, quantity: 3 },
+    { title: "Glam Studio – HD Lace Frontal Order", amount: 1800, stage: "PROPOSAL", prob: 55, org: 2, contact: 4, close: 21, productType: "Frontal", texture: "Water wave", lengthInches: "18, 20", color: "Natural black", laceType: "13x4 frontal", quantity: 12 },
+    { title: "Royal Tresses – Bulk Container Order", amount: 12500, stage: "QUALIFICATION", prob: 15, org: 3, contact: 6, close: 90, productType: "Bundles", texture: "Straight", lengthInches: "14–30", color: "Natural black", laceType: null, quantity: 150 },
+    { title: "Royal Tresses – Closure Restock", amount: 2100, stage: "PROPOSAL", prob: 50, org: 3, contact: 7, close: 30, productType: "Closure", texture: "Loose wave", lengthInches: "16, 18", color: "Natural black", laceType: "5x5 closure", quantity: 30 },
+    { title: "Velvet Strands – Wig Reseller Program", amount: 5400, stage: "CLOSED_LOST", prob: 0, org: 4, contact: 9, close: -10, productType: "Lace wig", texture: "Curly", lengthInches: "18, 22", color: "Honey blonde", laceType: "Transparent lace", quantity: 20 },
+    { title: "Velvet Strands – Custom Wig Batch", amount: 3900, stage: "DISCOVERY", prob: 25, org: 4, contact: 8, close: 60, productType: "Custom wig", texture: "Kinky curly", lengthInches: "16, 20", color: "613", laceType: "HD lace", quantity: 10 },
   ] as const;
   const deals = [];
   for (const [i, d] of dealData.entries()) {
@@ -110,7 +110,13 @@ async function main() {
           probability: d.prob,
           expectedCloseDate: daysFromNow(d.close),
           closedAt: closed ? daysFromNow(d.close) : null,
-          lostReason: d.stage === "CLOSED_LOST" ? "Chose a competitor on price" : null,
+          lostReason: d.stage === "CLOSED_LOST" ? "Went with a cheaper supplier" : null,
+          productType: d.productType,
+          texture: d.texture,
+          lengthInches: d.lengthInches,
+          color: d.color,
+          laceType: d.laceType,
+          quantity: d.quantity,
           organizationId: orgs[d.org].id,
           contactId: contacts[d.contact].id,
           ownerId: i % 2 === 0 ? sales.id : admin.id,
@@ -122,30 +128,30 @@ async function main() {
   // ── Activities ──
   await prisma.activity.createMany({
     data: [
-      { type: "CALL", subject: "Intro call with Hank", body: "Discussed licensing tiers.", authorId: sales.id, contactId: contacts[2].id, dealId: deals[1].id, occurredAt: daysFromNow(-5) },
-      { type: "EMAIL", subject: "Sent proposal to Initech", authorId: sales.id, contactId: contacts[4].id, dealId: deals[3].id, occurredAt: daysFromNow(-3) },
-      { type: "MEETING", subject: "Discovery workshop", body: "Mapped warehouse workflows.", authorId: admin.id, dealId: deals[7].id, occurredAt: daysFromNow(-7) },
-      { type: "NOTE", subject: "Budget confirmed", body: "Finance approved up to $90k.", authorId: sales.id, dealId: deals[1].id, occurredAt: daysFromNow(-2) },
-      { type: "CALL", subject: "Follow-up with Cathy", authorId: sales.id, contactId: contacts[3].id, occurredAt: daysFromNow(-1) },
-      { type: "EMAIL", subject: "Support plan SLA questions", authorId: support.id, contactId: contacts[7].id, dealId: deals[5].id, occurredAt: daysFromNow(-4) },
+      { type: "CALL", subject: "Intro call with Imani", body: "Discussed wholesale pricing for salon wigs.", authorId: sales.id, contactId: contacts[2].id, dealId: deals[1].id, occurredAt: daysFromNow(-5) },
+      { type: "EMAIL", subject: "Sent price list to Glam Studio", authorId: sales.id, contactId: contacts[4].id, dealId: deals[3].id, occurredAt: daysFromNow(-3) },
+      { type: "MEETING", subject: "Video call: custom wig specs", body: "Confirmed 613 color and HD lace on 10 units.", authorId: admin.id, dealId: deals[7].id, occurredAt: daysFromNow(-7) },
+      { type: "NOTE", subject: "Deposit received", body: "50% deposit paid via bank transfer.", authorId: sales.id, dealId: deals[1].id, occurredAt: daysFromNow(-2) },
+      { type: "CALL", subject: "Follow-up with Jasmine", authorId: sales.id, contactId: contacts[3].id, occurredAt: daysFromNow(-1) },
+      { type: "EMAIL", subject: "Shipping and customs questions", authorId: support.id, contactId: contacts[7].id, dealId: deals[5].id, occurredAt: daysFromNow(-4) },
       { type: "NOTE", subject: "Lost to competitor", body: "Price was the deciding factor.", authorId: admin.id, dealId: deals[6].id, occurredAt: daysFromNow(-10) },
-      { type: "MEETING", subject: "Renewal kickoff", authorId: sales.id, organizationId: orgs[0].id, dealId: deals[0].id, occurredAt: daysFromNow(-30) },
-      { type: "NOTE", subject: "Partner referral", body: "Dana referred two prospects.", authorId: admin.id, contactId: contacts[10].id, occurredAt: daysFromNow(-6) },
-      { type: "CALL", subject: "Onboarding check-in", authorId: support.id, contactId: contacts[8].id, occurredAt: daysFromNow(-8) },
+      { type: "MEETING", subject: "Restock planning", authorId: sales.id, organizationId: orgs[0].id, dealId: deals[0].id, occurredAt: daysFromNow(-30) },
+      { type: "NOTE", subject: "Influencer referral", body: "Simone referred two salon owners.", authorId: admin.id, contactId: contacts[10].id, occurredAt: daysFromNow(-6) },
+      { type: "CALL", subject: "Delivery check-in", authorId: support.id, contactId: contacts[8].id, occurredAt: daysFromNow(-8) },
     ],
   });
 
   // ── Tasks ──
   await prisma.task.createMany({
     data: [
-      { title: "Send revised quote to Globex", status: "TODO", priority: "HIGH", dueDate: daysFromNow(2), assigneeId: sales.id, createdById: admin.id, dealId: deals[1].id, contactId: contacts[2].id },
-      { title: "Schedule demo for Initech", status: "IN_PROGRESS", priority: "MEDIUM", dueDate: daysFromNow(5), assigneeId: sales.id, createdById: sales.id, dealId: deals[3].id },
-      { title: "Qualify Victor Reyes", status: "TODO", priority: "LOW", dueDate: daysFromNow(7), assigneeId: sales.id, createdById: admin.id, contactId: contacts[7].id },
-      { title: "Prepare Umbrella clinic proposal", status: "TODO", priority: "URGENT", dueDate: daysFromNow(3), assigneeId: admin.id, createdById: admin.id, dealId: deals[4].id },
-      { title: "Resolve SLA question for Umbrella", status: "IN_PROGRESS", priority: "HIGH", dueDate: daysFromNow(1), assigneeId: support.id, createdById: sales.id, dealId: deals[5].id },
-      { title: "Send renewal thank-you", status: "DONE", priority: "LOW", dueDate: daysFromNow(-15), completedAt: daysFromNow(-16), assigneeId: sales.id, createdById: sales.id, dealId: deals[0].id },
-      { title: "Post-mortem on Stark loss", status: "DONE", priority: "MEDIUM", dueDate: daysFromNow(-5), completedAt: daysFromNow(-6), assigneeId: admin.id, createdById: admin.id, dealId: deals[6].id },
-      { title: "Follow up with Fox Mulder", status: "CANCELLED", priority: "LOW", assigneeId: sales.id, createdById: sales.id, contactId: contacts[11].id },
+      { title: "Send revised quote to Luxe Lace", status: "TODO", priority: "HIGH", dueDate: daysFromNow(2), assigneeId: sales.id, createdById: admin.id, dealId: deals[1].id, contactId: contacts[2].id },
+      { title: "Ship sample bundles to Luxe Lace", status: "IN_PROGRESS", priority: "MEDIUM", dueDate: daysFromNow(5), assigneeId: sales.id, createdById: sales.id, dealId: deals[2].id },
+      { title: "Qualify Chioma Eze", status: "TODO", priority: "LOW", dueDate: daysFromNow(7), assigneeId: sales.id, createdById: admin.id, contactId: contacts[7].id },
+      { title: "Prepare Royal Tresses container quote", status: "TODO", priority: "URGENT", dueDate: daysFromNow(3), assigneeId: admin.id, createdById: admin.id, dealId: deals[4].id },
+      { title: "Answer customs questions for Royal Tresses", status: "IN_PROGRESS", priority: "HIGH", dueDate: daysFromNow(1), assigneeId: support.id, createdById: sales.id, dealId: deals[5].id },
+      { title: "Send restock thank-you to Crown Beauty", status: "DONE", priority: "LOW", dueDate: daysFromNow(-15), completedAt: daysFromNow(-16), assigneeId: sales.id, createdById: sales.id, dealId: deals[0].id },
+      { title: "Review why Velvet Strands went elsewhere", status: "DONE", priority: "MEDIUM", dueDate: daysFromNow(-5), completedAt: daysFromNow(-6), assigneeId: admin.id, createdById: admin.id, dealId: deals[6].id },
+      { title: "Follow up with Dominique Ward", status: "CANCELLED", priority: "LOW", assigneeId: sales.id, createdById: sales.id, contactId: contacts[11].id },
     ],
   });
 
