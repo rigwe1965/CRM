@@ -64,7 +64,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const current = await db.user.findUnique({
         where: { id: token.sub },
-        select: { role: true, isActive: true, passwordChangedAt: true },
+        select: { name: true, role: true, isActive: true, passwordChangedAt: true },
       });
       if (!current || !current.isActive) return null;
       if (
@@ -75,6 +75,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
       token.role = current.role;
+      token.name = current.name; // keeps the displayed name fresh after profile edits
       return token;
     },
   },

@@ -16,7 +16,7 @@ export function ResetPasswordForm() {
     return (
       <div className="space-y-4">
         <Alert variant="error">This reset link is missing its token.</Alert>
-        <Link href="/forgot-password" className="text-sm text-indigo-600 hover:underline">
+        <Link href="/forgot-password" className="text-sm text-primary hover:underline">
           Request a new link
         </Link>
       </div>

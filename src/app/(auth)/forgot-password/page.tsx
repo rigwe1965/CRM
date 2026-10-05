@@ -8,11 +8,11 @@ export default function ForgotPasswordPage() {
     <>
       <div>
         <h1 className="text-2xl font-semibold">Forgot your password?</h1>
-        <p className="mt-1 text-sm text-gray-600">Enter your email and we&apos;ll send you a reset link.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Enter your email and we&apos;ll send you a reset link.</p>
       </div>
       <ForgotPasswordForm />
       <p className="text-center text-sm">
-        <Link href="/sign-in" className="text-indigo-600 hover:underline">
+        <Link href="/sign-in" className="text-primary hover:underline">
           Back to sign in
         </Link>
       </p>

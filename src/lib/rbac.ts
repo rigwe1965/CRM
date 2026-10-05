@@ -1,7 +1,7 @@
 // Edge-safe (no Node/Prisma imports): used by middleware and server code alike.
 import type { Role } from "@prisma/client";
 
-export const DEFAULT_REDIRECT = "/profile";
+export const DEFAULT_REDIRECT = "/dashboard";
 
 /** ADMIN passes every role check. An empty `allowed` list means "any signed-in user". */
 export function hasRole(role: Role | undefined, allowed: readonly Role[]): boolean {

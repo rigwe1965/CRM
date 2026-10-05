@@ -2,22 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 42%;
+    --accent: 226 100% 97%;
+    --accent-foreground: 243 75% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 88%;
+    --ring: 243 75% 59%;
+    --radius: 0.5rem;
+    --chart-1: 243 75% 59%;
+    --chart-2: 199 89% 48%;
+    --chart-3: 160 84% 39%;
+    --chart-4: 38 92% 50%;
+    --chart-5: 340 82% 52%;
+    color-scheme: light;
   }
-}
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  .dark {
+    --background: 224 30% 8%;
+    --foreground: 210 40% 96%;
+    --card: 224 28% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 224 28% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 243 85% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 223 22% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 223 22% 15%;
+    --muted-foreground: 215 18% 66%;
+    --accent: 235 40% 20%;
+    --accent-foreground: 226 100% 92%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 223 20% 20%;
+    --input: 223 20% 24%;
+    --ring: 243 85% 68%;
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  /* The page canvas must be the theme background, otherwise the translucent body tint blends with the browser default. */
+  html {
+    @apply bg-background;
+  }
+
+  body {
+    @apply bg-muted/40 text-foreground antialiased;
+  }
 }
 
 @layer utilities {

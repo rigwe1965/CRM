@@ -6,9 +6,9 @@ export default function UnauthorizedPage() {
   return (
     <div className="mx-auto max-w-md space-y-3 py-16 text-center">
       <h1 className="text-2xl font-semibold">Access denied</h1>
-      <p className="text-sm text-gray-600">Your role doesn&apos;t have permission to view that page.</p>
-      <Link href="/profile" className="text-sm text-indigo-600 hover:underline">
-        Back to your profile
+      <p className="text-sm text-muted-foreground">Your role doesn&apos;t have permission to view that page.</p>
+      <Link href="/dashboard" className="text-sm text-primary hover:underline">
+        Back to the dashboard
       </Link>
     </div>
   );

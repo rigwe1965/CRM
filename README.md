@@ -1,10 +1,11 @@
 # CRM
 
-A modern full-stack CRM. Done so far: database foundation, authentication and the REST API. The dashboard UI and email features come next.
+A modern full-stack CRM. Done so far: database foundation, authentication, the REST API and the web app. Email features come next.
 
 ## Stack
 
-- Next.js 14 (App Router) + TypeScript + Tailwind CSS (shadcn/ui config prepared)
+- Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui (Radix)
+- TanStack Query (data fetching, optimistic updates), Recharts, dnd-kit (Kanban), Sonner (toasts)
 - PostgreSQL + Prisma 6
 - Zod for validation
 - Auth.js v5 (`next-auth@beta`) with the Prisma adapter and JWT sessions
@@ -24,6 +25,26 @@ A modern full-stack CRM. Done so far: database foundation, authentication and th
 - **Email in development:** with `EMAIL_SERVER` unset, magic and reset links are printed to the **server console**. Production requires `EMAIL_SERVER`.
 - **Self-hosting:** set `AUTH_TRUST_HOST=true` when using `next start` behind your own domain.
 - **Not included yet:** rate limiting on sign-in, sign-up and reset endpoints, and email verification for password sign-ups. Add both before going public.
+
+## Web app
+
+Sign in at `/sign-in` (seeded users are listed above). Pages:
+
+| Page | What it does |
+| --- | --- |
+| `/dashboard` | Pipeline value, 30-day wins and win rate, contacts and task counts, pipeline and contact-type charts, recent activity, upcoming tasks |
+| `/contacts`, `/contacts/:id` | Searchable, filterable, sortable list. The detail page has the activity timeline, deals and tasks, and a "Convert to customer" button. |
+| `/companies`, `/companies/:id` | Companies with their contacts, deals and activity |
+| `/deals` | Kanban pipeline: drag a card between stages (or use its menu, which also works on touch and keyboard). Moving to Lost asks for a reason. |
+| `/tasks` | Open / Overdue / Completed views, priority filter, tick tasks off |
+| `/activities` | Searchable log of calls, emails, meetings and notes |
+| `/settings` | Profile, password and, for admins, team roles and deactivation. `/profile` redirects here. |
+
+Notes on the UI:
+- Everything talks to the REST API below through `src/lib/client` (typed fetch wrapper and TanStack Query hooks). Deal moves and task check-offs update instantly and roll back with an error toast if the server rejects them.
+- Components live in `src/components`: `ui/` (shadcn primitives, written by hand because the shadcn CLI is interactive), `forms/` (create/edit dialogs), `common/` (page header, empty and error states, skeletons, pagination, pickers) and `layout/` (app shell).
+- Light and dark themes (`next-themes`, class-based). It follows your OS setting until you pick Light, Dark or System from the sun/moon button in the top bar (also on the sign-in pages); the choice is remembered in the browser. Colors are CSS variables in `src/app/globals.css`, so use the semantic classes (`bg-card`, `text-muted-foreground`, …) rather than fixed colors in new UI.
+- Company and contact pickers load the first 100 records alphabetically, and the deal board shows the 100 most recently updated deals (search narrows it). Both are the first things to change if you expect much larger data.
 
 ## REST API
 

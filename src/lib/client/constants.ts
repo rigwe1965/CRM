@@ -1,0 +1,66 @@
+import type {
+  ActivityType,
+  ContactType,
+  DealStage,
+  LeadStatus,
+  TaskPriority,
+  TaskStatus,
+} from "./types";
+
+export type BadgeTone = "default" | "secondary" | "outline" | "success" | "warning" | "destructive" | "info";
+
+export const CONTACT_TYPES: { value: ContactType; label: string; tone: BadgeTone }[] = [
+  { value: "LEAD", label: "Lead", tone: "info" },
+  { value: "PROSPECT", label: "Prospect", tone: "warning" },
+  { value: "CUSTOMER", label: "Customer", tone: "success" },
+  { value: "PARTNER", label: "Partner", tone: "default" },
+  { value: "OTHER", label: "Other", tone: "secondary" },
+];
+
+export const LEAD_STATUSES: { value: LeadStatus; label: string; tone: BadgeTone }[] = [
+  { value: "NEW", label: "New", tone: "info" },
+  { value: "CONTACTED", label: "Contacted", tone: "warning" },
+  { value: "QUALIFIED", label: "Qualified", tone: "success" },
+  { value: "UNQUALIFIED", label: "Unqualified", tone: "secondary" },
+];
+
+export const DEAL_STAGES: {
+  value: DealStage;
+  label: string;
+  probability: number;
+  color: string;
+  tone: BadgeTone;
+}[] = [
+  { value: "QUALIFICATION", label: "Qualification", probability: 10, color: "#94a3b8", tone: "secondary" },
+  { value: "DISCOVERY", label: "Discovery", probability: 25, color: "#38bdf8", tone: "info" },
+  { value: "PROPOSAL", label: "Proposal", probability: 50, color: "#818cf8", tone: "default" },
+  { value: "NEGOTIATION", label: "Negotiation", probability: 75, color: "#f59e0b", tone: "warning" },
+  { value: "CLOSED_WON", label: "Won", probability: 100, color: "#10b981", tone: "success" },
+  { value: "CLOSED_LOST", label: "Lost", probability: 0, color: "#f87171", tone: "destructive" },
+];
+
+export const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
+  { value: "NOTE", label: "Note" },
+  { value: "CALL", label: "Call" },
+  { value: "EMAIL", label: "Email" },
+  { value: "MEETING", label: "Meeting" },
+];
+
+export const TASK_STATUSES: { value: TaskStatus; label: string }[] = [
+  { value: "TODO", label: "To do" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "DONE", label: "Done" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
+
+export const TASK_PRIORITIES: { value: TaskPriority; label: string; tone: BadgeTone }[] = [
+  { value: "LOW", label: "Low", tone: "secondary" },
+  { value: "MEDIUM", label: "Medium", tone: "info" },
+  { value: "HIGH", label: "High", tone: "warning" },
+  { value: "URGENT", label: "Urgent", tone: "destructive" },
+];
+
+export const stageInfo = (s: DealStage) => DEAL_STAGES.find((x) => x.value === s)!;
+export const contactTypeInfo = (t: ContactType) => CONTACT_TYPES.find((x) => x.value === t)!;
+export const priorityInfo = (p: TaskPriority) => TASK_PRIORITIES.find((x) => x.value === p)!;
+export const leadStatusInfo = (s: LeadStatus) => LEAD_STATUSES.find((x) => x.value === s)!;

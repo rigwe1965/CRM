@@ -78,7 +78,7 @@ export function SignInForm() {
             disabled={pending}
           />
           <div className="text-right">
-            <Link href="/forgot-password" className="text-xs text-indigo-600 hover:underline">
+            <Link href="/forgot-password" className="text-xs text-primary hover:underline">
               Forgot password?
             </Link>
           </div>
@@ -96,7 +96,7 @@ export function SignInForm() {
           setMode(mode === "password" ? "magic" : "password");
           setError(null);
         }}
-        className="w-full text-center text-sm text-indigo-600 hover:underline disabled:opacity-60"
+        className="w-full text-center text-sm text-primary hover:underline disabled:opacity-60"
       >
         {mode === "password" ? "Use a magic link instead" : "Use a password instead"}
       </button>

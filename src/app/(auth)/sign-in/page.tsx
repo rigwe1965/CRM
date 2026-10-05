@@ -18,14 +18,14 @@ export default async function SignInPage({
     <>
       <div>
         <h1 className="text-2xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-gray-600">Welcome back to your CRM.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Welcome back to your CRM.</p>
       </div>
       <Suspense>
         <SignInForm />
       </Suspense>
-      <p className="text-center text-sm text-gray-600">
+      <p className="text-center text-sm text-muted-foreground">
         No account?{" "}
-        <Link href="/sign-up" className="text-indigo-600 hover:underline">
+        <Link href="/sign-up" className="text-primary hover:underline">
           Sign up
         </Link>
       </p>
