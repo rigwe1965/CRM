@@ -63,12 +63,12 @@ export function magicLinkEmail(url: string): Rendered {
 }
 
 const STAGE_LABEL: Record<DealStage, string> = {
-  QUALIFICATION: "Qualification",
-  DISCOVERY: "Discovery",
-  PROPOSAL: "Proposal",
-  NEGOTIATION: "Negotiation",
-  CLOSED_WON: "Closed won",
-  CLOSED_LOST: "Closed lost",
+  QUALIFICATION: "Inquiry",
+  DISCOVERY: "Quote sent",
+  PROPOSAL: "Order confirmed",
+  NEGOTIATION: "Deposit paid",
+  CLOSED_WON: "Completed",
+  CLOSED_LOST: "Lost",
 };
 export const stageLabel = (s: DealStage) => STAGE_LABEL[s];
 

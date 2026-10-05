@@ -31,11 +31,11 @@ export const DEAL_STAGES: {
   color: string;
   tone: BadgeTone;
 }[] = [
-  { value: "QUALIFICATION", label: "Qualification", probability: 10, color: "#94a3b8", tone: "secondary" },
-  { value: "DISCOVERY", label: "Discovery", probability: 25, color: "#38bdf8", tone: "info" },
-  { value: "PROPOSAL", label: "Proposal", probability: 50, color: "#818cf8", tone: "default" },
-  { value: "NEGOTIATION", label: "Negotiation", probability: 75, color: "#f59e0b", tone: "warning" },
-  { value: "CLOSED_WON", label: "Won", probability: 100, color: "#10b981", tone: "success" },
+  { value: "QUALIFICATION", label: "Inquiry", probability: 10, color: "#94a3b8", tone: "secondary" },
+  { value: "DISCOVERY", label: "Quote Sent", probability: 25, color: "#38bdf8", tone: "info" },
+  { value: "PROPOSAL", label: "Order Confirmed", probability: 50, color: "#818cf8", tone: "default" },
+  { value: "NEGOTIATION", label: "Deposit Paid", probability: 75, color: "#f59e0b", tone: "warning" },
+  { value: "CLOSED_WON", label: "Completed", probability: 100, color: "#10b981", tone: "success" },
   { value: "CLOSED_LOST", label: "Lost", probability: 0, color: "#f87171", tone: "destructive" },
 ];
 

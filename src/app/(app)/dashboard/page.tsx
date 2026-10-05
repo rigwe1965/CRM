@@ -117,7 +117,7 @@ export default function DashboardPage() {
               href="/deals"
             />
             <StatCard
-              title="Won (last 30 days)"
+              title="Completed (last 30 days)"
               value={money(data.revenue.wonLast30Days)}
               sub={`${data.revenue.wonDealsLast30Days} ${data.revenue.wonDealsLast30Days === 1 ? "deal" : "deals"} · win rate ${data.revenue.winRate === null ? "n/a" : `${data.revenue.winRate}%`}`}
               icon={TrendingUp}
