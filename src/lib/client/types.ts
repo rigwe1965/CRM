@@ -191,6 +191,7 @@ export type Dashboard = {
     wonDealsLast30Days: number;
     winRate: number | null;
   };
+  stock: { invoiceCount: number; spend: number; pieces: number };
   recentActivities: Activity[];
   upcomingTasks: Task[];
 };

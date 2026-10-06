@@ -18,6 +18,8 @@ export const GET = authed(async ({ user }) => {
   const live = { deletedAt: null, ...owned };
   const now = new Date();
   const since = new Date(now.getTime() - 30 * DAY);
+  // Supplier invoices still count as spend unless cancelled.
+  const stockWhere = { ...owned, status: { not: "CANCELLED" as const } };
   const openTask = { status: { in: ["TODO", "IN_PROGRESS"] as ("TODO" | "IN_PROGRESS")[] } };
 
   const [
@@ -29,6 +31,8 @@ export const GET = authed(async ({ user }) => {
     lostCount,
     openTasks,
     overdueTasks,
+    stockInvoices,
+    stockPieces,
     recentActivities,
     upcomingTasks,
   ] = await Promise.all([
@@ -44,6 +48,8 @@ export const GET = authed(async ({ user }) => {
     db.deal.count({ where: { ...live, stage: "CLOSED_LOST" } }),
     db.task.count({ where: { AND: [taskScope(user), openTask] } }),
     db.task.count({ where: { AND: [taskScope(user), openTask, { dueDate: { lt: now } }] } }),
+    db.invoice.aggregate({ where: stockWhere, _count: { _all: true }, _sum: { total: true } }),
+    db.invoiceItem.aggregate({ where: { invoice: stockWhere }, _sum: { quantity: true } }),
     db.activity.findMany({
       where: authorScope(user),
       include: activityInclude,
@@ -79,6 +85,11 @@ export const GET = authed(async ({ user }) => {
       wonDealsLast30Days: wonLast30._count._all,
       // Share of closed deals that were won; null until a deal has been closed.
       winRate: decided === 0 ? null : Math.round((won / decided) * 1000) / 10,
+    },
+    stock: {
+      invoiceCount: stockInvoices._count._all,
+      spend: Number(stockInvoices._sum.total ?? 0),
+      pieces: stockPieces._sum.quantity ?? 0,
     },
     recentActivities,
     upcomingTasks,

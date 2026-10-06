@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity as ActivityIcon, CheckSquare, CircleDollarSign, TrendingUp, Users, type LucideIcon } from "lucide-react";
+import { Activity as ActivityIcon, CheckSquare, CircleDollarSign, Receipt, TrendingUp, Users, type LucideIcon } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,8 +64,8 @@ function StatCard({
 function DashboardSkeleton() {
   return (
     <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-28" />
         ))}
       </div>
@@ -108,7 +108,7 @@ export default function DashboardPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard
               title="Open pipeline"
               value={money(data.pipeline.openAmount)}
@@ -122,6 +122,13 @@ export default function DashboardPage() {
               sub={`${data.revenue.wonDealsLast30Days} ${data.revenue.wonDealsLast30Days === 1 ? "deal" : "deals"} · win rate ${data.revenue.winRate === null ? "n/a" : `${data.revenue.winRate}%`}`}
               icon={TrendingUp}
               href="/deals"
+            />
+            <StatCard
+              title="Stock spend"
+              value={money(data.stock.spend)}
+              sub={`${data.stock.pieces} ${data.stock.pieces === 1 ? "piece" : "pieces"} · ${data.stock.invoiceCount} ${data.stock.invoiceCount === 1 ? "invoice" : "invoices"}`}
+              icon={Receipt}
+              href="/invoices"
             />
             <StatCard
               title="Contacts"
