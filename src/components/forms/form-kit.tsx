@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ApiClientError } from "@/lib/client/api";
@@ -56,6 +56,12 @@ export function FormShell({
   onCancel: () => void;
   children: React.ReactNode;
 }) {
+  // Long forms scroll inside the dialog: bring a new error into view so a failed save is never silent.
+  const banner = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (formError) banner.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [formError]);
+
   return (
     <form
       noValidate
@@ -70,7 +76,7 @@ export function FormShell({
         <DialogDescription className={description ? undefined : "sr-only"}>{description ?? title}</DialogDescription>
       </DialogHeader>
       {formError && (
-        <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div ref={banner} role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {formError}
         </div>
       )}
