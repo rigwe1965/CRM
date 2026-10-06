@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +17,7 @@ import {
   TASK_PRIORITIES,
   TASK_STATUSES,
 } from "@/lib/client/constants";
-import { toDateInput } from "@/lib/client/format";
+import { money, toDateInput } from "@/lib/client/format";
 import { useSave } from "@/lib/client/hooks";
 import type { Activity, ActivityType, Deal, DealStage, Task, TaskPriority, TaskStatus } from "@/lib/client/types";
 import { FormShell, Grid2, nullable, useFormState } from "./form-kit";
@@ -54,16 +57,13 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
     probability: String(deal?.probability ?? DEAL_STAGES.find((s) => s.value === initialStage)!.probability),
     expectedCloseDate: toDateInput(deal?.expectedCloseDate),
     lostReason: deal?.lostReason ?? "",
-    productType: deal?.productType ?? "",
-    texture: deal?.texture ?? "",
-    lengthInches: deal?.lengthInches ?? "",
-    color: deal?.color ?? "",
-    laceType: deal?.laceType ?? "",
-    quantity: deal?.quantity ? String(deal.quantity) : "",
     organizationId: (deal?.organizationId ?? defaults?.organizationId ?? null) as string | null,
     contactId: (deal?.contactId ?? defaults?.contactId ?? null) as string | null,
   });
+  const [items, setItems] = useState<DealItemState[]>(() => initialItems(deal));
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((s) => ({ ...s, [k]: val }));
+  const filled = items.filter((i) => !isBlankItem(i));
+  const itemsSum = filled.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unitPrice) || 0), 0);
 
   return (
     <FormShell
@@ -77,17 +77,13 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
         const ok = await form.run(() =>
           save.mutateAsync({
             title: v.title,
-            amount: v.amount.trim() === "" ? 0 : Number(v.amount),
+            amount: filled.length ? undefined : v.amount.trim() === "" ? 0 : Number(v.amount),
             stage: v.stage,
             probability: v.probability.trim() === "" ? undefined : Number(v.probability),
             expectedCloseDate: v.expectedCloseDate || null,
             lostReason: v.stage === "CLOSED_LOST" ? nullable(v.lostReason) : undefined,
-            productType: nullable(v.productType),
-            texture: nullable(v.texture),
-            lengthInches: nullable(v.lengthInches),
-            color: nullable(v.color),
-            laceType: nullable(v.laceType),
-            quantity: v.quantity.trim() === "" ? null : Number(v.quantity),
+            // With items, the API sets the amount from them; sending [] on edit clears the lines.
+            items: filled.length || deal ? filled.map(toPayload) : undefined,
             organizationId: v.organizationId,
             contactId: v.contactId,
           }),
@@ -102,8 +98,12 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
         <Input value={v.title} onChange={(e) => set("title", e.target.value)} aria-invalid={!!form.err("title")} autoFocus />
       </FormField>
       <Grid2>
-        <FormField label="Amount (USD)" error={form.err("amount")}>
-          <Input type="number" min={0} step="0.01" value={v.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0" />
+        <FormField label="Amount (USD)" error={form.err("amount")} hint={filled.length ? "Total of the items below" : undefined}>
+          {filled.length ? (
+            <Input value={money(itemsSum, deal?.currency ?? "USD")} readOnly disabled />
+          ) : (
+            <Input type="number" min={0} step="0.01" value={v.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0" />
+          )}
         </FormField>
         <FormField label="Expected close date" error={form.err("expectedCloseDate")}>
           <Input type="date" value={v.expectedCloseDate} onChange={(e) => set("expectedCloseDate", e.target.value)} />
@@ -142,45 +142,7 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
           <Textarea value={v.lostReason} onChange={(e) => set("lostReason", e.target.value)} rows={2} />
         </FormField>
       )}
-      <Grid2>
-        <FormField label="Product" error={form.err("productType")}>
-          <Input list="hair-products" value={v.productType} onChange={(e) => set("productType", e.target.value)} placeholder="e.g. Bundles" />
-          <datalist id="hair-products">
-            {["Bundles", "Closure", "Frontal", "Lace wig", "Full lace wig", "Headband wig", "Clip-ins", "Custom wig"].map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
-        </FormField>
-        <FormField label="Texture" error={form.err("texture")}>
-          <Input list="hair-textures" value={v.texture} onChange={(e) => set("texture", e.target.value)} placeholder="e.g. Body wave" />
-          <datalist id="hair-textures">
-            {["Straight", "Body wave", "Deep wave", "Loose wave", "Water wave", "Curly", "Kinky curly"].map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
-        </FormField>
-      </Grid2>
-      <Grid2>
-        <FormField label="Length (inches)" error={form.err("lengthInches")}>
-          <Input value={v.lengthInches} onChange={(e) => set("lengthInches", e.target.value)} placeholder="e.g. 18, 20, 22" />
-        </FormField>
-        <FormField label="Quantity" error={form.err("quantity")}>
-          <Input type="number" min={1} step={1} value={v.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="e.g. 3" />
-        </FormField>
-      </Grid2>
-      <Grid2>
-        <FormField label="Color" error={form.err("color")}>
-          <Input value={v.color} onChange={(e) => set("color", e.target.value)} placeholder="e.g. Natural black, 613" />
-        </FormField>
-        <FormField label="Lace type" error={form.err("laceType")}>
-          <Input list="hair-laces" value={v.laceType} onChange={(e) => set("laceType", e.target.value)} placeholder="e.g. HD lace" />
-          <datalist id="hair-laces">
-            {["HD lace", "Transparent lace", "Swiss lace", "4x4 closure", "5x5 closure", "13x4 frontal", "13x6 frontal"].map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
-        </FormField>
-      </Grid2>
+      <DealItemsEditor items={items} setItems={setItems} err={form.err("items")} />
       <Grid2>
         <FormField label="Company" error={form.err("organizationId")}>
           <OrganizationPicker value={v.organizationId} onChange={(id) => set("organizationId", id)} placeholder="Select a company" fallback={deal?.organization} />
@@ -190,6 +152,116 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
         </FormField>
       </Grid2>
     </FormShell>
+  );
+}
+
+// ─── Deal items ─────────────────────────────────────────
+
+type DealItemState = {
+  key: number;
+  productType: string;
+  texture: string;
+  lengthInches: string;
+  color: string;
+  laceType: string;
+  quantity: string;
+  unitPrice: string;
+  note: string;
+};
+
+let itemKey = 0;
+const blankItem = (): DealItemState => ({ key: itemKey++, productType: "", texture: "", lengthInches: "", color: "", laceType: "", quantity: "1", unitPrice: "", note: "" });
+const isBlankItem = (i: DealItemState) => i.productType.trim() === "" && i.unitPrice.trim() === "";
+
+/** Existing lines, else the old single-line hair fields turned into one line, else one empty row. */
+function initialItems(deal?: Deal): DealItemState[] {
+  if (deal?.items?.length) {
+    return deal.items.map((i) => ({
+      key: itemKey++,
+      productType: i.productType,
+      texture: i.texture ?? "",
+      lengthInches: i.lengthInches ?? "",
+      color: i.color ?? "",
+      laceType: i.laceType ?? "",
+      quantity: String(i.quantity),
+      unitPrice: String(i.unitPrice),
+      note: i.note ?? "",
+    }));
+  }
+  if (deal?.productType) {
+    const qty = deal.quantity ?? 1;
+    return [
+      {
+        key: itemKey++,
+        productType: deal.productType,
+        texture: deal.texture ?? "",
+        lengthInches: deal.lengthInches ?? "",
+        color: deal.color ?? "",
+        laceType: deal.laceType ?? "",
+        quantity: String(qty),
+        unitPrice: String(Math.round((deal.amount / qty) * 100) / 100),
+        note: "",
+      },
+    ];
+  }
+  return [blankItem()];
+}
+
+const toPayload = (i: DealItemState) => ({
+  productType: i.productType,
+  texture: nullable(i.texture),
+  lengthInches: nullable(i.lengthInches),
+  color: nullable(i.color),
+  laceType: nullable(i.laceType),
+  quantity: i.quantity.trim() === "" ? undefined : Number(i.quantity),
+  unitPrice: i.unitPrice.trim() === "" ? undefined : Number(i.unitPrice),
+  note: nullable(i.note),
+});
+
+function DealItemsEditor({ items, setItems, err }: { items: DealItemState[]; setItems: React.Dispatch<React.SetStateAction<DealItemState[]>>; err?: string }) {
+  const setItem = (key: number, patch: Partial<DealItemState>) => setItems((l) => l.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>What was bought</Label>
+        <Button type="button" variant="outline" size="sm" onClick={() => setItems((l) => [...l, blankItem()])}>
+          <Plus /> Add item
+        </Button>
+      </div>
+      {err && <p role="alert" className="text-xs text-destructive">{err}</p>}
+      <datalist id="hair-products">
+        {["Bundles", "Closure", "Frontal", "Lace wig", "Full lace wig", "Headband wig", "Clip-ins", "Custom wig", "Bounce curl", "Pixie curl"].map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+      <datalist id="hair-textures">
+        {["Straight", "Body wave", "Deep wave", "Loose wave", "Water wave", "Curly", "Kinky curly"].map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+      <datalist id="hair-laces">
+        {["HD lace", "Transparent lace", "Swiss lace", "4x4 closure", "5x5 closure", "13x4 frontal", "13x6 frontal"].map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+      <div className="space-y-2">
+        {items.map((i, n) => (
+          <div key={i.key} className="grid grid-cols-2 gap-2 rounded-md border p-2 sm:grid-cols-12">
+            <Input className="col-span-2 sm:col-span-4" list="hair-products" aria-label={`Item ${n + 1} product`} placeholder="Product (e.g. Bounce curl)" value={i.productType} onChange={(e) => setItem(i.key, { productType: e.target.value })} />
+            <Input className="sm:col-span-3" list="hair-textures" aria-label={`Item ${n + 1} texture`} placeholder="Texture" value={i.texture} onChange={(e) => setItem(i.key, { texture: e.target.value })} />
+            <Input className="sm:col-span-2" aria-label={`Item ${n + 1} length in inches`} placeholder="Length (in)" value={i.lengthInches} onChange={(e) => setItem(i.key, { lengthInches: e.target.value })} />
+            <Input className="sm:col-span-2" aria-label={`Item ${n + 1} color`} placeholder="Color" value={i.color} onChange={(e) => setItem(i.key, { color: e.target.value })} />
+            <Button type="button" variant="ghost" size="icon" className="justify-self-end sm:col-span-1" aria-label={`Remove item ${n + 1}`} disabled={items.length === 1} onClick={() => setItems((l) => l.filter((x) => x.key !== i.key))}>
+              <Trash2 />
+            </Button>
+            <Input className="sm:col-span-3" list="hair-laces" aria-label={`Item ${n + 1} lace type`} placeholder="Lace type" value={i.laceType} onChange={(e) => setItem(i.key, { laceType: e.target.value })} />
+            <Input className="sm:col-span-2" type="number" min={1} step={1} aria-label={`Item ${n + 1} quantity`} placeholder="Qty" value={i.quantity} onChange={(e) => setItem(i.key, { quantity: e.target.value })} />
+            <Input className="sm:col-span-2" type="number" min={0} step="0.01" aria-label={`Item ${n + 1} price each`} placeholder="Price each" value={i.unitPrice} onChange={(e) => setItem(i.key, { unitPrice: e.target.value })} />
+            <Input className="col-span-2 sm:col-span-5" aria-label={`Item ${n + 1} note`} placeholder="Note" value={i.note} onChange={(e) => setItem(i.key, { note: e.target.value })} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

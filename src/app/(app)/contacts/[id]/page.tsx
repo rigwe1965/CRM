@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Building2, Mail, Pencil, Phone, Plus, Trash2, UserCheck, Activity as ActivityIcon, CheckSquare, CircleDollarSign, UserX } from "lucide-react";
+import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Plus, Trash2, UserCheck, Activity as ActivityIcon, CheckSquare, CircleDollarSign, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +72,8 @@ export default function ContactDetailPage() {
   }
 
   const t = contactTypeInfo(contact.type);
+  const cityLine = [contact.postalCode, contact.city, contact.state].filter(Boolean).join(" ");
+  const address = [contact.address, cityLine, contact.country].filter(Boolean);
 
   return (
     <div className="space-y-6">
@@ -142,6 +144,17 @@ export default function ContactDetailPage() {
           <CardContent className="space-y-3">
             <InfoRow icon={Mail}>{contact.email ? <a href={`mailto:${contact.email}`} className="hover:underline">{contact.email}</a> : <span className="text-muted-foreground">No email</span>}</InfoRow>
             <InfoRow icon={Phone}>{contact.phone ? <a href={`tel:${contact.phone}`} className="hover:underline">{contact.phone}</a> : <span className="text-muted-foreground">No phone</span>}</InfoRow>
+            <InfoRow icon={MapPin}>
+              {address.length ? (
+                <span>
+                  {contact.address && <span className="block">{contact.address}</span>}
+                  {cityLine && <span className="block">{cityLine}</span>}
+                  {contact.country && <span className="block">{contact.country}</span>}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">No address</span>
+              )}
+            </InfoRow>
             <InfoRow icon={Building2}>{contact.organization?.name ?? <span className="text-muted-foreground">No company</span>}</InfoRow>
             <dl className="grid grid-cols-2 gap-3 border-t pt-3 text-sm">
               <div>

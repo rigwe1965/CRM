@@ -47,6 +47,11 @@ export type Contact = {
   type: ContactType;
   leadStatus: LeadStatus | null;
   source: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
   organizationId: string | null;
   ownerId: string | null;
   createdAt: string;
@@ -80,8 +85,22 @@ export type Deal = {
   organization: { id: string; name: string } | null;
   contact: ContactRef | null;
   owner: Person;
+  items?: DealItem[];
   /** Only on the deals list. */
   payments?: PaymentSummary;
+};
+
+export type DealItem = {
+  id: string;
+  position: number;
+  productType: string;
+  texture: string | null;
+  lengthInches: string | null;
+  color: string | null;
+  laceType: string | null;
+  quantity: number;
+  unitPrice: number;
+  note: string | null;
 };
 
 export type PaymentMethod = "BANK_TRANSFER" | "CASH" | "DIGITAL" | "OTHER";

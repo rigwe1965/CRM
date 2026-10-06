@@ -31,6 +31,7 @@ export const dealInclude = {
   organization: { select: { id: true, name: true } },
   contact: { select: { id: true, firstName: true, lastName: true } },
   owner: person,
+  items: { orderBy: { position: "asc" } },
 } satisfies Prisma.DealInclude;
 
 export const activityInclude = {

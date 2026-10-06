@@ -4,7 +4,7 @@ import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
 import { assertLinks, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
-import { dealDto, stageTransition } from "@/lib/deals";
+import { dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
 import { paymentSummaries } from "@/lib/payments";
 import { createDealSchema, dealListQuery } from "@/lib/validations/crm";
 
@@ -53,7 +53,7 @@ export const GET = authed(async ({ req, user }) => {
 
 /** POST /api/deals: create. Stage defaults to QUALIFICATION; probability defaults from the stage. */
 export const POST = authed(async ({ req, user }) => {
-  const body = await readBody(req, createDealSchema);
+  const { items, ...body } = await readBody(req, createDealSchema);
   await assertLinks(user, { organizationId: body.organizationId, contactId: body.contactId });
   const ownerId = (await resolveOwner(user, body.ownerId)) ?? user.id;
   const { stage, probability, closedAt, lostReason } = stageTransition(body.stage, {
@@ -61,7 +61,19 @@ export const POST = authed(async ({ req, user }) => {
     lostReason: body.lostReason,
   });
   const deal = await db.deal.create({
-    data: { ...body, ownerId, stage, probability, closedAt, lostReason },
+    data: {
+      ...body,
+      ...(items?.length && {
+        ...NO_LEGACY_HAIR,
+        amount: itemsTotal(items),
+        items: { create: items.map((i, n) => ({ ...i, position: n + 1 })) },
+      }),
+      ownerId,
+      stage,
+      probability,
+      closedAt,
+      lostReason,
+    },
     include: dealInclude,
   });
   return ok(dealDto(deal), 201);

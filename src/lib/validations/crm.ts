@@ -99,6 +99,11 @@ const contactFields = z.object({
   type: z.enum(ContactType).optional(),
   leadStatus: z.enum(LeadStatus).nullish(),
   source: text(100),
+  address: text(200),
+  city: text(100),
+  state: text(100),
+  postalCode: text(20),
+  country: text(100),
   organizationId: id.nullish(),
   ownerId: id.nullish(),
 });
@@ -121,6 +126,16 @@ const amount = z
   .min(0)
   .max(999_999_999_999)
   .transform((n) => Math.round(n * 100) / 100);
+const dealItemSchema = z.object({
+  productType: requiredText(100),
+  texture: text(100),
+  lengthInches: text(100),
+  color: text(100),
+  laceType: text(100),
+  quantity: z.number().int().min(1).max(100_000),
+  unitPrice: amount,
+  note: text(200),
+});
 const dealFields = z.object({
   title: requiredText(200),
   amount: amount.optional(),
@@ -143,6 +158,8 @@ const dealFields = z.object({
   organizationId: id.nullish(),
   contactId: id.nullish(),
   ownerId: id.optional(),
+  // What was bought. When present (even empty on update) these replace the existing lines and set the amount.
+  items: z.array(dealItemSchema).max(100).optional(),
 });
 export const createDealSchema = dealFields.extend({
   amount: amount.default(0),

@@ -1,9 +1,9 @@
 import { db } from "@/lib/db";
-import { noContent, ok, readBody } from "@/lib/api";
+import { ApiError, noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
 import { assertLinks, displayName, notFound, ownerScope, resolveOwner } from "@/lib/access";
-import { dealDto, stageTransition } from "@/lib/deals";
+import { dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
 import { notifyDealStageChange } from "@/lib/notifications";
 import { updateDealSchema } from "@/lib/validations/crm";
 
@@ -26,12 +26,21 @@ export const GET = authed<P>(async ({ user, params }) => {
  * (same as POST /:id/stage); an explicit `probability` in the same request wins.
  */
 export const PATCH = authed<P>(async ({ req, user, params }) => {
-  const body = await readBody(req, updateDealSchema);
+  const { items, ...body } = await readBody(req, updateDealSchema);
   const existing = await db.deal.findFirst({
     where: { id: params.id, deletedAt: null, ...ownerScope(user) },
     select: { stage: true },
   });
   if (!existing) throw notFound("Deal");
+  if (items?.length) {
+    // Don't let the new total drop below what the customer has already paid.
+    const { _sum } = await db.payment.aggregate({ where: { dealId: params.id }, _sum: { amount: true } });
+    const paid = Number(_sum.amount ?? 0);
+    if (itemsTotal(items) < paid) {
+      const msg = `Items total less than the ${paid.toFixed(2)} already paid on this deal`;
+      throw new ApiError(422, msg, "VALIDATION_ERROR", { items: [msg] });
+    }
+  }
   await assertLinks(user, { organizationId: body.organizationId, contactId: body.contactId });
   const ownerId = body.ownerId === undefined ? undefined : ((await resolveOwner(user, body.ownerId)) ?? undefined);
 
@@ -42,7 +51,15 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
 
   const deal = await db.deal.update({
     where: { id: params.id },
-    data: { ...body, ownerId, ...transition },
+    data: {
+      ...body,
+      ...(items && {
+        items: { deleteMany: {}, create: items.map((i, n) => ({ ...i, position: n + 1 })) },
+        ...(items.length > 0 && { ...NO_LEGACY_HAIR, amount: itemsTotal(items) }),
+      }),
+      ownerId,
+      ...transition,
+    },
     include: dealInclude,
   });
   if (moving) {

@@ -56,6 +56,11 @@ function ContactForm({
     phone: contact?.phone ?? "",
     title: contact?.title ?? "",
     source: contact?.source ?? "",
+    address: contact?.address ?? "",
+    city: contact?.city ?? "",
+    state: contact?.state ?? "",
+    postalCode: contact?.postalCode ?? "",
+    country: contact?.country ?? "",
     type: (contact?.type ?? defaults?.type ?? "LEAD") as ContactType,
     leadStatus: (contact?.leadStatus ?? "NEW") as LeadStatus,
     organizationId: (contact?.organizationId ?? defaults?.organizationId ?? null) as string | null,
@@ -81,6 +86,11 @@ function ContactForm({
             phone: nullable(v.phone),
             title: nullable(v.title),
             source: nullable(v.source),
+            address: nullable(v.address),
+            city: nullable(v.city),
+            state: nullable(v.state),
+            postalCode: nullable(v.postalCode),
+            country: nullable(v.country),
             type: v.type,
             leadStatus: isLeadish ? v.leadStatus : null,
             organizationId: v.organizationId,
@@ -164,6 +174,23 @@ function ContactForm({
           <Input value={v.source} onChange={(e) => set("source", e.target.value)} placeholder="Referral, website…" />
         </FormField>
       )}
+      <FormField label="Street address" error={form.err("address")}>
+        <Input value={v.address} onChange={(e) => set("address", e.target.value)} placeholder="Street and number" autoComplete="street-address" />
+      </FormField>
+      <Grid2>
+        <FormField label="Postal code" error={form.err("postalCode")}>
+          <Input value={v.postalCode} onChange={(e) => set("postalCode", e.target.value)} autoComplete="postal-code" />
+        </FormField>
+        <FormField label="City" error={form.err("city")}>
+          <Input value={v.city} onChange={(e) => set("city", e.target.value)} autoComplete="address-level2" />
+        </FormField>
+        <FormField label="State / region" error={form.err("state")}>
+          <Input value={v.state} onChange={(e) => set("state", e.target.value)} autoComplete="address-level1" />
+        </FormField>
+        <FormField label="Country" error={form.err("country")}>
+          <Input value={v.country} onChange={(e) => set("country", e.target.value)} autoComplete="country-name" />
+        </FormField>
+      </Grid2>
     </FormShell>
   );
 }

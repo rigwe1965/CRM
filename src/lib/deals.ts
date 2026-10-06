@@ -36,9 +36,29 @@ export function stageTransition(
 }
 
 /** Prisma Decimal → JSON number (amounts are Decimal(14,2), well inside double precision). */
-export function dealDto<T extends { amount: Prisma.Decimal }>(deal: T) {
-  return { ...deal, amount: Number(deal.amount) };
+export function dealDto<T extends { amount: Prisma.Decimal; items?: { unitPrice: Prisma.Decimal }[] }>(deal: T) {
+  return {
+    ...deal,
+    amount: Number(deal.amount),
+    items: deal.items?.map((i) => ({ ...i, unitPrice: Number(i.unitPrice) })),
+  };
 }
+
+type ItemInput = { quantity: number; unitPrice: number };
+
+/** A deal with line items is worth the sum of its lines. */
+export const itemsTotal = (items: ItemInput[]) =>
+  Math.round(items.reduce((s, i) => s + i.quantity * i.unitPrice, 0) * 100) / 100;
+
+/** The single-line hair fields on Deal are superseded once line items are used. */
+export const NO_LEGACY_HAIR = {
+  productType: null,
+  texture: null,
+  lengthInches: null,
+  color: null,
+  laceType: null,
+  quantity: null,
+} as const;
 
 /** Per-stage counts, total value and probability-weighted value for the given (already scoped) deals. */
 export async function pipelineSummary(where: Prisma.DealWhereInput) {

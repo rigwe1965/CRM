@@ -40,14 +40,14 @@ function DealCardBody({ deal, menu }: { deal: Deal; menu?: React.ReactNode }) {
   const open = deal.stage !== "CLOSED_WON" && deal.stage !== "CLOSED_LOST";
   const overdue = open && isOverdue(deal.expectedCloseDate);
   const subtitle = deal.organization?.name ?? (deal.contact ? `${deal.contact.firstName} ${deal.contact.lastName}` : "No company");
-  const hairSummary = [
-    deal.quantity ? `${deal.quantity}×` : null,
-    deal.productType,
-    deal.texture,
-    deal.lengthInches ? `${deal.lengthInches}"` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const hairSummary = deal.items?.length
+    ? deal.items
+        .slice(0, 2)
+        .map((i) => [`${i.quantity}×`, i.productType, i.lengthInches ? `${i.lengthInches}"` : null].filter(Boolean).join(" "))
+        .join(", ") + (deal.items.length > 2 ? ` +${deal.items.length - 2} more` : "")
+    : [deal.quantity ? `${deal.quantity}×` : null, deal.productType, deal.texture, deal.lengthInches ? `${deal.lengthInches}"` : null]
+        .filter(Boolean)
+        .join(" · ");
   return (
     <>
       <div className="flex items-start justify-between gap-2">

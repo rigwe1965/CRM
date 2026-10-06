@@ -185,6 +185,12 @@ model Contact {
   type           ContactType @default(LEAD)
   leadStatus     LeadStatus? @default(NEW)
   source         String?
+  // Shipping / home address
+  address        String?
+  city           String?
+  state          String?
+  postalCode     String?
+  country        String?
   organizationId String?
   ownerId        String?
   // Soft delete: rows with deletedAt set are hidden by the API.
@@ -239,6 +245,7 @@ model Deal {
   invoices     Invoice[]
   payments     Payment[]
   instalments  Instalment[]
+  items        DealItem[]
 
   @@index([stage])
   @@index([expectedCloseDate])
@@ -388,4 +395,25 @@ model Instalment {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId, dueDate])
+}
+
+// ─── Deal line items ────────────────────────────────────
+
+// What a customer bought on a deal. When a deal has items, deal.amount is their total.
+model DealItem {
+  id           String  @id @default(cuid())
+  dealId       String
+  position     Int
+  productType  String
+  texture      String?
+  lengthInches String?
+  color        String?
+  laceType     String?
+  quantity     Int
+  unitPrice    Decimal @db.Decimal(14, 2)
+  note         String?
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, position])
 }
