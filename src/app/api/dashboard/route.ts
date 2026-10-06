@@ -4,6 +4,7 @@ import { authed } from "@/lib/route";
 import { activityInclude, taskInclude } from "@/lib/includes";
 import { authorScope, ownerScope, taskScope } from "@/lib/access";
 import { pipelineSummary } from "@/lib/deals";
+import { cashflow } from "@/lib/cashflow";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export const GET = authed(async ({ user }) => {
     overdueTasks,
     stockInvoices,
     stockPieces,
+    cash,
     recentActivities,
     upcomingTasks,
   ] = await Promise.all([
@@ -50,6 +52,7 @@ export const GET = authed(async ({ user }) => {
     db.task.count({ where: { AND: [taskScope(user), openTask, { dueDate: { lt: now } }] } }),
     db.invoice.aggregate({ where: stockWhere, _count: { _all: true }, _sum: { total: true } }),
     db.invoiceItem.aggregate({ where: { invoice: stockWhere }, _sum: { quantity: true } }),
+    cashflow(owned, now),
     db.activity.findMany({
       where: authorScope(user),
       include: activityInclude,
@@ -91,6 +94,7 @@ export const GET = authed(async ({ user }) => {
       spend: Number(stockInvoices._sum.total ?? 0),
       pieces: stockPieces._sum.quantity ?? 0,
     },
+    cashflow: cash,
     recentActivities,
     upcomingTasks,
   });

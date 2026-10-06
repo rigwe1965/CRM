@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity as ActivityIcon, CheckSquare, CircleDollarSign, Receipt, TrendingUp, Users, type LucideIcon } from "lucide-react";
+import { Activity as ActivityIcon, CheckSquare, AlertTriangle, Banknote, CircleDollarSign, Coins, PiggyBank, Receipt, TrendingUp, Users, type LucideIcon } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +66,11 @@ function DashboardSkeleton() {
     <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-28" />
+        ))}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-28" />
         ))}
       </div>
@@ -150,6 +155,52 @@ export default function DashboardPage() {
               icon={CheckSquare}
               href="/tasks"
             />
+          </div>
+
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Cash flow</h2>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                title="Collected"
+                value={money(data.cashflow.collected.total)}
+                sub={`${money(data.cashflow.collected.last30Days)} in the last 30 days`}
+                icon={Banknote}
+                href="/deals"
+              />
+              <StatCard
+                title="Still owed to you"
+                value={money(data.cashflow.owed.amount)}
+                sub={`${data.cashflow.owed.deals} ${data.cashflow.owed.deals === 1 ? "confirmed order" : "confirmed orders"} with a balance`}
+                icon={Coins}
+                href="/deals"
+              />
+              <StatCard
+                title="Overdue instalments"
+                value={money(data.cashflow.overdue.amount)}
+                sub={
+                  data.cashflow.overdue.deals > 0 ? (
+                    <span className="font-medium text-destructive">
+                      {data.cashflow.overdue.deals} {data.cashflow.overdue.deals === 1 ? "customer is" : "customers are"} late
+                    </span>
+                  ) : (
+                    "Nobody is late"
+                  )
+                }
+                icon={AlertTriangle}
+                href="/deals"
+              />
+              <StatCard
+                title="Est. profit on stock"
+                value={money(data.cashflow.profit.estimated)}
+                sub={
+                  data.cashflow.profit.margin === null
+                    ? "Add resale prices to invoice items"
+                    : `${data.cashflow.profit.margin}% margin if sold at your resale prices`
+                }
+                icon={PiggyBank}
+                href="/invoices"
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">

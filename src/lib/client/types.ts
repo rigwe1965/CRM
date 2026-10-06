@@ -231,6 +231,12 @@ export type Dashboard = {
     winRate: number | null;
   };
   stock: { invoiceCount: number; spend: number; pieces: number };
+  cashflow: {
+    collected: { total: number; last30Days: number };
+    owed: { amount: number; deals: number };
+    overdue: { amount: number; deals: number };
+    profit: { estimated: number; revenue: number; cost: number; margin: number | null };
+  };
   recentActivities: Activity[];
   upcomingTasks: Task[];
 };
