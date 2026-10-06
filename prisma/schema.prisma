@@ -40,6 +40,13 @@ enum DealStage {
   CLOSED_LOST
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+}
+
 enum ActivityType {
   NOTE
   CALL
@@ -85,6 +92,7 @@ model User {
   activities         Activity[]
   assignedTasks      Task[]         @relation("TaskAssignee")
   createdTasks       Task[]         @relation("TaskCreator")
+  ownedInvoices      Invoice[]      @relation("InvoiceOwner")
 
   @@index([role])
 }
@@ -280,4 +288,57 @@ model Task {
   @@index([createdById])
   @@index([contactId])
   @@index([dealId])
+}
+
+// ─── Invoices ───────────────────────────────────────────
+
+model Invoice {
+  id          String        @id @default(cuid())
+  number      String        @unique
+  status      InvoiceStatus @default(DRAFT)
+  invoiceDate DateTime
+  currency    String        @default("USD")
+  // Supplier (who issued the invoice)
+  vendorName  String
+  vendorRep   String?
+  vendorPhone String?
+  // Customer the invoice is addressed to
+  billTo      String
+  subtotal    Decimal       @default(0) @db.Decimal(14, 2)
+  shipping    Decimal       @default(0) @db.Decimal(14, 2)
+  // Negotiated amount the order actually closed at ("deal price")
+  total       Decimal       @default(0) @db.Decimal(14, 2)
+  notes       String?
+  ownerId     String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  owner User          @relation("InvoiceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  items InvoiceItem[]
+
+  @@index([ownerId])
+  @@index([invoiceDate])
+}
+
+model InvoiceItem {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  position     Int
+  // Line reference on the supplier sheet, e.g. "1-1"
+  ref          String
+  style        String
+  description  String
+  color        String?
+  density      String?
+  lengthInches Int?
+  quantity     Int
+  unitPrice    Decimal  @db.Decimal(14, 2)
+  lineTotal    Decimal  @db.Decimal(14, 2)
+  // Handwritten resale price per piece
+  resalePrice  Decimal? @db.Decimal(14, 2)
+  note         String?
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, position])
 }

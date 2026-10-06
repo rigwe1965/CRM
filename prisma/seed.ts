@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { sampleInvoice } from "./sample-invoice";
 
 const prisma = new PrismaClient();
 
@@ -8,6 +9,7 @@ const daysFromNow = (d: number) => new Date(Date.now() + d * 86_400_000);
 
 async function main() {
   // Clear in FK-safe order so the seed is re-runnable.
+  await prisma.invoice.deleteMany();
   await prisma.activity.deleteMany();
   await prisma.task.deleteMany();
   await prisma.deal.deleteMany();
@@ -155,6 +157,32 @@ async function main() {
     ],
   });
 
+  // ── Invoices ──
+  const { rows, ...invoice } = sampleInvoice;
+  await prisma.invoice.create({
+    data: {
+      ...invoice,
+      status: "SENT",
+      ownerId: sales.id,
+      items: {
+        create: rows.map(([ref, style, description, color, density, lengthInches, quantity, unitPrice, lineTotal, resalePrice, note], i) => ({
+          position: i + 1,
+          ref,
+          style,
+          description,
+          color,
+          density,
+          lengthInches,
+          quantity,
+          unitPrice,
+          lineTotal,
+          resalePrice,
+          note,
+        })),
+      },
+    },
+  });
+
   const counts = {
     users: await prisma.user.count(),
     organizations: await prisma.organization.count(),
@@ -162,6 +190,7 @@ async function main() {
     deals: await prisma.deal.count(),
     activities: await prisma.activity.count(),
     tasks: await prisma.task.count(),
+    invoices: await prisma.invoice.count(),
   };
   console.log("Seeded:", counts);
 }

@@ -2,6 +2,7 @@ import type {
   ActivityType,
   ContactType,
   DealStage,
+  InvoiceStatus,
   LeadStatus,
   TaskPriority,
   TaskStatus,
@@ -64,3 +65,12 @@ export const stageInfo = (s: DealStage) => DEAL_STAGES.find((x) => x.value === s
 export const contactTypeInfo = (t: ContactType) => CONTACT_TYPES.find((x) => x.value === t)!;
 export const priorityInfo = (p: TaskPriority) => TASK_PRIORITIES.find((x) => x.value === p)!;
 export const leadStatusInfo = (s: LeadStatus) => LEAD_STATUSES.find((x) => x.value === s)!;
+
+export const INVOICE_STATUSES: { value: InvoiceStatus; label: string; tone: BadgeTone }[] = [
+  { value: "DRAFT", label: "Draft", tone: "secondary" },
+  { value: "SENT", label: "Sent", tone: "info" },
+  { value: "PAID", label: "Paid", tone: "success" },
+  { value: "CANCELLED", label: "Cancelled", tone: "destructive" },
+];
+
+export const invoiceStatusInfo = (s: InvoiceStatus) => INVOICE_STATUSES.find((x) => x.value === s)!;

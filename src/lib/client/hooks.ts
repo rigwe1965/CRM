@@ -6,7 +6,7 @@ import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
 import type { Dashboard, Deal, DealStage, Paginated, Task, TaskStatus } from "./types";
 
-export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities";
+export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices";
 
 /** Paginated list. Previous page stays visible while the next one loads. */
 export function useList<T>(resource: Resource, params: Query) {

@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   Activity as ActivityIcon,
   Building2,
+  Receipt,
   CheckSquare,
   ChevronsUpDown,
   CircleDollarSign,
@@ -37,6 +38,7 @@ const NAV = [
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/deals", label: "Deals", icon: CircleDollarSign },
+  { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/activities", label: "Activities", icon: ActivityIcon },
   { href: "/settings", label: "Settings", icon: Settings },

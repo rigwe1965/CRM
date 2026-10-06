@@ -125,6 +125,43 @@ export type TeamUser = {
   createdAt: string;
 };
 
+export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "CANCELLED";
+
+export type InvoiceItem = {
+  id: string;
+  position: number;
+  ref: string;
+  style: string;
+  description: string;
+  color: string | null;
+  density: string | null;
+  lengthInches: number | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  resalePrice: number | null;
+  note: string | null;
+};
+
+export type Invoice = {
+  id: string;
+  number: string;
+  status: InvoiceStatus;
+  invoiceDate: string;
+  currency: string;
+  vendorName: string;
+  vendorRep: string | null;
+  vendorPhone: string | null;
+  billTo: string;
+  subtotal: number;
+  shipping: number;
+  total: number;
+  notes: string | null;
+  owner: Person;
+  items?: InvoiceItem[];
+  _count?: { items: number };
+};
+
 export type Paginated<T> = {
   data: T[];
   meta: { page: number; pageSize: number; total: number; totalPages: number };

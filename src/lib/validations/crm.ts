@@ -232,3 +232,10 @@ export const taskListQuery = z.object({
   dueBefore: isoDate.optional(),
   overdue: bool.optional(),
 });
+
+// ─── Invoices ───────────────────────────────────────────
+
+export const invoiceListQuery = z.object({
+  ...pagination,
+  sort: z.enum(["number", "invoiceDate", "total", "createdAt"]).default("invoiceDate"),
+});
