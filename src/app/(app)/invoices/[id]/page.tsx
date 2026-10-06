@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Pencil, Receipt, Trash2 } from "lucide-react";
+import { ArrowLeft, Pencil, Printer, Receipt, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,7 +55,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm" className="-ml-2">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 print:hidden">
         <Link href="/invoices">
           <ArrowLeft /> Invoices
         </Link>
@@ -68,10 +68,13 @@ export default function InvoiceDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Tone tone={status.tone}>{status.label}</Tone>
-          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+          <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
+            <Printer /> Print / PDF
+          </Button>
+          <Button variant="outline" size="sm" className="print:hidden" onClick={() => setEditing(true)}>
             <Pencil /> Edit
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setDeleting(true)}>
+          <Button variant="outline" size="sm" className="print:hidden" onClick={() => setDeleting(true)}>
             <Trash2 /> Delete
           </Button>
         </div>
@@ -123,7 +126,7 @@ export default function InvoiceDetailPage() {
               <TableHead className="text-right">Qty</TableHead>
               <TableHead className="text-right">Unit</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead className="hidden text-right lg:table-cell">Resale</TableHead>
+              <TableHead className="hidden text-right print:hidden lg:table-cell">Resale</TableHead>
               <TableHead className="hidden xl:table-cell">Notes</TableHead>
             </TableRow>
           </TableHeader>
@@ -141,7 +144,7 @@ export default function InvoiceDetailPage() {
                 <TableCell className="text-right tabular-nums">{i.quantity}</TableCell>
                 <TableCell className="text-right tabular-nums">{cur(i.unitPrice)}</TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{cur(i.lineTotal)}</TableCell>
-                <TableCell className="hidden text-right tabular-nums lg:table-cell">{i.resalePrice === null ? "—" : cur(i.resalePrice)}</TableCell>
+                <TableCell className="hidden text-right tabular-nums print:hidden lg:table-cell">{i.resalePrice === null ? "—" : cur(i.resalePrice)}</TableCell>
                 <TableCell className="hidden text-muted-foreground xl:table-cell">{i.note ?? ""}</TableCell>
               </TableRow>
             ))}

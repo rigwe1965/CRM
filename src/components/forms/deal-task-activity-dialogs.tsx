@@ -13,6 +13,7 @@ import { FormField } from "@/components/common/page";
 import { ContactPicker, DealPicker, OrganizationPicker } from "@/components/common/pickers";
 import {
   ACTIVITY_TYPES,
+  currencyOptions,
   DEAL_STAGES,
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -53,6 +54,7 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
   const [v, setV] = useState({
     title: deal?.title ?? "",
     amount: deal ? String(deal.amount) : "",
+    currency: deal?.currency ?? "USD",
     stage: initialStage as DealStage,
     probability: String(deal?.probability ?? DEAL_STAGES.find((s) => s.value === initialStage)!.probability),
     expectedCloseDate: toDateInput(deal?.expectedCloseDate),
@@ -77,6 +79,7 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
         const ok = await form.run(() =>
           save.mutateAsync({
             title: v.title,
+            currency: v.currency,
             amount: filled.length ? undefined : v.amount.trim() === "" ? 0 : Number(v.amount),
             stage: v.stage,
             probability: v.probability.trim() === "" ? undefined : Number(v.probability),
@@ -98,12 +101,24 @@ function DealForm({ deal, defaults, onClose }: { deal?: Deal; defaults?: DealDef
         <Input value={v.title} onChange={(e) => set("title", e.target.value)} aria-invalid={!!form.err("title")} autoFocus />
       </FormField>
       <Grid2>
-        <FormField label="Amount (USD)" error={form.err("amount")} hint={filled.length ? "Total of the items below" : undefined}>
+        <FormField label="Amount" error={form.err("amount")} hint={filled.length ? "Total of the items below" : undefined}>
           {filled.length ? (
-            <Input value={money(itemsSum, deal?.currency ?? "USD")} readOnly disabled />
+            <Input value={money(itemsSum, v.currency)} readOnly disabled />
           ) : (
             <Input type="number" min={0} step="0.01" value={v.amount} onChange={(e) => set("amount", e.target.value)} placeholder="0" />
           )}
+          <Select value={v.currency} onValueChange={(c) => set("currency", c)}>
+            <SelectTrigger aria-label="Currency" className="mt-2 w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {currencyOptions(deal?.currency).map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
         <FormField label="Expected close date" error={form.err("expectedCloseDate")}>
           <Input type="date" value={v.expectedCloseDate} onChange={(e) => set("expectedCloseDate", e.target.value)} />

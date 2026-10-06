@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   Activity as ActivityIcon,
   Building2,
+  Package,
   Receipt,
   CheckSquare,
   ChevronsUpDown,
@@ -39,6 +40,7 @@ const NAV = [
   { href: "/companies", label: "Companies", icon: Building2 },
   { href: "/deals", label: "Deals", icon: CircleDollarSign },
   { href: "/invoices", label: "Invoices", icon: Receipt },
+  { href: "/stock", label: "Stock", icon: Package },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/activities", label: "Activities", icon: ActivityIcon },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -119,7 +121,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const wide = pathname.startsWith("/deals");
   return (
     <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r bg-background lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r bg-background print:hidden lg:block">
         <Brand />
         <NavLinks />
       </aside>
@@ -133,8 +135,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+      <div className="lg:pl-60 print:pl-0">
+        <header className="sticky top-0 z-20 flex h-14 print:hidden items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-6">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu />
           </Button>
@@ -144,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <UserMenu />
           </div>
         </header>
-        <main className={cn("w-full p-4 sm:p-6", !wide && "mx-auto max-w-7xl")}>{children}</main>
+        <main className={cn("w-full p-4 sm:p-6 print:p-0", !wide && "mx-auto max-w-7xl print:max-w-none")}>{children}</main>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { format, formatDistanceToNow, parseISO } from "date-fns";
+import type { MoneyMap } from "@/lib/money";
 
 export const money = (n: number, currency = "USD", compact = false) =>
   new Intl.NumberFormat("en-US", {
@@ -7,6 +8,21 @@ export const money = (n: number, currency = "USD", compact = false) =>
     maximumFractionDigits: compact ? 1 : 0,
     notation: compact ? "compact" : "standard",
   }).format(n);
+
+/** "$7,309 + €620": one figure per currency, never added together. USD first, then A to Z. */
+export const moneyMap = (m: MoneyMap, fallback = "USD", compact = false) => {
+  const entries = Object.entries(m)
+    .filter(([, n]) => n !== 0)
+    .sort(([a], [b]) => (a === "USD" ? -1 : b === "USD" ? 1 : a.localeCompare(b)));
+  return entries.length ? entries.map(([cur, n]) => money(n, cur, compact)).join(" + ") : money(0, fallback, compact);
+};
+
+/** Totals of deals per currency. */
+export const dealsMoney = (deals: { amount: number; currency: string }[]): MoneyMap => {
+  const out: MoneyMap = {};
+  for (const d of deals) out[d.currency] = Math.round(((out[d.currency] ?? 0) + d.amount) * 100) / 100;
+  return out;
+};
 
 /** Timestamps (createdAt, occurredAt...): shown in the viewer's timezone. */
 export const shortDate = (iso: string | null | undefined) => (iso ? format(new Date(iso), "MMM d, yyyy") : "—");

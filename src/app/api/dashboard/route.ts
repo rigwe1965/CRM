@@ -5,6 +5,7 @@ import { activityInclude, taskInclude } from "@/lib/includes";
 import { authorScope, ownerScope, taskScope } from "@/lib/access";
 import { pipelineSummary } from "@/lib/deals";
 import { cashflow } from "@/lib/cashflow";
+import { addMoney, type MoneyMap } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ const DAY = 86_400_000;
 
 /**
  * GET /api/dashboard: headline numbers for the caller's own data (admins: everything).
- * Amounts are summed as plain numbers, so a single currency is assumed.
+ * Money is kept per currency (never added across currencies), as { USD: n, EUR: m }.
  */
 export const GET = authed(async ({ user }) => {
   const owned = ownerScope(user);
@@ -41,8 +42,9 @@ export const GET = authed(async ({ user }) => {
     db.contact.groupBy({ by: ["type"], where: live, _count: { _all: true } }),
     db.organization.count({ where: live }),
     pipelineSummary(owned),
-    db.deal.aggregate({ where: { ...live, stage: "CLOSED_WON" }, _count: { _all: true }, _sum: { amount: true } }),
-    db.deal.aggregate({
+    db.deal.groupBy({ by: ["currency"], where: { ...live, stage: "CLOSED_WON" }, _count: { _all: true }, _sum: { amount: true } }),
+    db.deal.groupBy({
+      by: ["currency"],
       where: { ...live, stage: "CLOSED_WON", closedAt: { gte: since } },
       _count: { _all: true },
       _sum: { amount: true },
@@ -50,7 +52,7 @@ export const GET = authed(async ({ user }) => {
     db.deal.count({ where: { ...live, stage: "CLOSED_LOST" } }),
     db.task.count({ where: { AND: [taskScope(user), openTask] } }),
     db.task.count({ where: { AND: [taskScope(user), openTask, { dueDate: { lt: now } }] } }),
-    db.invoice.aggregate({ where: stockWhere, _count: { _all: true }, _sum: { total: true } }),
+    db.invoice.groupBy({ by: ["currency"], where: stockWhere, _count: { _all: true }, _sum: { total: true } }),
     db.invoiceItem.aggregate({ where: { invoice: stockWhere }, _sum: { quantity: true } }),
     cashflow(owned, now),
     db.activity.findMany({
@@ -67,7 +69,13 @@ export const GET = authed(async ({ user }) => {
     }),
   ]);
 
-  const won = wonTotal._count._all;
+  const perCurrency = (rows: { currency: string; _sum: { amount?: unknown; total?: unknown } }[], field: "amount" | "total") => {
+    const m: MoneyMap = {};
+    for (const r of rows) addMoney(m, r.currency, Number(r._sum[field] ?? 0));
+    return m;
+  };
+  const won = wonTotal.reduce((s, r) => s + r._count._all, 0);
+  const wonRecent = wonLast30.reduce((s, r) => s + r._count._all, 0);
   const decided = won + lostCount;
   const contacts = Object.fromEntries(contactsByType.map((r) => [r.type, r._count._all]));
 
@@ -82,16 +90,16 @@ export const GET = authed(async ({ user }) => {
     },
     pipeline,
     revenue: {
-      wonTotal: Number(wonTotal._sum.amount ?? 0),
+      wonTotal: perCurrency(wonTotal, "amount"),
       wonDealsTotal: won,
-      wonLast30Days: Number(wonLast30._sum.amount ?? 0),
-      wonDealsLast30Days: wonLast30._count._all,
+      wonLast30Days: perCurrency(wonLast30, "amount"),
+      wonDealsLast30Days: wonRecent,
       // Share of closed deals that were won; null until a deal has been closed.
       winRate: decided === 0 ? null : Math.round((won / decided) * 1000) / 10,
     },
     stock: {
-      invoiceCount: stockInvoices._count._all,
-      spend: Number(stockInvoices._sum.total ?? 0),
+      invoiceCount: stockInvoices.reduce((s, r) => s + r._count._all, 0),
+      spend: perCurrency(stockInvoices, "total"),
       pieces: stockPieces._sum.quantity ?? 0,
     },
     cashflow: cash,

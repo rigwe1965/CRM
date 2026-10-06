@@ -225,7 +225,11 @@ export type Paginated<T> = {
   meta: { page: number; pageSize: number; total: number; totalPages: number };
 };
 
-export type PipelineStage = { stage: DealStage; count: number; amount: number; weightedAmount: number };
+import type { MoneyMap } from "@/lib/money";
+
+export type { MoneyMap };
+
+export type PipelineStage = { stage: DealStage; count: number; amount: MoneyMap; weightedAmount: MoneyMap };
 
 export type Dashboard = {
   counts: {
@@ -239,25 +243,32 @@ export type Dashboard = {
   pipeline: {
     stages: PipelineStage[];
     openCount: number;
-    openAmount: number;
-    openWeightedAmount: number;
+    openAmount: MoneyMap;
+    openWeightedAmount: MoneyMap;
   };
   revenue: {
-    wonTotal: number;
+    wonTotal: MoneyMap;
     wonDealsTotal: number;
-    wonLast30Days: number;
+    wonLast30Days: MoneyMap;
     wonDealsLast30Days: number;
     winRate: number | null;
   };
-  stock: { invoiceCount: number; spend: number; pieces: number };
+  stock: { invoiceCount: number; spend: MoneyMap; pieces: number };
   cashflow: {
-    collected: { total: number; last30Days: number };
-    owed: { amount: number; deals: number };
-    overdue: { amount: number; deals: number };
-    profit: { estimated: number; revenue: number; cost: number; margin: number | null };
+    collected: { total: MoneyMap; last30Days: MoneyMap };
+    owed: { amount: MoneyMap; deals: number };
+    overdue: { amount: MoneyMap; deals: number };
+    /** Per invoice currency. */
+    profit: Record<string, { estimated: number; revenue: number; cost: number; margin: number | null }>;
   };
   recentActivities: Activity[];
   upcomingTasks: Task[];
 };
+
+export type StockRow = { product: string; description: string; color: string; lengthInches: number | null; bought: number; sold: number; onHand: number };
+
+export type UnmatchedSale = { dealId: string; dealTitle: string; product: string; color: string; length: string; quantity: number; reason: string };
+
+export type Stock = { rows: StockRow[]; unmatched: UnmatchedSale[] };
 
 export type SessionUser = { id: string; name: string; email: string; role: Role };

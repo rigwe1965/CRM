@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Plus, Receipt } from "lucide-react";
+import { useRef, useState } from "react";
+import { Plus, Receipt, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, ErrorState, PageHeader, Pagination, SearchInput, TableSkeleton, Tone, useDebounced } from "@/components/common/page";
 import { InvoiceDialog } from "@/components/forms/invoice-dialog";
 import { invoiceStatusInfo } from "@/lib/client/constants";
+import { readTable, tableToItems, type ImportedItem } from "@/lib/client/invoice-import";
 import { dateOnly, money } from "@/lib/client/format";
 import { useList } from "@/lib/client/hooks";
 import type { Invoice } from "@/lib/client/types";
@@ -19,6 +21,22 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+  const [imported, setImported] = useState<ImportedItem[] | undefined>();
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    try {
+      const { items, skipped } = tableToItems(await readTable(file));
+      setImported(items);
+      setCreating(true);
+      toast.success(`Read ${items.length} lines${skipped ? ` (skipped ${skipped} rows without a quantity and price)` : ""}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not read that file.");
+    } finally {
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
   const q = useDebounced(search);
   const { data, isLoading, isFetching, error, refetch } = useList<Invoice>("invoices", { page, pageSize: 15, q, sort: "invoiceDate", order: "desc" });
 
@@ -28,9 +46,20 @@ export default function InvoicesPage() {
         title="Invoices"
         description="Supplier proforma invoices for stock orders."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus /> New invoice
-          </Button>
+          <>
+            <input ref={fileInput} type="file" accept=".csv,.xlsx,text/csv" className="sr-only" aria-label="Import invoice from a spreadsheet" onChange={(e) => onFile(e.target.files?.[0])} />
+            <Button variant="outline" onClick={() => fileInput.current?.click()}>
+              <Upload /> Import from file
+            </Button>
+            <Button
+              onClick={() => {
+                setImported(undefined);
+                setCreating(true);
+              }}
+            >
+              <Plus /> New invoice
+            </Button>
+          </>
         }
       />
 
@@ -52,7 +81,7 @@ export default function InvoicesPage() {
         ) : error ? (
           <ErrorState message={error.message} onRetry={() => refetch()} />
         ) : data && data.data.length === 0 ? (
-          <EmptyState icon={Receipt} title={q ? "No invoices match your search" : "No invoices yet"} description={q ? "Try a different number or name." : "Record a stock order from a supplier."} action={q ? undefined : <Button onClick={() => setCreating(true)}><Plus /> New invoice</Button>} />
+          <EmptyState icon={Receipt} title={q ? "No invoices match your search" : "No invoices yet"} description={q ? "Try a different number or name." : "Record a stock order from a supplier."} action={q ? undefined : <Button onClick={() => { setImported(undefined); setCreating(true); }}><Plus /> New invoice</Button>} />
         ) : (
           data && (
             <div className={isFetching ? "opacity-70 transition-opacity" : "transition-opacity"}>
@@ -96,7 +125,7 @@ export default function InvoicesPage() {
         )}
       </Card>
 
-      <InvoiceDialog open={creating} onOpenChange={setCreating} />
+      <InvoiceDialog open={creating} onOpenChange={setCreating} initialItems={imported} />
     </>
   );
 }

@@ -1,5 +1,6 @@
 import type { DealStage, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { addMoney, sumMoney, type MoneyMap } from "@/lib/money";
 
 /** Pipeline order, left to right. */
 export const STAGES: readonly DealStage[] = [
@@ -60,10 +61,13 @@ export const NO_LEGACY_HAIR = {
   quantity: null,
 } as const;
 
-/** Per-stage counts, total value and probability-weighted value for the given (already scoped) deals. */
+/**
+ * Per-stage counts, total value and probability-weighted value for the given (already scoped) deals.
+ * Values are per currency (see MoneyMap): different currencies are never added together.
+ */
 export async function pipelineSummary(where: Prisma.DealWhereInput) {
   const rows = await db.deal.groupBy({
-    by: ["stage", "probability"],
+    by: ["stage", "probability", "currency"],
     where: { AND: [{ deletedAt: null }, where] },
     _count: { _all: true },
     _sum: { amount: true },
@@ -71,23 +75,22 @@ export async function pipelineSummary(where: Prisma.DealWhereInput) {
 
   const stages = STAGES.map((stage) => {
     const mine = rows.filter((r) => r.stage === stage);
-    const amount = mine.reduce((sum, r) => sum + Number(r._sum.amount ?? 0), 0);
-    const weighted = mine.reduce((sum, r) => sum + (Number(r._sum.amount ?? 0) * r.probability) / 100, 0);
-    return {
-      stage,
-      count: mine.reduce((sum, r) => sum + r._count._all, 0),
-      amount: round2(amount),
-      weightedAmount: round2(weighted),
-    };
+    const amount: MoneyMap = {};
+    const weightedAmount: MoneyMap = {};
+    for (const r of mine) {
+      const sum = Number(r._sum.amount ?? 0);
+      addMoney(amount, r.currency, sum);
+      addMoney(weightedAmount, r.currency, (sum * r.probability) / 100);
+    }
+    return { stage, count: mine.reduce((n, r) => n + r._count._all, 0), amount, weightedAmount };
   });
 
   const open = stages.filter((s) => !isClosed(s.stage));
   return {
     stages,
     openCount: open.reduce((s, x) => s + x.count, 0),
-    openAmount: round2(open.reduce((s, x) => s + x.amount, 0)),
-    openWeightedAmount: round2(open.reduce((s, x) => s + x.weightedAmount, 0)),
+    openAmount: sumMoney(open.map((s) => s.amount)),
+    openWeightedAmount: sumMoney(open.map((s) => s.weightedAmount)),
   };
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;

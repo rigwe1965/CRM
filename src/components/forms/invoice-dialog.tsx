@@ -10,9 +10,10 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/common/page";
-import { INVOICE_STATUSES } from "@/lib/client/constants";
+import { currencyOptions, INVOICE_STATUSES } from "@/lib/client/constants";
 import { toDateInput } from "@/lib/client/format";
 import { useList, useSave } from "@/lib/client/hooks";
+import type { ImportedItem } from "@/lib/client/invoice-import";
 import type { Deal, Invoice, InvoiceStatus } from "@/lib/client/types";
 import { FormShell, Grid2, nullable, useFormState } from "./form-kit";
 
@@ -51,21 +52,24 @@ export function InvoiceDialog({
   open,
   onOpenChange,
   invoice,
+  initialItems,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   invoice?: Invoice;
+  /** Lines read from an imported spreadsheet, to review before saving a new invoice. */
+  initialItems?: ImportedItem[];
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
-        <InvoiceForm invoice={invoice} onClose={() => onOpenChange(false)} />
+        <InvoiceForm invoice={invoice} initialItems={initialItems} onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function InvoiceForm({ invoice, onClose }: { invoice?: Invoice; onClose: () => void }) {
+function InvoiceForm({ invoice, initialItems, onClose }: { invoice?: Invoice; initialItems?: ImportedItem[]; onClose: () => void }) {
   const save = useSave<Invoice>("invoices", invoice?.id);
   const form = useFormState();
   const deals = useList<Deal>("deals", { pageSize: 100, sort: "title", order: "asc" });
@@ -100,7 +104,26 @@ function InvoiceForm({ invoice, onClose }: { invoice?: Invoice; onClose: () => v
           note: i.note ?? "",
           original: { quantity: String(i.quantity), unitPrice: String(i.unitPrice), lineTotal: i.lineTotal },
         }))
-      : [blankItem(1)],
+      : initialItems?.length
+        ? initialItems.map((i) => ({
+            key: nextKey++,
+            ref: i.ref,
+            style: i.style,
+            description: i.description,
+            color: i.color,
+            density: i.density,
+            lengthInches: i.lengthInches ? String(i.lengthInches) : "",
+            quantity: String(i.quantity),
+            unitPrice: String(i.unitPrice),
+            resalePrice: i.resalePrice === null ? "" : String(i.resalePrice),
+            note: i.note,
+            // Keep the sheet's own (rounded) line total when it differs from quantity x price.
+            original:
+              i.lineTotal !== null && Math.round(i.quantity * i.unitPrice * 100) !== Math.round(i.lineTotal * 100)
+                ? { quantity: String(i.quantity), unitPrice: String(i.unitPrice), lineTotal: i.lineTotal }
+                : undefined,
+          }))
+        : [blankItem(1)],
   );
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((s) => ({ ...s, [k]: val }));
   const setItem = (key: number, patch: Partial<ItemState>) =>
@@ -114,7 +137,7 @@ function InvoiceForm({ invoice, onClose }: { invoice?: Invoice; onClose: () => v
   return (
     <FormShell
       title={invoice ? "Edit invoice" : "New supplier invoice"}
-      description={invoice ? undefined : "Record a stock order from a supplier."}
+      description={invoice ? undefined : initialItems?.length ? `${initialItems.length} lines imported from your file. Check them, add the invoice details, then save.` : "Record a stock order from a supplier."}
       submitLabel={invoice ? "Save changes" : "Create invoice"}
       pending={save.isPending}
       formError={form.formError}
@@ -196,7 +219,18 @@ function InvoiceForm({ invoice, onClose }: { invoice?: Invoice; onClose: () => v
           </Select>
         </FormField>
         <FormField label="Currency" error={form.err("currency")}>
-          <Input value={v.currency} onChange={(e) => set("currency", e.target.value)} maxLength={3} />
+          <Select value={v.currency} onValueChange={(c) => set("currency", c)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {currencyOptions(invoice?.currency).map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
         <FormField label="Shipping" error={form.err("shipping")}>
           <Input type="number" min={0} step="0.01" value={v.shipping} onChange={(e) => set("shipping", e.target.value)} placeholder="0" />

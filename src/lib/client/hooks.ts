@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { Dashboard, Deal, DealStage, Paginated, PaymentsView, Task, TaskStatus } from "./types";
+import type { Dashboard, Deal, DealStage, Paginated, PaymentsView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices";
 
@@ -175,3 +175,10 @@ export const useSaveSchedule = (dealId: string) =>
   usePaymentMutation((instalments: { dueDate: string; amount: number }[]) =>
     request("PUT", `/api/deals/${dealId}/schedule`, { instalments }),
   );
+
+export function useStock() {
+  return useQuery({
+    queryKey: ["stock"],
+    queryFn: async () => (await request<{ data: Stock }>("GET", "/api/stock")).data,
+  });
+}

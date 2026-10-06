@@ -29,7 +29,7 @@ import { DealDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { PaymentsDialog } from "@/components/forms/payments-dialog";
 import { MoreHorizontal } from "lucide-react";
 import { DEAL_STAGES } from "@/lib/client/constants";
-import { dateOnly, initials, isOverdue, money } from "@/lib/client/format";
+import { dateOnly, dealsMoney, initials, isOverdue, money, moneyMap } from "@/lib/client/format";
 import { errorMessage, useList, useMoveDeal, useRemove } from "@/lib/client/hooks";
 import type { Deal, DealStage } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
@@ -152,7 +152,6 @@ function Column({
   onAdd: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.value });
-  const total = deals.reduce((sum, d) => sum + d.amount, 0);
   return (
     <section aria-label={`${stage.label} stage`} className="flex w-64 shrink-0 snap-start flex-col rounded-xl bg-muted/70">
       <header className="flex items-center justify-between px-3 pb-2 pt-3">
@@ -165,7 +164,7 @@ function Column({
           <Plus />
         </Button>
       </header>
-      <p className="px-3 pb-2 text-xs text-muted-foreground tabular-nums">{money(total)}</p>
+      <p className="px-3 pb-2 text-xs text-muted-foreground tabular-nums">{moneyMap(dealsMoney(deals))}</p>
       <div
         ref={setNodeRef}
         className={cn("flex min-h-[8rem] flex-1 flex-col gap-2 rounded-b-xl px-2 pb-2 transition-colors", isOver && "bg-accent")}
@@ -235,7 +234,7 @@ export default function DealsPage() {
   }, [data]);
 
   const openDeals = (data?.data ?? []).filter((d) => d.stage !== "CLOSED_WON" && d.stage !== "CLOSED_LOST");
-  const openTotal = openDeals.reduce((s, d) => s + d.amount, 0);
+  const openTotal = dealsMoney(openDeals);
   const openCount = openDeals.length;
 
   function requestMove(deal: Deal, stage: DealStage) {
@@ -256,7 +255,7 @@ export default function DealsPage() {
     <>
       <PageHeader
         title="Deals"
-        description={data ? `${money(openTotal)} open across ${openCount} ${openCount === 1 ? "deal" : "deals"}` : "Your sales pipeline."}
+        description={data ? `${moneyMap(openTotal)} open across ${openCount} ${openCount === 1 ? "deal" : "deals"}` : "Your sales pipeline."}
         actions={
           <>
             <SearchInput value={search} onChange={setSearch} placeholder="Search deals…" className="w-full sm:w-56" />

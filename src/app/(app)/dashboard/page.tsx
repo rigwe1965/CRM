@@ -10,7 +10,7 @@ import { useCurrentUser } from "@/components/providers";
 import { ActivityItem, TaskRow } from "@/components/common/items";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common/page";
 import { CONTACT_TYPES, DEAL_STAGES } from "@/lib/client/constants";
-import { money } from "@/lib/client/format";
+import { money, moneyMap } from "@/lib/client/format";
 import { useDashboard } from "@/lib/client/hooks";
 import type { ContactType } from "@/lib/client/types";
 
@@ -92,6 +92,11 @@ export default function DashboardPage() {
   const firstName = user.name.split(" ")[0];
   // Lost deals would dwarf the chart without telling you anything about the live pipeline.
   const chartStages = (data?.pipeline.stages ?? []).filter((s) => s.stage !== "CLOSED_LOST");
+  // A bar chart needs one unit, so it plots the currency with the most value; the cards list them all.
+  const chartTotals: Record<string, number> = {};
+  for (const s of chartStages) for (const [cur, n] of Object.entries(s.amount)) chartTotals[cur] = (chartTotals[cur] ?? 0) + n;
+  const chartCurrency = Object.entries(chartTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "USD";
+  const otherCurrencies = Object.keys(chartTotals).filter((c) => c !== chartCurrency);
 
   return (
     <>
@@ -116,21 +121,21 @@ export default function DashboardPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard
               title="Open pipeline"
-              value={money(data.pipeline.openAmount)}
-              sub={`${money(data.pipeline.openWeightedAmount)} weighted · ${data.pipeline.openCount} ${data.pipeline.openCount === 1 ? "deal" : "deals"}`}
+              value={moneyMap(data.pipeline.openAmount)}
+              sub={`${moneyMap(data.pipeline.openWeightedAmount)} weighted · ${data.pipeline.openCount} ${data.pipeline.openCount === 1 ? "deal" : "deals"}`}
               icon={CircleDollarSign}
               href="/deals"
             />
             <StatCard
               title="Completed (last 30 days)"
-              value={money(data.revenue.wonLast30Days)}
+              value={moneyMap(data.revenue.wonLast30Days)}
               sub={`${data.revenue.wonDealsLast30Days} ${data.revenue.wonDealsLast30Days === 1 ? "deal" : "deals"} · win rate ${data.revenue.winRate === null ? "n/a" : `${data.revenue.winRate}%`}`}
               icon={TrendingUp}
               href="/deals"
             />
             <StatCard
               title="Stock spend"
-              value={money(data.stock.spend)}
+              value={moneyMap(data.stock.spend)}
               sub={`${data.stock.pieces} ${data.stock.pieces === 1 ? "piece" : "pieces"} · ${data.stock.invoiceCount} ${data.stock.invoiceCount === 1 ? "invoice" : "invoices"}`}
               icon={Receipt}
               href="/invoices"
@@ -162,21 +167,21 @@ export default function DashboardPage() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 title="Collected"
-                value={money(data.cashflow.collected.total)}
-                sub={`${money(data.cashflow.collected.last30Days)} in the last 30 days`}
+                value={moneyMap(data.cashflow.collected.total)}
+                sub={`${moneyMap(data.cashflow.collected.last30Days)} in the last 30 days`}
                 icon={Banknote}
                 href="/deals"
               />
               <StatCard
                 title="Still owed to you"
-                value={money(data.cashflow.owed.amount)}
+                value={moneyMap(data.cashflow.owed.amount)}
                 sub={`${data.cashflow.owed.deals} ${data.cashflow.owed.deals === 1 ? "confirmed order" : "confirmed orders"} with a balance`}
                 icon={Coins}
                 href="/deals"
               />
               <StatCard
                 title="Overdue instalments"
-                value={money(data.cashflow.overdue.amount)}
+                value={moneyMap(data.cashflow.overdue.amount)}
                 sub={
                   data.cashflow.overdue.deals > 0 ? (
                     <span className="font-medium text-destructive">
@@ -191,11 +196,14 @@ export default function DashboardPage() {
               />
               <StatCard
                 title="Est. profit on stock"
-                value={money(data.cashflow.profit.estimated)}
+                value={moneyMap(Object.fromEntries(Object.entries(data.cashflow.profit).map(([c, p]) => [c, p.estimated])))}
                 sub={
-                  data.cashflow.profit.margin === null
+                  Object.keys(data.cashflow.profit).length === 0
                     ? "Add resale prices to invoice items"
-                    : `${data.cashflow.profit.margin}% margin if sold at your resale prices`
+                    : Object.entries(data.cashflow.profit)
+                        .map(([c, p]) => (p.margin === null ? null : Object.keys(data.cashflow.profit).length > 1 ? `${p.margin}% in ${c}` : `${p.margin}% margin if sold at your resale prices`))
+                        .filter(Boolean)
+                        .join(" · ") || "Add resale prices to invoice items"
                 }
                 icon={PiggyBank}
                 href="/invoices"
@@ -206,7 +214,9 @@ export default function DashboardPage() {
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle>Pipeline by stage <span className="text-xs font-normal text-muted-foreground">(open + won)</span></CardTitle>
+                <CardTitle>
+                  Pipeline by stage <span className="text-xs font-normal text-muted-foreground">(open + won{otherCurrencies.length ? `, charted in ${chartCurrency}; ${otherCurrencies.join(", ")} not charted` : ""})</span>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {chartStages.every((s) => s.count === 0) ? (
@@ -218,17 +228,17 @@ export default function DashboardPage() {
                         data={chartStages.map((s) => ({
                           name: DEAL_STAGES.find((d) => d.value === s.stage)!.label,
                           stage: s.stage,
-                          amount: s.amount,
+                          amount: s.amount[chartCurrency] ?? 0,
                           count: s.count,
                         }))}
                         margin={{ left: 0, right: 8, top: 8 }}
                       >
                         <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} stroke="hsl(var(--muted-foreground))" />
-                        <YAxis tickLine={false} axisLine={false} fontSize={12} width={56} stroke="hsl(var(--muted-foreground))" tickFormatter={(v: number) => money(v, "USD", true)} />
+                        <YAxis tickLine={false} axisLine={false} fontSize={12} width={56} stroke="hsl(var(--muted-foreground))" tickFormatter={(v: number) => money(v, chartCurrency, true)} />
                         <Tooltip
                           contentStyle={TOOLTIP_STYLE}
                           cursor={{ fill: "hsl(var(--muted))" }}
-                          formatter={(value, _n, item) => [`${money(Number(value))} (${item.payload.count} deals)`, "Value"]}
+                          formatter={(value, _n, item) => [`${money(Number(value), chartCurrency)} (${item.payload.count} deals)`, "Value"]}
                         />
                         <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                           {chartStages.map((s) => (

@@ -45,6 +45,7 @@
     "nodemailer": "^8.0.11",
     "react": "^18",
     "react-dom": "^18",
+    "read-excel-file": "^9.3.10",
     "recharts": "^3.10.1",
     "resend": "^6.32.0",
     "server-only": "^0.0.1",
