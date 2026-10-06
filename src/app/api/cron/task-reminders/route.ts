@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { sendTaskReminders } from "@/lib/notifications";
+import { sendInstalmentReminders, sendTaskReminders } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -17,12 +17,15 @@ function authorized(req: Request) {
 }
 
 /**
- * GET /api/cron/task-reminders: emails assignees about overdue / due-within-24h tasks.
+ * GET /api/cron/task-reminders: emails assignees about overdue / due-within-24h tasks, and deal owners
+ * about customer instalments that are due or late (one daily cron covers both).
  * Public path (no session) but requires `Authorization: Bearer $CRON_SECRET`, which Vercel Cron
  * sends automatically (see vercel.json). Safe to call repeatedly: each task is reminded once.
  */
 export async function GET(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
-  const result = await sendTaskReminders();
-  return NextResponse.json({ ok: true, ...result });
+  const tasks = await sendTaskReminders();
+  const instalments = await sendInstalmentReminders();
+  // `tasks` fields stay at the top level for existing callers.
+  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments });
 }

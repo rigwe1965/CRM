@@ -386,11 +386,13 @@ model Payment {
 
 // Optional agreed due dates for a deal. Payments are applied to these oldest-first.
 model Instalment {
-  id       String   @id @default(cuid())
-  dealId   String
-  position Int
-  dueDate  DateTime
-  amount   Decimal  @db.Decimal(14, 2)
+  id             String    @id @default(cuid())
+  dealId         String
+  position       Int
+  dueDate        DateTime
+  amount         Decimal   @db.Decimal(14, 2)
+  // Set when the due-soon reminder email went out (or when nothing was left to chase).
+  reminderSentAt DateTime?
 
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 

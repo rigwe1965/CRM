@@ -124,6 +124,32 @@ export function taskReminderEmail(name: string, tasks: DigestTask[]): Rendered {
   };
 }
 
+export type DigestInstalment = { customer: string; dueDate: Date; amountDue: number; currency: string; overdue: boolean };
+
+export function instalmentReminderEmail(name: string, rows: DigestInstalment[]): Rendered {
+  const url = `${appUrl()}/deals`;
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const amt = (r: DigestInstalment) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: r.currency }).format(r.amountDue);
+  const when = (r: DigestInstalment) => `${r.overdue ? "overdue, was due" : "due"} ${fmt(r.dueDate)}`;
+  const lines = rows.map((r) => `- ${r.customer}: ${amt(r)} (${when(r)})`);
+  const items = rows
+    .map(
+      (r) =>
+        `<li style="margin-bottom:6px">${esc(r.customer)}: <strong>${esc(amt(r))}</strong> <span style="color:${r.overdue ? "#b91c1c" : "#71717a"}">(${when(r)})</span></li>`,
+    )
+    .join("");
+  const n = rows.length;
+  return {
+    subject: n === 1 ? `Payment due: ${rows[0].customer}, ${amt(rows[0])}` : `${n} customer payments need chasing`,
+    text: `Hi ${name},\n\nThese instalments are due within a day or already overdue:\n${lines.join("\n")}\n\nOpen the deals board and use each deal's Payments menu: ${url}\n`,
+    html: layout(
+      "Customer payments due",
+      `<p style="margin:0 0 10px">Hi ${esc(name)}, these instalments are due within a day or already overdue:</p><ul style="margin:0 0 6px;padding-left:20px">${items}</ul>${button(url, "Open deals")}`,
+    ),
+  };
+}
+
 /** Body of an email composed by a CRM user and sent to a contact (subject comes from the user). */
 export function contactEmail(message: string, senderName: string): Pick<Rendered, "text" | "html"> {
   return {
