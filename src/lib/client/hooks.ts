@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { Dashboard, Deal, DealStage, Paginated, Task, TaskStatus } from "./types";
+import type { Dashboard, Deal, DealStage, Paginated, PaymentsView, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices";
 
@@ -149,3 +149,29 @@ export function useSetTaskStatus() {
     onSettled: () => refreshAll(qc),
   });
 }
+
+// ─── Payments ───────────────────────────────────────────
+
+export function usePayments(dealId: string) {
+  return useQuery({
+    queryKey: ["deals", "payments", dealId],
+    queryFn: async () => (await request<{ data: PaymentsView }>("GET", `/api/deals/${dealId}/payments`)).data,
+  });
+}
+
+/** Payment writes change the balance shown on the board, so refetch everything on screen. */
+function usePaymentMutation<V>(fn: (v: V) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => qc.invalidateQueries() });
+}
+
+export const useAddPayment = (dealId: string) =>
+  usePaymentMutation((body: Record<string, unknown>) => request("POST", `/api/deals/${dealId}/payments`, body));
+
+export const useDeletePayment = (dealId: string) =>
+  usePaymentMutation((paymentId: string) => request("DELETE", `/api/deals/${dealId}/payments/${paymentId}`));
+
+export const useSaveSchedule = (dealId: string) =>
+  usePaymentMutation((instalments: { dueDate: string; amount: number }[]) =>
+    request("PUT", `/api/deals/${dealId}/schedule`, { instalments }),
+  );

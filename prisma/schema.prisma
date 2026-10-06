@@ -47,6 +47,13 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  DIGITAL
+  OTHER
+}
+
 enum ActivityType {
   NOTE
   CALL
@@ -93,6 +100,7 @@ model User {
   assignedTasks      Task[]         @relation("TaskAssignee")
   createdTasks       Task[]         @relation("TaskCreator")
   ownedInvoices      Invoice[]      @relation("InvoiceOwner")
+  recordedPayments   Payment[]      @relation("PaymentRecorder")
 
   @@index([role])
 }
@@ -229,6 +237,8 @@ model Deal {
   activities   Activity[]
   tasks        Task[]
   invoices     Invoice[]
+  payments     Payment[]
+  instalments  Instalment[]
 
   @@index([stage])
   @@index([expectedCloseDate])
@@ -344,4 +354,38 @@ model InvoiceItem {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId, position])
+}
+
+// ─── Customer payments ──────────────────────────────────
+
+// Money received against a deal. The balance is deal.amount minus the sum of these.
+model Payment {
+  id           String        @id @default(cuid())
+  dealId       String
+  amount       Decimal       @db.Decimal(14, 2)
+  paidAt       DateTime
+  method       PaymentMethod @default(BANK_TRANSFER)
+  reference    String?
+  note         String?
+  recordedById String
+  createdAt    DateTime      @default(now())
+
+  deal       Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  recordedBy User @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([dealId, paidAt])
+  @@index([recordedById])
+}
+
+// Optional agreed due dates for a deal. Payments are applied to these oldest-first.
+model Instalment {
+  id       String   @id @default(cuid())
+  dealId   String
+  position Int
+  dueDate  DateTime
+  amount   Decimal  @db.Decimal(14, 2)
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, dueDate])
 }

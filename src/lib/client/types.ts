@@ -80,6 +80,44 @@ export type Deal = {
   organization: { id: string; name: string } | null;
   contact: ContactRef | null;
   owner: Person;
+  /** Only on the deals list. */
+  payments?: PaymentSummary;
+};
+
+export type PaymentMethod = "BANK_TRANSFER" | "CASH" | "DIGITAL" | "OTHER";
+
+export type PaymentSummary = {
+  paid: number;
+  balance: number;
+  nextDue: { dueDate: string; amount: number } | null;
+  overdue: boolean;
+};
+
+export type Payment = {
+  id: string;
+  amount: number;
+  paidAt: string;
+  method: PaymentMethod;
+  reference: string | null;
+  note: string | null;
+  recordedBy: Person;
+};
+
+export type InstalmentStatus = {
+  id: string;
+  position: number;
+  dueDate: string;
+  amount: number;
+  covered: number;
+  overdue: boolean;
+};
+
+export type PaymentsView = {
+  dealAmount: number;
+  currency: string;
+  summary: PaymentSummary;
+  instalments: InstalmentStatus[];
+  payments: Payment[];
 };
 
 export type Activity = {

@@ -5,6 +5,7 @@ import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
 import { assertLinks, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
 import { dealDto, stageTransition } from "@/lib/deals";
+import { paymentSummaries } from "@/lib/payments";
 import { createDealSchema, dealListQuery } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,8 @@ export const GET = authed(async ({ req, user }) => {
       take: q.pageSize,
     }),
   ]);
-  return paginated(items.map(dealDto), total, q.page, q.pageSize);
+  const payments = await paymentSummaries(items);
+  return paginated(items.map((d) => ({ ...dealDto(d), payments: payments.get(d.id) })), total, q.page, q.pageSize);
 });
 
 /** POST /api/deals: create. Stage defaults to QUALIFICATION; probability defaults from the stage. */

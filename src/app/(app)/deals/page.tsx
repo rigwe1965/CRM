@@ -14,7 +14,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { CalendarClock, CircleDollarSign, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, CircleDollarSign, MoveRight, Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/input";
 import { ConfirmDialog, EmptyState, ErrorState, FormField, PageHeader, SearchInput, useDebounced } from "@/components/common/page";
 import { FormShell } from "@/components/forms/form-kit";
 import { DealDialog } from "@/components/forms/deal-task-activity-dialogs";
+import { PaymentsDialog } from "@/components/forms/payments-dialog";
 import { MoreHorizontal } from "lucide-react";
 import { DEAL_STAGES } from "@/lib/client/constants";
 import { dateOnly, initials, isOverdue, money } from "@/lib/client/format";
@@ -59,6 +60,13 @@ function DealCardBody({ deal, menu }: { deal: Deal; menu?: React.ReactNode }) {
         <span className="text-sm font-semibold tabular-nums">{money(deal.amount, deal.currency)}</span>
         <span className="text-xs text-muted-foreground">{deal.probability}%</span>
       </div>
+      {deal.payments && (deal.payments.paid > 0 || deal.payments.nextDue) && (
+        <p className={cn("mt-1 text-xs tabular-nums text-muted-foreground", deal.payments.overdue && "font-medium text-destructive")}>
+          {deal.payments.balance <= 0
+            ? `Paid in full · ${money(deal.payments.paid, deal.currency)}`
+            : `${money(deal.payments.paid, deal.currency)} paid · ${money(deal.payments.balance, deal.currency)} left${deal.payments.overdue ? " · overdue" : ""}`}
+        </p>
+      )}
       <div className="mt-2 flex items-center justify-between">
         <span className={cn("inline-flex items-center gap-1 text-xs text-muted-foreground", overdue && "font-medium text-destructive")}>
           <CalendarClock className="h-3 w-3" />
@@ -75,11 +83,13 @@ function DealCardBody({ deal, menu }: { deal: Deal; menu?: React.ReactNode }) {
 function DealCard({
   deal,
   onEdit,
+  onPayments,
   onDelete,
   onMove,
 }: {
   deal: Deal;
   onEdit: () => void;
+  onPayments: () => void;
   onDelete: () => void;
   onMove: (stage: DealStage) => void;
 }) {
@@ -107,6 +117,9 @@ function DealCard({
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onSelect={onEdit}>
                 <Pencil /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onPayments}>
+                <Wallet /> Payments
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Move to</DropdownMenuLabel>
@@ -204,6 +217,7 @@ export default function DealsPage() {
 
   const [creating, setCreating] = useState<{ stage?: DealStage } | null>(null);
   const [editing, setEditing] = useState<Deal | null>(null);
+  const [payingId, setPayingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Deal | null>(null);
   const [losing, setLosing] = useState<Deal | null>(null);
   const [dragging, setDragging] = useState<Deal | null>(null);
@@ -283,7 +297,7 @@ export default function DealsPage() {
               {DEAL_STAGES.map((stage) => (
                 <Column key={stage.value} stage={stage} deals={byStage.get(stage.value) ?? []} onAdd={() => setCreating({ stage: stage.value })}>
                   {(byStage.get(stage.value) ?? []).map((deal) => (
-                    <DealCard key={deal.id} deal={deal} onEdit={() => setEditing(deal)} onDelete={() => setDeleting(deal)} onMove={(s) => requestMove(deal, s)} />
+                    <DealCard key={deal.id} deal={deal} onEdit={() => setEditing(deal)} onPayments={() => setPayingId(deal.id)} onDelete={() => setDeleting(deal)} onMove={(s) => requestMove(deal, s)} />
                   ))}
                 </Column>
               ))}
@@ -301,6 +315,7 @@ export default function DealsPage() {
 
       {creating && <DealDialog open onOpenChange={(o) => !o && setCreating(null)} defaults={{ stage: creating.stage }} />}
       {editing && <DealDialog open onOpenChange={(o) => !o && setEditing(null)} deal={editing} />}
+      <PaymentsDialog deal={data?.data.find((d) => d.id === payingId) ?? null} onClose={() => setPayingId(null)} />
       <LostReasonDialog
         deal={losing}
         onClose={() => setLosing(null)}

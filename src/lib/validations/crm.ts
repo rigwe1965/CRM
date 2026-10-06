@@ -5,6 +5,7 @@ import {
   DealStage,
   InvoiceStatus,
   LeadStatus,
+  PaymentMethod,
   TaskPriority,
   TaskStatus,
 } from "@prisma/client";
@@ -278,3 +279,18 @@ export const createInvoiceSchema = invoiceFields.extend({
   currency: dealFields.shape.currency.default("USD"),
 });
 export const updateInvoiceSchema = invoiceFields.partial().refine(nonEmpty, atLeastOne);
+
+// ─── Payments ───────────────────────────────────────────
+
+export const createPaymentSchema = z.object({
+  amount: amount.refine((n) => n > 0, "Must be more than 0"),
+  paidAt: isoDate,
+  method: z.enum(PaymentMethod).default("BANK_TRANSFER"),
+  reference: text(100),
+  note: text(500),
+});
+export const scheduleSchema = z.object({
+  instalments: z
+    .array(z.object({ dueDate: isoDate, amount: amount.refine((n) => n > 0, "Must be more than 0") }))
+    .max(60),
+});

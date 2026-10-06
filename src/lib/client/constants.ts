@@ -3,6 +3,7 @@ import type {
   ContactType,
   DealStage,
   InvoiceStatus,
+  PaymentMethod,
   LeadStatus,
   TaskPriority,
   TaskStatus,
@@ -74,3 +75,12 @@ export const INVOICE_STATUSES: { value: InvoiceStatus; label: string; tone: Badg
 ];
 
 export const invoiceStatusInfo = (s: InvoiceStatus) => INVOICE_STATUSES.find((x) => x.value === s)!;
+
+export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: "BANK_TRANSFER", label: "Bank transfer" },
+  { value: "CASH", label: "Cash" },
+  { value: "DIGITAL", label: "Card / Cash App / Zelle / PayPal" },
+  { value: "OTHER", label: "Other" },
+];
+
+export const paymentMethodLabel = (m: PaymentMethod) => PAYMENT_METHODS.find((x) => x.value === m)?.label ?? m;
