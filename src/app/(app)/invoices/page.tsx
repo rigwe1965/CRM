@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Receipt } from "lucide-react";
+import { Plus, Receipt } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, ErrorState, PageHeader, Pagination, SearchInput, TableSkeleton, Tone, useDebounced } from "@/components/common/page";
+import { InvoiceDialog } from "@/components/forms/invoice-dialog";
 import { invoiceStatusInfo } from "@/lib/client/constants";
 import { dateOnly, money } from "@/lib/client/format";
 import { useList } from "@/lib/client/hooks";
@@ -16,12 +18,21 @@ export default function InvoicesPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [creating, setCreating] = useState(false);
   const q = useDebounced(search);
   const { data, isLoading, isFetching, error, refetch } = useList<Invoice>("invoices", { page, pageSize: 15, q, sort: "invoiceDate", order: "desc" });
 
   return (
     <>
-      <PageHeader title="Invoices" description="Supplier proforma invoices for stock orders." />
+      <PageHeader
+        title="Invoices"
+        description="Supplier proforma invoices for stock orders."
+        actions={
+          <Button onClick={() => setCreating(true)}>
+            <Plus /> New invoice
+          </Button>
+        }
+      />
 
       <Card>
         <div className="border-b p-4">
@@ -41,7 +52,7 @@ export default function InvoicesPage() {
         ) : error ? (
           <ErrorState message={error.message} onRetry={() => refetch()} />
         ) : data && data.data.length === 0 ? (
-          <EmptyState icon={Receipt} title={q ? "No invoices match your search" : "No invoices yet"} description={q ? "Try a different number or name." : "Run the seed to load the sample proforma invoice."} />
+          <EmptyState icon={Receipt} title={q ? "No invoices match your search" : "No invoices yet"} description={q ? "Try a different number or name." : "Record a stock order from a supplier."} action={q ? undefined : <Button onClick={() => setCreating(true)}><Plus /> New invoice</Button>} />
         ) : (
           data && (
             <div className={isFetching ? "opacity-70 transition-opacity" : "transition-opacity"}>
@@ -84,6 +95,8 @@ export default function InvoicesPage() {
           )
         )}
       </Card>
+
+      <InvoiceDialog open={creating} onOpenChange={setCreating} />
     </>
   );
 }

@@ -228,6 +228,7 @@ model Deal {
   owner        User          @relation("DealOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   activities   Activity[]
   tasks        Task[]
+  invoices     Invoice[]
 
   @@index([stage])
   @@index([expectedCloseDate])
@@ -315,6 +316,8 @@ model Invoice {
 
   owner User          @relation("InvoiceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   items InvoiceItem[]
+  // Customer deals this stock order fulfils
+  deals Deal[]
 
   @@index([ownerId])
   @@index([invoiceDate])

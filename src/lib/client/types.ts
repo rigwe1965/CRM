@@ -158,6 +158,7 @@ export type Invoice = {
   total: number;
   notes: string | null;
   owner: Person;
+  deals: { id: string; title: string }[];
   items?: InvoiceItem[];
   _count?: { items: number };
 };

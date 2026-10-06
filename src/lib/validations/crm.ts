@@ -3,6 +3,7 @@ import {
   ActivityType,
   ContactType,
   DealStage,
+  InvoiceStatus,
   LeadStatus,
   TaskPriority,
   TaskStatus,
@@ -238,4 +239,42 @@ export const taskListQuery = z.object({
 export const invoiceListQuery = z.object({
   ...pagination,
   sort: z.enum(["number", "invoiceDate", "total", "createdAt"]).default("invoiceDate"),
+  status: z.enum(InvoiceStatus).optional(),
 });
+
+const invoiceItemSchema = z.object({
+  ref: requiredText(20),
+  style: requiredText(100),
+  description: requiredText(200),
+  color: text(60),
+  density: text(60),
+  lengthInches: z.number().int().min(1).max(200).nullish(),
+  quantity: z.number().int().min(1).max(100_000),
+  unitPrice: amount,
+  // Supplier sheets round per line, so this may differ slightly from quantity x unitPrice.
+  // Left out, it is computed.
+  lineTotal: amount.optional(),
+  resalePrice: amount.nullish(),
+  note: text(200),
+});
+const invoiceFields = z.object({
+  number: requiredText(40),
+  status: z.enum(InvoiceStatus).optional(),
+  invoiceDate: isoDate,
+  currency: dealFields.shape.currency,
+  vendorName: requiredText(200),
+  vendorRep: text(100),
+  vendorPhone: text(50),
+  billTo: requiredText(200),
+  shipping: amount.optional(),
+  // Negotiated "deal price". Left out, it defaults to items + shipping.
+  total: amount.optional(),
+  notes: text(2000),
+  items: z.array(invoiceItemSchema).min(1, "Add at least one item").max(500),
+  dealIds: z.array(id).max(100).optional(),
+});
+export const createInvoiceSchema = invoiceFields.extend({
+  status: z.enum(InvoiceStatus).default("DRAFT"),
+  currency: dealFields.shape.currency.default("USD"),
+});
+export const updateInvoiceSchema = invoiceFields.partial().refine(nonEmpty, atLeastOne);

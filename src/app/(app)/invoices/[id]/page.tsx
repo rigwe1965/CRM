@@ -1,21 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, Receipt } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { ArrowLeft, Pencil, Receipt, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { EmptyState, ErrorState, Tone } from "@/components/common/page";
+import { ConfirmDialog, EmptyState, ErrorState, Tone } from "@/components/common/page";
+import { InvoiceDialog } from "@/components/forms/invoice-dialog";
 import { invoiceStatusInfo } from "@/lib/client/constants";
 import { ApiClientError } from "@/lib/client/api";
 import { dateOnly, money } from "@/lib/client/format";
-import { useItem } from "@/lib/client/hooks";
+import { errorMessage, useItem, useRemove } from "@/lib/client/hooks";
 import type { Invoice } from "@/lib/client/types";
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const remove = useRemove("invoices");
   const { data: inv, isLoading, error, refetch } = useItem<Invoice>("invoices", id);
 
   if (isLoading) {
@@ -59,7 +66,15 @@ export default function InvoiceDetailPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Proforma invoice {inv.number}</h1>
           <p className="text-sm text-muted-foreground">Dated {dateOnly(inv.invoiceDate)}</p>
         </div>
-        <Tone tone={status.tone}>{status.label}</Tone>
+        <div className="flex items-center gap-2">
+          <Tone tone={status.tone}>{status.label}</Tone>
+          <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Pencil /> Edit
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setDeleting(true)}>
+            <Trash2 /> Delete
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -134,7 +149,40 @@ export default function InvoiceDetailPage() {
         </Table>
       </Card>
 
+      {inv.deals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">Customer orders this stock is for</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {inv.deals.map((d) => (
+              <Button key={d.id} asChild variant="outline" size="sm">
+                <Link href="/deals">{d.title}</Link>
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {inv.notes && <p className="text-sm text-muted-foreground">{inv.notes}</p>}
+
+      {editing && <InvoiceDialog open onOpenChange={(o) => !o && setEditing(false)} invoice={inv} />}
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        title="Delete invoice?"
+        description={`${inv.number} and its ${items.length} lines will be permanently deleted.`}
+        pending={remove.isPending}
+        onConfirm={() =>
+          remove.mutate(inv.id, {
+            onSuccess: () => {
+              toast.success("Invoice deleted");
+              router.push("/invoices");
+            },
+            onError: (e) => toast.error(errorMessage(e)),
+          })
+        }
+      />
     </div>
   );
 }
