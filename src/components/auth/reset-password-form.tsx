@@ -61,7 +61,7 @@ export function ResetPasswordForm() {
         autoComplete="new-password"
         required
         disabled={pending}
-        hint="At least 8 characters, with a letter and a number."
+        hint="At least 10 characters, with a letter and a number."
         error={fieldErrors.password?.[0]}
       />
       <Field label="Confirm new password" name="confirm" type="password" autoComplete="new-password" required disabled={pending} error={fieldErrors.confirm?.[0]} />

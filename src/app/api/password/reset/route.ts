@@ -4,6 +4,7 @@ import { apiError, parseBody } from "@/lib/api";
 import { hashPassword } from "@/lib/password";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
 import { consumePasswordResetToken } from "@/lib/tokens";
+import { audit } from "@/lib/audit";
 import { invalidateUserCache } from "@/lib/user-cache";
 import { resetPasswordSchema } from "@/lib/validations/auth";
 
@@ -26,5 +27,6 @@ export async function POST(req: Request) {
   if (count === 0) return apiError("This reset link is invalid or has expired.", 400);
   const reset = await db.user.findUnique({ where: { email }, select: { id: true } });
   if (reset) invalidateUserCache(reset.id);
+  await audit({ id: reset?.id, email }, { action: "auth.password.reset", entity: "user", entityId: reset?.id });
   return NextResponse.json({ ok: true });
 }

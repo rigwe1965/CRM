@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { audit } from "@/lib/audit";
 import { taskInclude } from "@/lib/includes";
 import { assertLinks, notFound, resolveOwner, taskScope } from "@/lib/access";
 import { updateTaskSchema } from "@/lib/validations/crm";
@@ -48,8 +49,10 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
 });
 
 /** DELETE /api/tasks/:id: hard delete. */
-export const DELETE = authed<P>(async ({ user, params }) => {
+export const DELETE = authed<P>(async ({ req, user, params }) => {
+  const snapshot = await db.task.findFirst({ where: { AND: [{ id: params.id }, taskScope(user)] } });
   const { count } = await db.task.deleteMany({ where: { AND: [{ id: params.id }, taskScope(user)] } });
   if (count === 0) throw notFound("Task");
+  await audit(user, { action: "task.deleted", entity: "task", entityId: params.id, summary: snapshot?.title, data: snapshot }, req);
   return noContent();
 });

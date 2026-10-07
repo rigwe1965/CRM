@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { apiError, parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
+import { audit } from "@/lib/audit";
 import { sendInvite } from "@/lib/invite";
 import { adminCreateUserSchema } from "@/lib/validations/auth";
 
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
     }
     throw e;
   }
+  await audit(guard.user, { action: "user.created", entity: "user", entityId: user.id, summary: email, data: { role } });
   const { emailed, devLink } = await sendInvite(name, email);
   return NextResponse.json({ user, emailed, devLink }, { status: 201 });
 }
@@ -38,8 +40,10 @@ export async function GET() {
 
   const users = await db.user.findMany({
     orderBy: { createdAt: "asc" },
-    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, passwordHash: true },
+    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, passwordHash: true, mfaEnabledAt: true },
   });
   // Never expose the hash itself, only whether the user has set a password yet.
-  return NextResponse.json({ users: users.map(({ passwordHash, ...u }) => ({ ...u, hasPassword: !!passwordHash })) });
+  return NextResponse.json({
+    users: users.map(({ passwordHash, mfaEnabledAt, ...u }) => ({ ...u, hasPassword: !!passwordHash, mfaEnabled: !!mfaEnabledAt })),
+  });
 }

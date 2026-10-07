@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { audit } from "@/lib/audit";
 import { notFound, ownerScope } from "@/lib/access";
 import { assertDealIds, invoiceDto, invoiceTotals, invoiceWithItems } from "@/lib/invoices";
 import { updateInvoiceSchema } from "@/lib/validations/crm";
@@ -45,12 +46,16 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
       include: invoiceWithItems,
     });
   });
+  await audit(user, { action: "invoice.updated", entity: "invoice", entityId: params.id, data: { before: existing, after: { subtotal: invoice.subtotal, total: invoice.total, status: invoice.status }, changed: Object.keys(body), linesReplaced: items?.length } }, req);
   return ok(invoiceDto(invoice));
 });
 
 /** DELETE /api/invoices/:id: permanent delete (its lines go with it). */
-export const DELETE = authed<P>(async ({ user, params }) => {
+export const DELETE = authed<P>(async ({ req, user, params }) => {
+  // The full invoice is kept in the audit log, since the delete itself is permanent.
+  const snapshot = await db.invoice.findFirst({ where: { id: params.id, ...ownerScope(user) }, include: { items: true } });
   const { count } = await db.invoice.deleteMany({ where: { id: params.id, ...ownerScope(user) } });
   if (count === 0) throw notFound("Invoice");
+  await audit(user, { action: "invoice.deleted", entity: "invoice", entityId: params.id, summary: snapshot?.number, data: snapshot }, req);
   return noContent();
 });

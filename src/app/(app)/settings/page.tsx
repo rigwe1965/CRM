@@ -14,13 +14,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCurrentUser } from "@/components/providers";
-import { ErrorState, FormField, PageHeader } from "@/components/common/page";
+import { ConfirmDialog, ErrorState, FormField, PageHeader } from "@/components/common/page";
 import { useFormState } from "@/components/forms/form-kit";
 import { request } from "@/lib/client/api";
 import { shortDate } from "@/lib/client/format";
 import { errorMessage } from "@/lib/client/hooks";
 import type { Role, TeamUser } from "@/lib/client/types";
 import { useRouter } from "next/navigation";
+import { AuditLogCard } from "@/components/settings/audit-log";
+import { MfaCard, SessionsCard } from "@/components/settings/security";
 
 function ProfileCard() {
   const user = useCurrentUser();
@@ -112,7 +114,7 @@ function PasswordCard() {
           <FormField label="Current password" error={form.err("currentPassword")} hint="Leave blank if you have no password yet.">
             <Input type="password" autoComplete="current-password" value={v.current} onChange={(e) => setV({ ...v, current: e.target.value })} aria-invalid={!!form.err("currentPassword")} />
           </FormField>
-          <FormField label="New password" error={form.err("newPassword")} hint="At least 8 characters, with a letter and a number.">
+          <FormField label="New password" error={form.err("newPassword")} hint="At least 10 characters, with a letter and a number.">
             <Input type="password" autoComplete="new-password" value={v.next} onChange={(e) => setV({ ...v, next: e.target.value })} aria-invalid={!!form.err("newPassword")} />
           </FormField>
           <FormField label="Confirm new password" error={mismatch ? "Passwords do not match" : undefined}>
@@ -129,6 +131,17 @@ function PasswordCard() {
 
 /** Edit a user's name and role (email is their login and can't be changed here). */
 function EditUserDialog({ user, onClose, onSave, pending }: { user: TeamUser | null; onClose: () => void; onSave: (body: { id: string; name: string; role: Role }) => void; pending: boolean }) {
+  const qc = useQueryClient();
+  const [resetting, setResetting] = useState(false);
+  const act = useMutation({
+    mutationFn: ({ path }: { path: "revoke-sessions" | "mfa-reset" }) => request("POST", `/api/admin/users/${user?.id}/${path}`),
+    onSuccess: (_r, { path }) => {
+      toast.success(path === "mfa-reset" ? "Two-step verification reset. They are signed out." : "Signed out everywhere");
+      setResetting(false);
+      return qc.invalidateQueries({ queryKey: ["team"] });
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("SALES");
   const [shown, setShown] = useState<string | null>(null);
@@ -164,6 +177,26 @@ function EditUserDialog({ user, onClose, onSave, pending }: { user: TeamUser | n
               </SelectContent>
             </Select>
           </FormField>
+          {user && (
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <Button type="button" variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate({ path: "revoke-sessions" })}>
+                Sign out everywhere
+              </Button>
+              {user.mfaEnabled && (
+                <Button type="button" variant="outline" size="sm" disabled={act.isPending} onClick={() => setResetting(true)}>
+                  Reset two-step verification
+                </Button>
+              )}
+            </div>
+          )}
+          <ConfirmDialog
+            open={resetting}
+            onOpenChange={setResetting}
+            title="Reset two-step verification?"
+            description={`${user?.name ?? "This user"} will be signed out everywhere and can sign in with just their password until they set it up again. Only do this after confirming it's really them (for example, they lost their phone).`}
+            pending={act.isPending}
+            onConfirm={() => act.mutate({ path: "mfa-reset" })}
+          />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => (setShown(null), onClose())} disabled={pending}>Cancel</Button>
             <Button type="submit" disabled={pending || !name.trim()}>{pending ? "Saving…" : "Save"}</Button>
@@ -332,16 +365,26 @@ export default function SettingsPage() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           {user.role === "ADMIN" && <TabsTrigger value="team">Team</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
         </TabsList>
         <TabsContent value="profile">
           <ProfileCard />
         </TabsContent>
         <TabsContent value="security">
-          <PasswordCard />
+          <div className="space-y-6">
+            <PasswordCard />
+            <MfaCard />
+            <SessionsCard />
+          </div>
         </TabsContent>
         {user.role === "ADMIN" && (
           <TabsContent value="team">
             <TeamCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="audit">
+            <AuditLogCard />
           </TabsContent>
         )}
       </Tabs>

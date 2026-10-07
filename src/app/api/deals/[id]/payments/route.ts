@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { audit } from "@/lib/audit";
 import { notFound, ownerScope } from "@/lib/access";
 import { dealPaymentsView } from "@/lib/payments";
 import { createPaymentSchema } from "@/lib/validations/crm";
@@ -37,5 +38,6 @@ export const POST = authed<P>(async ({ req, user, params }) => {
     }
     await tx.payment.create({ data: { ...body, dealId: deal.id, recordedById: user.id } });
   });
+  await audit(user, { action: "payment.recorded", entity: "deal", entityId: deal.id, summary: `${body.amount} ${deal.currency}`, data: body }, req);
   return ok(await dealPaymentsView(deal), 201);
 });

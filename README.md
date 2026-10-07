@@ -14,14 +14,16 @@ A modern full-stack CRM. Includes authentication, the REST API, the web app, tra
 ## Authentication
 
 - **Pages:** `/sign-in`, `/forgot-password`, `/reset-password`, `/verify-request`, `/profile`, `/unauthorized`
-- **Methods:** email + password, or a magic link ("Use a magic link instead" on the sign-in page)
+- **Methods:** email + password, or a magic link ("Use a magic link instead" on the sign-in page). Users can turn on **two-step verification** (authenticator app) in Settings → Security; their sign-in then also asks for a 6-digit code (or a one-time recovery code), and magic links are switched off for that account. Admins can reset a user's two-step setup or sign them out everywhere from Settings → Team → Edit.
 - **Roles:** `ADMIN`, `SALES`, `SUPPORT`. `ADMIN` passes every role check. There is no public sign-up: admins create users with `POST /api/admin/users` (Settings → Team) and change roles with `PATCH /api/admin/users/:id`. The seed creates an admin.
 - **Route protection:** `src/middleware.ts` is a coarse JWT-based gate (everything is private except the public paths in `src/lib/rbac.ts`). Role-restricted prefixes (`/admin`, `/api/admin`) are listed in the same file. Pages and handlers re-check against the database with the helpers below.
 - **Server helpers** (`src/lib/auth-helpers.ts`):
   - `getCurrentUser()`
   - `requireUser()` and `requireRole("ADMIN")` for pages (redirect)
   - `requireApiUser("SALES")` for route handlers (returns 401/403 responses)
-- **Sessions:** JWT cookies (30 days). Each session read re-checks the user in the database, so deactivating a user or changing their role takes effect immediately. Changing or resetting a password signs out all existing sessions.
+- **Sessions:** JWT cookies (30 days). Each session read re-checks the user in the database, so deactivating a user or changing their role takes effect immediately. Changing or resetting a password, or "Sign out everywhere" (Settings → Security), signs out all existing sessions.
+- **Passwords:** at least 10 characters with a letter and a number; common passwords and obvious sequences are refused.
+- **Audit log:** every sign-in (and failed one), account change and write is recorded in the `AuditLog` table and shown to admins in Settings → Audit log. Deleting an invoice, payment, stock adjustment, task or activity keeps a full snapshot of it in the log. The log is append-only through the app; there is no retention job, so prune old rows yourself if it grows large.
 - **Password reset:** one-hour, single-use token. Only its SHA-256 hash is stored (in the `VerificationToken` table). The forgot-password endpoint never reveals whether an email is registered.
 - **Email:** see [Email](#email). With no provider configured in development, links are printed to the **server console**.
 - **Self-hosting:** set `AUTH_TRUST_HOST=true` when using `next start` behind your own domain.
@@ -115,6 +117,7 @@ Set these in Vercel → Project → Settings → Environment Variables (`.env.ex
 | `EMAIL_FROM` | `CRM <noreply@your-verified-domain.com>` |
 | `CRON_SECRET` | A random string, 16+ characters. Vercel sends it to the cron endpoint automatically. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Required (startup check) |
+| `TRUSTED_PROXY_COUNT` | Self-hosting only: number of reverse proxies in front of the app (default 1). Ignored on Vercel. See [Self-hosting](#self-hosting-any-node-host). |
 
 The server **checks this list at startup** (`src/instrumentation.ts`) and exits with a readable message if something is missing or weak, so a bad config fails the deploy instead of the first user. Do **not** set `SEED_USER_PASSWORD`, and never run the seed in production.
 
@@ -166,13 +169,19 @@ npm ci && npx prisma migrate deploy && npm run build && npm start
 
 Also set `AUTH_TRUST_HOST=true` and `NEXTAUTH_URL`, serve it over HTTPS (the app sends HSTS), and call `GET /api/cron/task-reminders` with `Authorization: Bearer $CRON_SECRET` from your scheduler. Without Upstash, rate limits are per process, which is fine for a single instance.
 
+Rate limits key on the client IP, read from `X-Forwarded-For` **from the right** (a client can forge the left side). Put the app behind a reverse proxy that appends the real client address (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), set `TRUSTED_PROXY_COUNT` to the number of proxies, and never expose the Node port directly to the internet. The bundled `docker-compose.yml` publishes Postgres on `127.0.0.1` only; keep it that way and change its default password on any shared machine.
+
 ## Security checklist
 
 Done in code:
 
 - [x] **Secrets:** nothing secret is committed; `.env` is git-ignored; the production env is validated at startup (secret length, email provider, cron secret).
 - [x] **Auth:** bcrypt passwords, JWT sessions re-validated against the database on each request, sessions revoked on password change/reset, hashed single-use one-hour reset tokens, no account enumeration on forgot-password.
-- [x] **Rate limiting** (429 when exceeded): sign-in 10 per 15 min per IP+email and 50 per IP; forgot-password 5/h per IP and per address; reset 10/h per IP; magic link 5 per 15 min per address; contact email 30/h per user. Upstash-backed when configured, otherwise in memory (best effort across serverless instances).
+- [x] **Rate limiting** (429 when exceeded): sign-in 15 per 15 min per IP+email, 50 per IP and 40/h per account (the form checks twice per login); forgot-password 5/h per IP and per address; reset 10/h per IP; magic link 5 per 15 min per address; two-step setup/disable 10 per 15 min per user; contact email 30/h per user; every other API call 600 reads and 120 writes per minute per user. Request bodies over 1 MB are refused (413). Upstash-backed when configured, otherwise in memory (best effort across serverless instances).
+- [x] **Two-step verification:** TOTP (RFC 6238) with encrypted-at-rest secrets, single-use codes and hashed one-time recovery codes.
+- [x] **Audit trail:** see [Authentication](#authentication).
+- [x] **No timing leak on forgot-password / magic link:** the lookup and the email happen after the response is sent.
+- [x] **Dependencies:** Next.js 15.5.x; `npm audit --omit=dev` reports 0. Build-time tooling (tailwindcss and its glob helpers) still shows advisories with no upstream fix; they never run in production.
 - [x] **CORS:** the API sends no CORS headers, so browsers block cross-origin reads, and preflights get no `Access-Control-Allow-*`. If you ever need a third-party origin, add it explicitly in `src/middleware.ts`; never combine `*` with cookies.
 - [x] **CSRF:** cookies are `SameSite=Lax`, and `src/middleware.ts` rejects state-changing `/api` requests whose `Origin` is not this host (403). Auth.js has its own CSRF token for its routes.
 - [x] **Headers** (`next.config.mjs`): CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; `X-Powered-By` removed; API responses are `Cache-Control: no-store`. The CSP allows inline scripts and styles (needed by Next.js and the theme switch); tighten it with nonces if you add third-party content.
@@ -187,7 +196,7 @@ Do before going live:
 - [ ] Separate Preview and Production databases and secrets.
 - [ ] Turn on database backups / point-in-time recovery.
 - [ ] Rotate `NEXTAUTH_SECRET` and `CRON_SECRET` if they were ever shared (rotating the auth secret signs everyone out).
-- [ ] Add 2FA for admins (not implemented).
+- [ ] Ask every admin to turn on two-step verification (Settings → Security). It is optional per user; it is not enforced.
 - [ ] Add error monitoring (Sentry or Vercel log drains) and an uptime check on `/api/health`.
 - [ ] Enable GitHub secret scanning and Dependabot; run `npm audit` regularly.
 

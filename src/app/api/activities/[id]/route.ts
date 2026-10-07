@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { audit } from "@/lib/audit";
 import { activityInclude } from "@/lib/includes";
 import { assertLinks, authorScope, notFound } from "@/lib/access";
 import { updateActivitySchema } from "@/lib/validations/crm";
@@ -34,8 +35,10 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
 });
 
 /** DELETE /api/activities/:id: hard delete (activities are a log, not business records). */
-export const DELETE = authed<P>(async ({ user, params }) => {
+export const DELETE = authed<P>(async ({ req, user, params }) => {
+  const snapshot = await db.activity.findFirst({ where: { id: params.id, ...authorScope(user) } });
   const { count } = await db.activity.deleteMany({ where: { id: params.id, ...authorScope(user) } });
   if (count === 0) throw notFound("Activity");
+  await audit(user, { action: "activity.deleted", entity: "activity", entityId: params.id, summary: snapshot?.subject, data: snapshot }, req);
   return noContent();
 });

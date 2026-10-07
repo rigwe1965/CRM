@@ -53,17 +53,38 @@ export async function rateLimit(key: string, opts: { max: number; windowMs: numb
   return memoryHit(key, opts.windowMs, opts.max);
 }
 
-/** Client IP. On Vercel, x-forwarded-for is set by the platform and can be trusted. */
+/**
+ * Client IP for rate limiting. X-Forwarded-For is client-controlled except for what OUR proxies
+ * append, so the leftmost entry can be forged. We read from the right instead:
+ *  - On Vercel the platform overwrites the header: its single value is the client.
+ *  - Elsewhere set TRUSTED_PROXY_COUNT to the number of reverse proxies in front of the app
+ *    (default 1, e.g. nginx or a load balancer): the entry that many places from the right is the
+ *    address the outermost trusted proxy saw. The app must not be reachable directly, bypassing them.
+ */
 export function clientIp(headers: Headers): string {
-  return headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "unknown";
+  const forwarded = (headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (forwarded.length) {
+    if (process.env.VERCEL) return forwarded[0];
+    const proxies = Math.max(1, Number.parseInt(process.env.TRUSTED_PROXY_COUNT ?? "1", 10) || 1);
+    return forwarded[Math.max(0, forwarded.length - proxies)];
+  }
+  return headers.get("x-real-ip") || "unknown";
 }
 
 export const LIMITS = {
-  signIn: { max: 10, windowMs: 15 * 60_000, failClosed: true },
+  // The sign-in form calls mfa-check and then sign-in, so one honest login counts twice.
+  signIn: { max: 15, windowMs: 15 * 60_000, failClosed: true },
+  /** Per account across all IPs: stops a distributed guessing attack that rotates addresses. */
+  signInAccount: { max: 40, windowMs: 60 * 60_000, failClosed: true },
   passwordForgot: { max: 5, windowMs: 60 * 60_000, failClosed: true },
   passwordReset: { max: 10, windowMs: 60 * 60_000, failClosed: true },
   magicLink: { max: 5, windowMs: 15 * 60_000, failClosed: true },
   sendEmail: { max: 30, windowMs: 60 * 60_000 },
+  /** Two-step setup/disable attempts per user. */
+  mfa: { max: 10, windowMs: 15 * 60_000, failClosed: true },
+  /** Every authenticated API call, per user (reads and writes counted separately). */
+  apiRead: { max: 600, windowMs: 60_000 },
+  apiWrite: { max: 120, windowMs: 60_000 },
 } as const;
 
 /** Throws ApiError(429) when over the limit. For handlers that already catch ApiError. */

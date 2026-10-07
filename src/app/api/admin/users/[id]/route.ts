@@ -3,12 +3,14 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
+import { audit } from "@/lib/audit";
 import { invalidateUserCache } from "@/lib/user-cache";
 import { adminUpdateUserSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const guard = await requireApiUser("ADMIN");
   if (!guard.ok) return guard.response;
   const body = await parseBody(req, adminUpdateUserSchema);
@@ -28,6 +30,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       select: { id: true, email: true, name: true, role: true, isActive: true },
     });
     invalidateUserCache(user.id);
+    await audit(guard.user, { action: "user.updated", entity: "user", entityId: user.id, summary: user.email, data: body.data });
     return NextResponse.json({ user });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {

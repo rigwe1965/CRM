@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { audit } from "@/lib/audit";
 import { notFound, ownerScope } from "@/lib/access";
 import { dealPaymentsView } from "@/lib/payments";
 import { scheduleSchema } from "@/lib/validations/crm";
@@ -22,11 +23,13 @@ export const PUT = authed<{ id: string }>(async ({ req, user, params }) => {
     throw new ApiError(422, msg, "VALIDATION_ERROR", { instalments: [msg] });
   }
 
+  const before = await db.instalment.findMany({ where: { dealId: deal.id }, orderBy: { position: "asc" } });
   await db.$transaction([
     db.instalment.deleteMany({ where: { dealId: deal.id } }),
     db.instalment.createMany({
       data: instalments.map((i, n) => ({ dealId: deal.id, position: n + 1, dueDate: i.dueDate, amount: i.amount })),
     }),
   ]);
+  await audit(user, { action: "schedule.replaced", entity: "deal", entityId: deal.id, data: { before, after: instalments } }, req);
   return ok(await dealPaymentsView(deal));
 });

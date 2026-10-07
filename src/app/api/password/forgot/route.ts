@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { appUrl, sendMail } from "@/lib/mail";
@@ -20,16 +20,18 @@ export async function POST(req: Request) {
     if (!limit.allowed) return apiError(`Too many requests. Try again in ${limit.retryAfter}s.`, 429);
   }
 
-  // Always respond the same way so this endpoint can't be used to discover registered emails.
-  try {
-    const user = await db.user.findUnique({ where: { email } });
-    if (user?.isActive) {
-      const token = await createPasswordResetToken(email);
-      const url = `${appUrl()}/reset-password?token=${token}`;
-      await sendMail({ to: email, ...passwordResetEmail(url) });
+  // Always respond the same way, and just as fast, so this endpoint can't be used to discover
+  // registered emails: the lookup, token and email all run after the response is sent.
+  after(async () => {
+    try {
+      const user = await db.user.findUnique({ where: { email }, select: { isActive: true } });
+      if (user?.isActive) {
+        const token = await createPasswordResetToken(email);
+        await sendMail({ to: email, ...passwordResetEmail(`${appUrl()}/reset-password?token=${token}`) });
+      }
+    } catch (e) {
+      console.error("forgot-password failed", e);
     }
-  } catch (e) {
-    console.error("forgot-password failed", e);
-  }
+  });
   return NextResponse.json({ ok: true });
 }

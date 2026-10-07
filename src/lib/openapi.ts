@@ -218,7 +218,7 @@ export function buildOpenApiDocument() {
             error: { type: "string" },
             code: {
               type: "string",
-              enum: ["BAD_REQUEST", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "CONFLICT", "VALIDATION_ERROR", "INVALID_REFERENCE", "ALREADY_CONVERTED", "RATE_LIMITED", "INTERNAL_ERROR"],
+              enum: ["BAD_REQUEST", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "CONFLICT", "VALIDATION_ERROR", "INVALID_REFERENCE", "ALREADY_CONVERTED", "RATE_LIMITED", "PAYLOAD_TOO_LARGE", "INTERNAL_ERROR"],
             },
             fieldErrors: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } },
           },

@@ -23,7 +23,10 @@ Ivycandy Hair buys hair from suppliers in Asia and sells it to customers, who mo
 
 - **Admin** sees everything. **Sales** and **Support** see only records they own.
 - Sample logins (from the seed): `admin@crm.test`, `sales@crm.test`, `support@crm.test`. The password is `SEED_USER_PASSWORD` in the `.env` file.
-- There is no public sign-up. An admin invites each person in **Settings → Team**; they get an email to choose their password.
+- There is no public sign-up. An admin invites each person in **Settings → Team**; they get an email to choose their password. Passwords need 10+ characters.
+- **Two-step verification** (Settings → Security): scan a QR code with Google Authenticator or similar; sign-in then asks for a code. Save the recovery codes it shows once. If someone loses their phone, an admin uses **Team → Edit → Reset two-step verification**.
+- **Sign out everywhere** (Settings → Security, or an admin on someone's row) ends all sessions, for example after a lost laptop.
+- **Audit log** (Settings → Audit log, admins only): who signed in, changed a role, edited or deleted what, and when. Click a row for details; a deleted invoice's full contents are kept there.
 
 **Example:** Sam (Sales) creates a deal. Sam sees it and Admin sees it. Support does not.
 

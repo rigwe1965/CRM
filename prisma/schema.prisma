@@ -88,6 +88,11 @@ model User {
   image             String?
   // Sessions issued before this moment are rejected (set on password change/reset).
   passwordChangedAt DateTime?
+  // Two-step verification (TOTP). mfaSecret is AES-GCM encrypted; it is set before mfaEnabledAt (pending setup).
+  mfaSecret         String?
+  mfaEnabledAt      DateTime?
+  mfaLastStep       Int?
+  mfaRecoveryCodes  String[]  @default([])
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -441,4 +446,25 @@ model StockAdjustment {
   owner User @relation("StockAdjustmentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([ownerId])
+}
+
+// ─── Audit log ──────────────────────────────────────────
+
+// Append-only record of who did what. No foreign keys, so entries outlive the users and records they
+// refer to. Deletes of money records keep a full snapshot in `data`.
+model AuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entity     String?
+  entityId   String?
+  summary    String?
+  data       Json?
+  ip         String?
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
 }

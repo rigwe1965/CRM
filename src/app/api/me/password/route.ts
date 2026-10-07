@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { audit } from "@/lib/audit";
 import { invalidateUserCache } from "@/lib/user-cache";
 import { changePasswordSchema } from "@/lib/validations/auth";
 
@@ -36,5 +37,6 @@ export async function POST(req: Request) {
     data: { passwordHash: await hashPassword(newPassword), passwordChangedAt: new Date() },
   });
   invalidateUserCache(guard.user.id);
+  await audit(guard.user, { action: "auth.password.changed", entity: "user", entityId: guard.user.id });
   return NextResponse.json({ ok: true });
 }

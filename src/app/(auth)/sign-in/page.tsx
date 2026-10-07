@@ -6,11 +6,12 @@ import { SignInForm } from "@/components/auth/sign-in-form";
 
 export const metadata = { title: "Sign in · CRM" };
 
-export default async function SignInPage({
-  searchParams,
-}: {
-  searchParams: { callbackUrl?: string };
-}) {
+export default async function SignInPage(
+  props: {
+    searchParams: Promise<{ callbackUrl?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   if (await getCurrentUser()) redirect(safeRedirect(searchParams.callbackUrl));
 
   return (

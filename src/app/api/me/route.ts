@@ -7,13 +7,18 @@ import { updateProfileSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
-const select = { id: true, email: true, name: true, role: true, createdAt: true } as const;
+const select = { id: true, email: true, name: true, role: true, createdAt: true, mfaEnabledAt: true } as const;
+
+const dto = ({ mfaEnabledAt, ...u }: { id: string; email: string; name: string | null; role: string; createdAt: Date; mfaEnabledAt: Date | null }) => ({
+  ...u,
+  mfaEnabled: !!mfaEnabledAt,
+});
 
 export async function GET() {
   const guard = await requireApiUser();
   if (!guard.ok) return guard.response;
   const user = await db.user.findUnique({ where: { id: guard.user.id }, select });
-  return NextResponse.json({ user });
+  return NextResponse.json({ user: user && dto(user) });
 }
 
 export async function PATCH(req: Request) {
@@ -28,5 +33,5 @@ export async function PATCH(req: Request) {
     select,
   });
   invalidateUserCache(user.id);
-  return NextResponse.json({ user });
+  return NextResponse.json({ user: dto(user) });
 }

@@ -181,6 +181,7 @@ export type TeamUser = {
   isActive: boolean;
   createdAt: string;
   hasPassword: boolean;
+  mfaEnabled: boolean;
 };
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "CANCELLED";

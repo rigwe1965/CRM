@@ -9,7 +9,7 @@ CRM for a hair retailer: contacts, deals with line items, customer instalment pa
 - Money is kept per currency (`MoneyMap` in `src/lib/money.ts`); never sum across currencies.
 - Scope queries with `ownerScope`; admins see all (`src/lib/access.ts`).
 - Contacts, deals and orgs are soft-deleted.
-- API routes use the `authed()` wrapper; Decimals become numbers in DTOs.
+- API routes use the `authed()` wrapper (auth, rate limit, audit log of every write); Decimals become numbers in DTOs. Routes that hard-delete records call `audit()` with a snapshot first (`src/lib/audit.ts`).
 - After schema changes: add hand-written migration SQL, then restart the dev server.
 
 ## Rules

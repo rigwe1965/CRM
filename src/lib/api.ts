@@ -17,6 +17,7 @@ const CODES: Record<number, string> = {
   404: "NOT_FOUND",
   409: "CONFLICT",
   422: "VALIDATION_ERROR",
+  413: "PAYLOAD_TOO_LARGE",
   429: "RATE_LIMITED",
   500: "INTERNAL_ERROR",
 };
@@ -62,12 +63,19 @@ export async function parseBody<T>(
   }
 }
 
+const MAX_BODY_BYTES = 1_000_000;
+
 /** Parses a JSON body; throws ApiError(400/422) on failure. */
 export async function readBody<T>(req: Request, schema: ZodType<T>): Promise<T> {
+  // Largest legitimate body is an invoice with 500 lines (~150 KB); refuse anything near a megabyte.
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw new ApiError(413, "Request body is too large", "PAYLOAD_TOO_LARGE");
   let raw: unknown;
   try {
-    raw = await req.json();
-  } catch {
+    const text = await req.text();
+    if (text.length > MAX_BODY_BYTES) throw new ApiError(413, "Request body is too large", "PAYLOAD_TOO_LARGE");
+    raw = JSON.parse(text);
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
     throw new ApiError(400, "Invalid JSON body");
   }
   const result = schema.safeParse(raw);

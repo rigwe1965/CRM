@@ -15,7 +15,7 @@ Next.js 14 (App Router) + TypeScript, Tailwind + shadcn/ui, TanStack Query, Pris
 | `scripts/make-admin.ts` | Promote a user to admin |
 
 ## Environment variables (names only; see `.env.example`)
-`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`.
+`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`.
 
 ## Commands
 | Command | Use |
@@ -57,6 +57,13 @@ Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema
 
 ## Users
 There is no public sign-up: admins create users in Settings → Team (`POST /api/admin/users`), and the invitee sets a password from the emailed link (valid 7 days). Change roles with `PATCH /api/admin/users/:id` (admin), `npm run make-admin`, or Prisma Studio. Role changes, deactivation and password resets take effect immediately on the server that handled the change, and within 30 seconds on any other instance (user lookups are cached for 30 s in `src/lib/user-cache.ts`).
+
+## Security features (where they live)
+- **Audit log:** `src/lib/audit.ts`. `authed()` (`src/lib/route.ts`) logs every successful write automatically; routes that delete money records call `audit()` themselves with a snapshot. Viewer: Settings → Audit log (`GET /api/admin/audit`).
+- **Two-step verification:** `src/lib/mfa.ts` (TOTP, encryption, recovery codes), `src/lib/mfa-server.ts` (verification), `/api/me/mfa/*`, `/api/auth/mfa-check`. A user who lost their phone: Settings → Team → Edit → "Reset two-step verification".
+- **Sign out everywhere:** sets `User.passwordChangedAt` to the next whole second (`src/lib/sessions.ts`); the `jwt` callback rejects older tokens. A login within that second after a revoke is also refused.
+- **Rate limits:** `src/lib/rate-limit.ts` (`LIMITS`). Client IP comes from the right of `X-Forwarded-For` (`TRUSTED_PROXY_COUNT`).
+- Route handlers without a URL segment receive no `params` in Next 15; `authed()` handles that.
 
 ## Support checklist
 1. Reproduce it and note the page and user.
