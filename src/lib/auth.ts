@@ -7,21 +7,20 @@ import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { getDummyHash, verifyPassword } from "@/lib/password";
 import { headers } from "next/headers";
-import { FROM, sendMail, trySendMail } from "@/lib/mail";
-import { magicLinkEmail, welcomeEmail } from "@/lib/email-templates";
+import { FROM, sendMail } from "@/lib/mail";
+import { magicLinkEmail } from "@/lib/email-templates";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
+import { getCachedUser } from "@/lib/user-cache";
 import { signInSchema } from "@/lib/validations/auth";
 
 const prismaAdapter = PrismaAdapter(db);
 
-// User.name is required in our schema, but magic-link sign-up only provides an email.
+// Accounts are created by admins only (POST /api/admin/users). Magic links work for existing users;
+// this also stops Auth.js from creating an account for an unknown email.
 const adapter: Adapter = {
   ...prismaAdapter,
-  // Magic-link sign-up is the only path through here, so this is also where its welcome email goes.
-  createUser: async (data) => {
-    const user = await prismaAdapter.createUser!({ ...data, name: data.name ?? data.email.split("@")[0] });
-    await trySendMail({ to: user.email, ...welcomeEmail(user.name ?? user.email) });
-    return user;
+  createUser: async () => {
+    throw new Error("Self-service sign-up is disabled");
   },
 };
 
@@ -39,7 +38,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // Throttle password guessing per IP+account. A blocked attempt looks like a wrong password.
         const ip = clientIp(await headers());
         for (const key of [`signin:${ip}:${email}`, `signin-ip:${ip}`]) {
-          const limit = await rateLimit(key, key.startsWith("signin-ip") ? { max: 50, windowMs: LIMITS.signIn.windowMs } : LIMITS.signIn);
+          const limit = await rateLimit(key, key.startsWith("signin-ip") ? { ...LIMITS.signIn, max: 50 } : LIMITS.signIn);
           if (!limit.allowed) return null;
         }
 
@@ -57,6 +56,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async sendVerificationRequest({ identifier, url }) {
         const limit = await rateLimit(`magic:${identifier}`, LIMITS.magicLink);
         if (!limit.allowed) throw new Error("Too many sign-in link requests");
+        // Unknown or deactivated address: send nothing, but look the same as success (no enumeration).
+        const known = await db.user.findUnique({ where: { email: identifier }, select: { isActive: true } });
+        if (!known?.isActive) return;
         await sendMail({ to: identifier, ...magicLinkEmail(url) });
       },
     }),
@@ -68,15 +70,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return (user as { isActive?: boolean }).isActive !== false;
     },
     // Re-validate against the database on every session read, so role changes, deactivation and
-    // password resets take effect immediately instead of when the JWT expires.
+    // password resets take effect quickly instead of when the JWT expires. Lookups of active users
+    // are cached for 30 s (src/lib/user-cache.ts): edits made on this instance apply at once, other
+    // instances may lag by up to 30 s.
     async jwt({ token, user }) {
       if (user?.role) token.role = user.role;
       if (!token.sub) return null;
+      const id = token.sub;
 
-      const current = await db.user.findUnique({
-        where: { id: token.sub },
-        select: { name: true, role: true, isActive: true, passwordChangedAt: true },
-      });
+      const current = await getCachedUser(id, () =>
+        db.user.findUnique({
+          where: { id },
+          select: { name: true, role: true, isActive: true, passwordChangedAt: true },
+        }),
+      );
       if (!current || !current.isActive) return null;
       if (
         current.passwordChangedAt &&

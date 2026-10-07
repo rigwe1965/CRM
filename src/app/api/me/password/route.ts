@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { invalidateUserCache } from "@/lib/user-cache";
 import { changePasswordSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
@@ -34,5 +35,6 @@ export async function POST(req: Request) {
     where: { id: guard.user.id },
     data: { passwordHash: await hashPassword(newPassword), passwordChangedAt: new Date() },
   });
+  invalidateUserCache(guard.user.id);
   return NextResponse.json({ ok: true });
 }

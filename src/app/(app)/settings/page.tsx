@@ -108,7 +108,7 @@ function PasswordCard() {
           {form.formError && !form.err("currentPassword") && !form.err("newPassword") && (
             <p role="alert" className="text-sm text-destructive">{form.formError}</p>
           )}
-          <FormField label="Current password" error={form.err("currentPassword")} hint="Leave blank if you signed up with a magic link and have no password yet.">
+          <FormField label="Current password" error={form.err("currentPassword")} hint="Leave blank if you have no password yet.">
             <Input type="password" autoComplete="current-password" value={v.current} onChange={(e) => setV({ ...v, current: e.target.value })} aria-invalid={!!form.err("currentPassword")} />
           </FormField>
           <FormField label="New password" error={form.err("newPassword")} hint="At least 8 characters, with a letter and a number.">
@@ -141,12 +141,48 @@ function TeamCard() {
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
+  const [invite, setInvite] = useState<{ name: string; email: string; role: Role }>({ name: "", email: "", role: "SALES" });
+  const create = useMutation({
+    mutationFn: (body: typeof invite) => request<{ emailed: boolean }>("POST", "/api/admin/users", body),
+    onSuccess: (res) => {
+      if (res.emailed) toast.success("Invitation sent");
+      else toast.warning("User created, but the invitation email could not be sent. Ask them to use “Forgot password”.");
+      setInvite({ name: "", email: "", role: "SALES" });
+      return qc.invalidateQueries({ queryKey: ["team"] });
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Team</CardTitle>
-        <CardDescription>Admins can change roles and deactivate accounts. Deactivated users are signed out immediately.</CardDescription>
+        <CardDescription>Accounts are created by admins only. Admins can also change roles and deactivate accounts; deactivated users are signed out immediately.</CardDescription>
+        <form
+          className="grid gap-3 pt-2 sm:grid-cols-[1fr_1fr_8rem_auto] sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate(invite);
+          }}
+        >
+          <FormField label="Name">
+            <Input value={invite.name} onChange={(e) => setInvite({ ...invite, name: e.target.value })} required />
+          </FormField>
+          <FormField label="Email">
+            <Input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} required />
+          </FormField>
+          <FormField label="Role">
+            <Select value={invite.role} onValueChange={(role) => setInvite({ ...invite, role: role as Role })}>
+              <SelectTrigger aria-label="Role for new user"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="SALES">Sales</SelectItem>
+                <SelectItem value="SUPPORT">Support</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <Button type="submit" disabled={create.isPending}>{create.isPending ? "Inviting…" : "Invite user"}</Button>
+        </form>
       </CardHeader>
       <CardContent className="px-0 pb-2">
         {isLoading ? (

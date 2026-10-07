@@ -70,11 +70,12 @@ export function computeStock(bought: BoughtLine[], sold: SoldLine[]) {
   return { rows: list, unmatched };
 }
 
-/** Loads the caller's invoice lines and deal items (`owned` is the usual ownerScope) and computes stock. */
+/** Only SENT and PAID invoices count as bought; drafts and cancelled ones are ignored.
+ * Loads the caller's invoice lines and deal items (`owned` is the usual ownerScope) and computes stock. */
 export async function loadStock(owned: { ownerId?: string }) {
   const [invoiceItems, dealItems] = await Promise.all([
     db.invoiceItem.findMany({
-      where: { invoice: { ...owned, status: { not: "CANCELLED" } } },
+      where: { invoice: { ...owned, status: { in: ["SENT", "PAID"] } } },
       select: { style: true, description: true, color: true, lengthInches: true, quantity: true },
     }),
     db.dealItem.findMany({

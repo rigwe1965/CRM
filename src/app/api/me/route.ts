@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { parseBody } from "@/lib/api";
 import { requireApiUser } from "@/lib/auth-helpers";
+import { invalidateUserCache } from "@/lib/user-cache";
 import { updateProfileSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
@@ -26,5 +27,6 @@ export async function PATCH(req: Request) {
     data: { name: body.data.name },
     select,
   });
+  invalidateUserCache(user.id);
   return NextResponse.json({ user });
 }

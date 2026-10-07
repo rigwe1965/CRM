@@ -42,4 +42,5 @@ jobs:
           --shadow-database-url "$DATABASE_URL" --exit-code
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm test
       - run: npm run build

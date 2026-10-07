@@ -8,13 +8,15 @@ const TTL_MS = 60 * 60 * 1000;
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
-export async function createPasswordResetToken(email: string): Promise<string> {
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export async function createPasswordResetToken(email: string, ttlMs = TTL_MS): Promise<string> {
   const raw = randomBytes(32).toString("hex");
   const identifier = PREFIX + email;
   await db.$transaction([
     db.verificationToken.deleteMany({ where: { identifier } }),
     db.verificationToken.create({
-      data: { identifier, token: sha256(raw), expires: new Date(Date.now() + TTL_MS) },
+      data: { identifier, token: sha256(raw), expires: new Date(Date.now() + ttlMs) },
     }),
   ]);
   return raw;

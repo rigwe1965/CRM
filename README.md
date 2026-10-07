@@ -13,9 +13,9 @@ A modern full-stack CRM. Includes authentication, the REST API, the web app, tra
 
 ## Authentication
 
-- **Pages:** `/sign-in`, `/sign-up`, `/forgot-password`, `/reset-password`, `/verify-request`, `/profile`, `/unauthorized`
+- **Pages:** `/sign-in`, `/forgot-password`, `/reset-password`, `/verify-request`, `/profile`, `/unauthorized`
 - **Methods:** email + password, or a magic link ("Use a magic link instead" on the sign-in page)
-- **Roles:** `ADMIN`, `SALES`, `SUPPORT`. `ADMIN` passes every role check. Sign-up always creates a `SALES` user; promote users with `PATCH /api/admin/users/:id` (admin only) or in Prisma Studio. The seed creates an admin.
+- **Roles:** `ADMIN`, `SALES`, `SUPPORT`. `ADMIN` passes every role check. There is no public sign-up: admins create users with `POST /api/admin/users` (Settings → Team) and change roles with `PATCH /api/admin/users/:id`. The seed creates an admin.
 - **Route protection:** `src/middleware.ts` is a coarse JWT-based gate (everything is private except the public paths in `src/lib/rbac.ts`). Role-restricted prefixes (`/admin`, `/api/admin`) are listed in the same file. Pages and handlers re-check against the database with the helpers below.
 - **Server helpers** (`src/lib/auth-helpers.ts`):
   - `getCurrentUser()`
@@ -25,7 +25,7 @@ A modern full-stack CRM. Includes authentication, the REST API, the web app, tra
 - **Password reset:** one-hour, single-use token. Only its SHA-256 hash is stored (in the `VerificationToken` table). The forgot-password endpoint never reveals whether an email is registered.
 - **Email:** see [Email](#email). With no provider configured in development, links are printed to the **server console**.
 - **Self-hosting:** set `AUTH_TRUST_HOST=true` when using `next start` behind your own domain.
-- **Rate limiting:** sign-in, sign-up, forgot/reset password, magic links and contact emails are throttled (see the [Security checklist](#security-checklist)). Email verification for password sign-ups is not included.
+- **Rate limiting:** sign-in, forgot/reset password, magic links and contact emails are throttled (see the [Security checklist](#security-checklist)). Self-service sign-up is disabled.
 
 ## Web app
 
@@ -76,7 +76,7 @@ All mail goes through `src/lib/mail.ts`, which picks a provider from the environ
 
 | Email | When | Recipient |
 | --- | --- | --- |
-| Welcome | After sign-up (password or magic link) | The new user |
+| Invitation | When an admin creates a user | The new user |
 | Password reset | `POST /api/password/forgot` (one-hour, single-use link) | The account owner |
 | Magic link | Sign in with a link | The user |
 | Deal stage change | A deal moves stage (drag, menu, `PATCH` or `POST …/stage`) | The deal owner, plus all active admins when it is closed won or lost. The person who made the change is never emailed. |
@@ -99,7 +99,7 @@ Recommended: **Vercel** (app + cron) with a hosted **Postgres** (Neon, Supabase 
 
 1. **Database.** Create a Postgres database. With a pooled provider (Neon, Supabase) you get two URLs: the **pooled** one for `DATABASE_URL` and the **direct** one for `DIRECT_URL` (migrations need a direct connection). With plain Postgres, use the same URL for both. Put the database in the same region as your Vercel functions.
 2. **Resend.** Create an API key and verify your sending domain (Domains → add the DNS records). Wait until it shows *Verified*.
-3. **Recommended: Upstash Redis** (free tier) so rate limits are shared across serverless instances. Copy its REST URL and token.
+3. **Upstash Redis** (free tier, required in production) so rate limits are shared across serverless instances. Copy its REST URL and token.
 
 ### 2. Environment variables
 
@@ -114,7 +114,7 @@ Set these in Vercel → Project → Settings → Environment Variables (`.env.ex
 | `RESEND_API_KEY` | `re_…` |
 | `EMAIL_FROM` | `CRM <noreply@your-verified-domain.com>` |
 | `CRON_SECRET` | A random string, 16+ characters. Vercel sends it to the cron endpoint automatically. |
-| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Recommended |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Required (startup check) |
 
 The server **checks this list at startup** (`src/instrumentation.ts`) and exits with a readable message if something is missing or weak, so a bad config fails the deploy instead of the first user. Do **not** set `SEED_USER_PASSWORD`, and never run the seed in production.
 
@@ -128,17 +128,16 @@ The server **checks this list at startup** (`src/instrumentation.ts`) and exits 
 
 ### 4. First admin
 
-Sign up in the app, then promote yourself against the production database:
+Public sign-up is closed, so create the first admin directly in the production database:
 
 ```bash
-DATABASE_URL="<direct production url>" npm run make-admin -- you@example.com
+DATABASE_URL="<direct production url>" npm run make-admin -- you@example.com --create "Your Name"
 ```
-
-(Or run `UPDATE "User" SET role = 'ADMIN' WHERE email = '…';` in your database console.) Roles are re-read on every request, so no sign-out is needed.
+(Or run `UPDATE "User" SET role = 'ADMIN' WHERE email = '…';` in your database console.) Then use **Forgot password** on the sign-in page to set that admin's password. Roles are re-read on every request, so no sign-out is needed.
 
 ### 5. Smoke test
 
-- Sign up with a real address: the welcome email arrives.
+- Invite a real address from Settings → Team: the invitation email arrives.
 - "Forgot password": the reset email arrives and the link works.
 - Open a contact with an email, click **Send email**: it arrives, replying goes to you, and the timeline shows it.
 - As an admin, move another user's deal (or close one of your own): the owner / admins are notified.
@@ -173,7 +172,7 @@ Done in code:
 
 - [x] **Secrets:** nothing secret is committed; `.env` is git-ignored; the production env is validated at startup (secret length, email provider, cron secret).
 - [x] **Auth:** bcrypt passwords, JWT sessions re-validated against the database on each request, sessions revoked on password change/reset, hashed single-use one-hour reset tokens, no account enumeration on forgot-password.
-- [x] **Rate limiting** (429 when exceeded): sign-in 10 per 15 min per IP+email and 50 per IP; sign-up 5/h per IP; forgot-password 5/h per IP and per address; reset 10/h per IP; magic link 5 per 15 min per address; contact email 30/h per user. Upstash-backed when configured, otherwise in memory (best effort across serverless instances).
+- [x] **Rate limiting** (429 when exceeded): sign-in 10 per 15 min per IP+email and 50 per IP; forgot-password 5/h per IP and per address; reset 10/h per IP; magic link 5 per 15 min per address; contact email 30/h per user. Upstash-backed when configured, otherwise in memory (best effort across serverless instances).
 - [x] **CORS:** the API sends no CORS headers, so browsers block cross-origin reads, and preflights get no `Access-Control-Allow-*`. If you ever need a third-party origin, add it explicitly in `src/middleware.ts`; never combine `*` with cookies.
 - [x] **CSRF:** cookies are `SameSite=Lax`, and `src/middleware.ts` rejects state-changing `/api` requests whose `Origin` is not this host (403). Auth.js has its own CSRF token for its routes.
 - [x] **Headers** (`next.config.mjs`): CSP, HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`; `X-Powered-By` removed; API responses are `Cache-Control: no-store`. The CSP allows inline scripts and styles (needed by Next.js and the theme switch); tighten it with nonces if you add third-party content.
@@ -188,7 +187,7 @@ Do before going live:
 - [ ] Separate Preview and Production databases and secrets.
 - [ ] Turn on database backups / point-in-time recovery.
 - [ ] Rotate `NEXTAUTH_SECRET` and `CRON_SECRET` if they were ever shared (rotating the auth secret signs everyone out).
-- [ ] Decide whether to require email verification for password sign-ups, and add 2FA for admins (not implemented).
+- [ ] Add 2FA for admins (not implemented).
 - [ ] Add error monitoring (Sentry or Vercel log drains) and an uptime check on `/api/health`.
 - [ ] Enable GitHub secret scanning and Dependabot; run `npm audit` regularly.
 
@@ -258,7 +257,8 @@ Deal ─┬─< Activity
 | `npm run db:generate` | Generate the Prisma client |
 | `npm run db:migrate` | Create and apply a migration (dev) |
 | `npm run db:deploy` | Apply pending migrations (production, CI) |
-| `npm run make-admin -- <email>` | Promote a user to admin |
+| `npm run make-admin -- <email> [--create "Name"]` | Promote a user to admin (create them first with `--create`) |
+| `npm test` | Run the unit tests (Vitest) |
 | `npm run db:push` | Push the schema without a migration |
 | `npm run db:seed` | Seed sample data |
 | `npm run db:reset` | Drop, re-migrate and re-seed |

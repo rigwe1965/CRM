@@ -4,6 +4,7 @@ import { apiError, parseBody } from "@/lib/api";
 import { hashPassword } from "@/lib/password";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
 import { consumePasswordResetToken } from "@/lib/tokens";
+import { invalidateUserCache } from "@/lib/user-cache";
 import { resetPasswordSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
@@ -23,5 +24,7 @@ export async function POST(req: Request) {
     data: { passwordHash: await hashPassword(body.data.password), passwordChangedAt: new Date() },
   });
   if (count === 0) return apiError("This reset link is invalid or has expired.", 400);
+  const reset = await db.user.findUnique({ where: { email }, select: { id: true } });
+  if (reset) invalidateUserCache(reset.id);
   return NextResponse.json({ ok: true });
 }

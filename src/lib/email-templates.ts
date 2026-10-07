@@ -51,6 +51,17 @@ export function passwordResetEmail(url: string): Rendered {
   };
 }
 
+export function inviteEmail(name: string, url: string): Rendered {
+  return {
+    subject: "You've been invited to the CRM",
+    text: `Hi ${name},\n\nAn administrator created a CRM account for you. Choose your password to get started:\n${url}\n\nThis link expires in 7 days.`,
+    html: layout(
+      `Welcome, ${name}`,
+      `<p style="margin:0">An administrator created a CRM account for you. Use the button below to choose your password. The link expires in 7 days.</p>${button(url, "Set your password")}`,
+    ),
+  };
+}
+
 export function magicLinkEmail(url: string): Rendered {
   return {
     subject: "Your CRM sign-in link",

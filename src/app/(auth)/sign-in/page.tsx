@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth-helpers";
@@ -24,10 +23,7 @@ export default async function SignInPage({
         <SignInForm />
       </Suspense>
       <p className="text-center text-sm text-muted-foreground">
-        No account?{" "}
-        <Link href="/sign-up" className="text-primary hover:underline">
-          Sign up
-        </Link>
+        No account? Ask an administrator to invite you.
       </p>
     </>
   );

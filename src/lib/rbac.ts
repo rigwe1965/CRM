@@ -24,12 +24,11 @@ export function requiredRolesFor(pathname: string): readonly Role[] | null {
 
 const PUBLIC_PAGES = new Set([
   "/sign-in",
-  "/sign-up",
   "/forgot-password",
   "/reset-password",
   "/verify-request",
 ]);
-const PUBLIC_PREFIXES = ["/api/auth/", "/api/register", "/api/password/", "/api/openapi.json", "/api/health", "/api/cron/"];
+const PUBLIC_PREFIXES = ["/api/auth/","/api/password/", "/api/openapi.json", "/api/health", "/api/cron/"];
 
 export function isPublicPath(pathname: string): boolean {
   return (

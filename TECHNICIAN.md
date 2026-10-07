@@ -56,7 +56,7 @@ Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema
 - Back up before any migration and before deleting sample data. Hosted providers (Neon, Supabase) also offer point-in-time restore.
 
 ## Users
-Sign-ups become Sales. Promote with `PATCH /api/admin/users/:id` (admin), `npm run make-admin`, or Prisma Studio. Deactivating a user takes effect on their next request.
+There is no public sign-up: admins create users in Settings → Team (`POST /api/admin/users`), and the invitee sets a password from the emailed link (valid 7 days). Change roles with `PATCH /api/admin/users/:id` (admin), `npm run make-admin`, or Prisma Studio. Role changes, deactivation and password resets take effect immediately on the server that handled the change, and within 30 seconds on any other instance (user lookups are cached for 30 s in `src/lib/user-cache.ts`).
 
 ## Support checklist
 1. Reproduce it and note the page and user.

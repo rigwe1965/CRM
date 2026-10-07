@@ -16,6 +16,8 @@ const productionEnv = z
     EMAIL_SERVER: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
     CRON_SECRET: z.string().optional(),
+    UPSTASH_REDIS_REST_URL: z.string().optional(),
+    UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     const add = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
@@ -27,6 +29,8 @@ const productionEnv = z
     if (!env.CRON_SECRET || env.CRON_SECRET.length < 16) {
       add("CRON_SECRET", "required, at least 16 characters (protects /api/cron/*)");
     }
+    if (!env.UPSTASH_REDIS_REST_URL) add("UPSTASH_REDIS_REST_URL", "required so rate limits are shared across instances");
+    if (!env.UPSTASH_REDIS_REST_TOKEN) add("UPSTASH_REDIS_REST_TOKEN", "required together with UPSTASH_REDIS_REST_URL");
     if (!env.VERCEL && !env.NEXTAUTH_URL) add("NEXTAUTH_URL", "required outside Vercel (your public https URL)");
     if (!env.VERCEL && !env.AUTH_TRUST_HOST) add("AUTH_TRUST_HOST", "set to true when self-hosting behind your own domain");
   });

@@ -6,7 +6,8 @@ import { ApiError } from "@/lib/api";
  *    serverless instance (use this in production on Vercel).
  *  - Otherwise counters live in process memory: fine for `next dev` and a single server, but
  *    each serverless instance keeps its own count, so limits are only best-effort.
- * If Redis is unreachable the request is allowed (fail open) and the error is logged.
+ * If Redis is unreachable the error is logged and the request is allowed (fail open), except for
+ * limits marked `failClosed` (sign-in, password reset, magic link), which block instead.
  */
 
 type Result = { allowed: boolean; retryAfter: number };
@@ -40,13 +41,13 @@ async function redisHit(key: string, windowMs: number, max: number): Promise<Res
   return { allowed: incr.result <= max, retryAfter: windowSec - (Math.floor(Date.now() / 1000) % windowSec) };
 }
 
-export async function rateLimit(key: string, opts: { max: number; windowMs: number }): Promise<Result> {
+export async function rateLimit(key: string, opts: { max: number; windowMs: number; failClosed?: boolean }): Promise<Result> {
   if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     try {
       return await redisHit(key, opts.windowMs, opts.max);
     } catch (e) {
-      console.error("[rate-limit] redis failed, allowing request", e instanceof Error ? e.message : e);
-      return { allowed: true, retryAfter: 0 };
+      console.error("[rate-limit] redis failed", opts.failClosed ? "(blocking)" : "(allowing)", e instanceof Error ? e.message : e);
+      return opts.failClosed ? { allowed: false, retryAfter: 60 } : { allowed: true, retryAfter: 0 };
     }
   }
   return memoryHit(key, opts.windowMs, opts.max);
@@ -58,16 +59,15 @@ export function clientIp(headers: Headers): string {
 }
 
 export const LIMITS = {
-  signIn: { max: 10, windowMs: 15 * 60_000 },
-  register: { max: 5, windowMs: 60 * 60_000 },
-  passwordForgot: { max: 5, windowMs: 60 * 60_000 },
-  passwordReset: { max: 10, windowMs: 60 * 60_000 },
-  magicLink: { max: 5, windowMs: 15 * 60_000 },
+  signIn: { max: 10, windowMs: 15 * 60_000, failClosed: true },
+  passwordForgot: { max: 5, windowMs: 60 * 60_000, failClosed: true },
+  passwordReset: { max: 10, windowMs: 60 * 60_000, failClosed: true },
+  magicLink: { max: 5, windowMs: 15 * 60_000, failClosed: true },
   sendEmail: { max: 30, windowMs: 60 * 60_000 },
 } as const;
 
 /** Throws ApiError(429) when over the limit. For handlers that already catch ApiError. */
-export async function enforceRateLimit(key: string, opts: { max: number; windowMs: number }) {
+export async function enforceRateLimit(key: string, opts: { max: number; windowMs: number; failClosed?: boolean }) {
   const r = await rateLimit(key, opts);
   if (!r.allowed) throw new ApiError(429, `Too many requests. Try again in ${r.retryAfter}s.`, "RATE_LIMITED");
 }

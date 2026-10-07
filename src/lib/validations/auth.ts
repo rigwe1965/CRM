@@ -15,10 +15,10 @@ export const signInSchema = z.object({
   password: z.string().min(1, "Password is required").max(200),
 });
 
-export const signUpSchema = z.object({
+export const adminCreateUserSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   email,
-  password: passwordSchema,
+  role: z.enum(["ADMIN", "SALES", "SUPPORT"]).default("SALES"),
 });
 
 export const forgotPasswordSchema = z.object({ email });

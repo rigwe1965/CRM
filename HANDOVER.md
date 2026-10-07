@@ -23,7 +23,7 @@ Ivycandy Hair buys hair from suppliers in Asia and sells it to customers, who mo
 
 - **Admin** sees everything. **Sales** and **Support** see only records they own.
 - Sample logins (from the seed): `admin@crm.test`, `sales@crm.test`, `support@crm.test`. The password is `SEED_USER_PASSWORD` in the `.env` file.
-- New sign-ups become **Sales**. An admin can promote them (see `TECHNICIAN.md`).
+- There is no public sign-up. An admin invites each person in **Settings → Team**; they get an email to choose their password.
 
 **Example:** Sam (Sales) creates a deal. Sam sees it and Admin sees it. Support does not.
 
