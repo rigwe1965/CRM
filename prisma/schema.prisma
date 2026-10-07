@@ -93,14 +93,15 @@ model User {
 
   accounts           Account[]
   sessions           Session[]
-  ownedOrganizations Organization[] @relation("OrganizationOwner")
-  ownedContacts      Contact[]      @relation("ContactOwner")
-  ownedDeals         Deal[]         @relation("DealOwner")
+  ownedOrganizations Organization[]    @relation("OrganizationOwner")
+  ownedContacts      Contact[]         @relation("ContactOwner")
+  ownedDeals         Deal[]            @relation("DealOwner")
   activities         Activity[]
-  assignedTasks      Task[]         @relation("TaskAssignee")
-  createdTasks       Task[]         @relation("TaskCreator")
-  ownedInvoices      Invoice[]      @relation("InvoiceOwner")
-  recordedPayments   Payment[]      @relation("PaymentRecorder")
+  assignedTasks      Task[]            @relation("TaskAssignee")
+  createdTasks       Task[]            @relation("TaskCreator")
+  ownedInvoices      Invoice[]         @relation("InvoiceOwner")
+  stockAdjustments   StockAdjustment[] @relation("StockAdjustmentOwner")
+  recordedPayments   Payment[]         @relation("PaymentRecorder")
 
   @@index([role])
 }
@@ -418,4 +419,26 @@ model DealItem {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId, position])
+}
+
+// ─── Stock adjustments ──────────────────────────────────
+
+// Manual correction to computed stock (on hand = bought - sold + adjustments). Matched to a stock
+// row on product + colour + length, the same way sold items are.
+model StockAdjustment {
+  id           String   @id @default(cuid())
+  product      String
+  color        String   @default("")
+  lengthInches Int?
+  // Signed: positive adds pieces (found, opening stock), negative removes them (damaged, lost).
+  quantity     Int
+  reason       String
+  note         String?
+  ownerId      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner User @relation("StockAdjustmentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([ownerId])
 }

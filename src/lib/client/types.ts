@@ -265,7 +265,19 @@ export type Dashboard = {
   upcomingTasks: Task[];
 };
 
-export type StockRow = { product: string; description: string; color: string; lengthInches: number | null; bought: number; sold: number; onHand: number };
+export type StockAdjustment = { id: string; quantity: number; reason: string; note: string | null; createdAt: string };
+export type StockRow = {
+  product: string;
+  description: string;
+  color: string;
+  lengthInches: number | null;
+  bought: number;
+  sold: number;
+  adjusted: number;
+  onHand: number;
+  adjustments: StockAdjustment[];
+  sources: { invoiceId: string; number: string }[];
+};
 
 export type UnmatchedSale = { dealId: string; dealTitle: string; product: string; color: string; length: string; quantity: number; reason: string };
 

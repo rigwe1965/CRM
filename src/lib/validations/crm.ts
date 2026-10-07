@@ -311,3 +311,26 @@ export const scheduleSchema = z.object({
     .array(z.object({ dueDate: isoDate, amount: amount.refine((n) => n > 0, "Must be more than 0") }))
     .max(60),
 });
+
+// ─── Stock adjustments ──────────────────────────────────
+
+const adjustmentFields = z.object({
+  product: requiredText(200),
+  color: z.string().trim().max(100).default(""),
+  lengthInches: z.number().int().min(1).max(200).nullish(),
+  // Signed: positive adds pieces, negative removes them.
+  quantity: z
+    .number()
+    .int()
+    .min(-100_000)
+    .max(100_000)
+    .refine((n) => n !== 0, "Quantity can't be zero"),
+  reason: requiredText(100),
+  note: text(500),
+});
+export const createStockAdjustmentSchema = adjustmentFields;
+// The product, colour and length identify the stock row and can't be moved afterwards.
+export const updateStockAdjustmentSchema = adjustmentFields
+  .pick({ quantity: true, reason: true, note: true })
+  .partial()
+  .refine(nonEmpty, atLeastOne);

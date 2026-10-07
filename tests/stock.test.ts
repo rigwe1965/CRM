@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: {} }));
-import { computeStock, type BoughtLine, type SoldLine } from "@/lib/stock";
+import { computeStock, type AdjustmentLine, type BoughtLine, type SoldLine } from "@/lib/stock";
 
 const bought = (o: Partial<BoughtLine> = {}): BoughtLine => ({
   style: "Bone Straight", description: "Bone Straight Bundle", color: "1B", lengthInches: 16, quantity: 10, ...o,
@@ -44,5 +44,40 @@ describe("computeStock", () => {
 
   it("can go negative when more is sold than bought", () => {
     expect(computeStock([bought({ quantity: 1 })], [sold()]).rows[0].onHand).toBe(-2);
+  });
+});
+
+describe("computeStock adjustments and sources", () => {
+  const adj = (o: Partial<AdjustmentLine> = {}): AdjustmentLine => ({
+    id: "a1", product: "bone straight", color: "1b Color", lengthInches: 16, quantity: -2, reason: "Damaged", note: null, createdAt: new Date(0), ...o,
+  });
+
+  it("applies a signed adjustment to the matching row", () => {
+    const { rows } = computeStock([bought()], [sold()], [adj(), adj({ id: "a2", quantity: 1, reason: "Recount" })]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ bought: 10, sold: 3, adjusted: -1, onHand: 6 });
+    expect(rows[0].adjustments.map((a) => a.id)).toEqual(["a1", "a2"]);
+  });
+
+  it("matches adjustments with the same case/colour/length rules as sales", () => {
+    const { rows } = computeStock([bought()], [], [adj({ product: "BONE STRAIGHT BUNDLE", color: "1B" })]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].adjusted).toBe(-2);
+  });
+
+  it("gives an unmatched adjustment its own row (opening stock)", () => {
+    const { rows } = computeStock([], [], [adj({ product: "Pixie curl", color: "", lengthInches: null, quantity: 5, reason: "Opening stock" })]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ product: "Pixie curl", bought: 0, adjusted: 5, onHand: 5, description: "Manual stock" });
+  });
+
+  it("can go negative", () => {
+    expect(computeStock([bought({ quantity: 1 })], [], [adj({ quantity: -3 })]).rows[0].onHand).toBe(-2);
+  });
+
+  it("lists each source invoice once", () => {
+    const inv1 = { id: "i1", number: "PI-1" };
+    const { rows } = computeStock([bought({ invoice: inv1 }), bought({ invoice: inv1 }), bought({ invoice: { id: "i2", number: "PI-2" } })], []);
+    expect(rows[0].sources).toEqual([{ invoiceId: "i1", number: "PI-1" }, { invoiceId: "i2", number: "PI-2" }]);
   });
 });

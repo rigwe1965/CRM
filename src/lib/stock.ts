@@ -4,10 +4,40 @@ import { db } from "@/lib/db";
 /** Stages where the customer has agreed to buy, so the pieces are spoken for. */
 const SOLD_STAGES: DealStage[] = ["PROPOSAL", "NEGOTIATION", "CLOSED_WON"];
 
-export type BoughtLine = { style: string; description: string; color: string | null; lengthInches: number | null; quantity: number };
+export type BoughtLine = {
+  style: string;
+  description: string;
+  color: string | null;
+  lengthInches: number | null;
+  quantity: number;
+  invoice?: { id: string; number: string };
+};
 export type SoldLine = { dealId: string; dealTitle: string; productType: string; color: string | null; lengthInches: string | null; quantity: number };
+export type AdjustmentLine = {
+  id: string;
+  product: string;
+  color: string;
+  lengthInches: number | null;
+  quantity: number;
+  reason: string;
+  note: string | null;
+  createdAt: Date;
+};
 
-export type StockRow = { product: string; description: string; color: string; lengthInches: number | null; bought: number; sold: number; onHand: number };
+export type StockRow = {
+  product: string;
+  description: string;
+  color: string;
+  lengthInches: number | null;
+  bought: number;
+  sold: number;
+  /** Sum of manual adjustments (signed). */
+  adjusted: number;
+  onHand: number;
+  adjustments: Pick<AdjustmentLine, "id" | "quantity" | "reason" | "note" | "createdAt">[];
+  /** Distinct invoices the bought pieces came from, so the line can be fixed there. */
+  sources: { invoiceId: string; number: string }[];
+};
 export type UnmatchedSale = { dealId: string; dealTitle: string; product: string; color: string; length: string; quantity: number; reason: string };
 
 /** Case-insensitive text key: "1B Color" and "1b" both become "1b". */
@@ -26,12 +56,26 @@ function lengthKey(v: string | number | null | undefined): string | null {
   return m ? m[1] : null;
 }
 
+const newRow = (product: string, description: string, color: string, lengthInches: number | null): StockRow => ({
+  product,
+  description,
+  color,
+  lengthInches,
+  bought: 0,
+  sold: 0,
+  adjusted: 0,
+  onHand: 0,
+  adjustments: [],
+  sources: [],
+});
+
 /**
- * Stock on hand = pieces bought (supplier invoice lines) minus pieces sold (deal items), matched
- * on product, colour and length. A sold line matches an invoice line when its product equals the
- * invoice line's style or description. Sales that match nothing come back as `unmatched`.
+ * Stock on hand = pieces bought (supplier invoice lines) minus pieces sold (deal items) plus manual
+ * adjustments, matched on product, colour and length. A sold line matches an invoice line when its
+ * product equals the invoice line's style or description. Sales that match nothing come back as
+ * `unmatched`. An adjustment with no matching invoice line gets its own row (opening stock).
  */
-export function computeStock(bought: BoughtLine[], sold: SoldLine[]) {
+export function computeStock(bought: BoughtLine[], sold: SoldLine[], adjustments: AdjustmentLine[] = []) {
   const rows = new Map<string, StockRow>();
   const alias = new Map<string, string>(); // "product|color|length" -> row key
 
@@ -39,8 +83,11 @@ export function computeStock(bought: BoughtLine[], sold: SoldLine[]) {
     const color = norm(b.color);
     const len = b.lengthInches === null ? "" : String(b.lengthInches);
     const key = `${norm(b.style)}|${color}|${len}`;
-    const row = rows.get(key) ?? { product: b.style, description: b.description, color: b.color ?? "", lengthInches: b.lengthInches, bought: 0, sold: 0, onHand: 0 };
+    const row = rows.get(key) ?? newRow(b.style, b.description, b.color ?? "", b.lengthInches);
     row.bought += b.quantity;
+    if (b.invoice && !row.sources.some((x) => x.invoiceId === b.invoice!.id)) {
+      row.sources.push({ invoiceId: b.invoice.id, number: b.invoice.number });
+    }
     rows.set(key, row);
     for (const name of [norm(b.style), norm(b.description)]) {
       const a = `${name}|${color}|${len}`;
@@ -64,24 +111,35 @@ export function computeStock(bought: BoughtLine[], sold: SoldLine[]) {
     rows.get(key)!.sold += s.quantity;
   }
 
+  for (const a of adjustments) {
+    const len = a.lengthInches === null ? "" : String(a.lengthInches);
+    const own = `${norm(a.product)}|${norm(a.color)}|${len}`;
+    const key = alias.get(own) ?? own;
+    const row = rows.get(key) ?? newRow(a.product, "Manual stock", a.color, a.lengthInches);
+    row.adjusted += a.quantity;
+    row.adjustments.push({ id: a.id, quantity: a.quantity, reason: a.reason, note: a.note, createdAt: a.createdAt });
+    rows.set(key, row);
+  }
+
   const list = [...rows.values()]
-    .map((r) => ({ ...r, onHand: r.bought - r.sold }))
+    .map((r) => ({ ...r, onHand: r.bought - r.sold + r.adjusted }))
     .sort((a, b) => a.product.localeCompare(b.product) || a.color.localeCompare(b.color) || (a.lengthInches ?? 0) - (b.lengthInches ?? 0));
   return { rows: list, unmatched };
 }
 
 /** Only SENT and PAID invoices count as bought; drafts and cancelled ones are ignored.
- * Loads the caller's invoice lines and deal items (`owned` is the usual ownerScope) and computes stock. */
+ * Loads the caller's invoice lines, deal items and adjustments (`owned` is the usual ownerScope) and computes stock. */
 export async function loadStock(owned: { ownerId?: string }) {
-  const [invoiceItems, dealItems] = await Promise.all([
+  const [invoiceItems, dealItems, adjustments] = await Promise.all([
     db.invoiceItem.findMany({
       where: { invoice: { ...owned, status: { in: ["SENT", "PAID"] } } },
-      select: { style: true, description: true, color: true, lengthInches: true, quantity: true },
+      select: { style: true, description: true, color: true, lengthInches: true, quantity: true, invoice: { select: { id: true, number: true } } },
     }),
     db.dealItem.findMany({
       where: { deal: { ...owned, deletedAt: null, stage: { in: SOLD_STAGES } } },
       select: { productType: true, color: true, lengthInches: true, quantity: true, deal: { select: { id: true, title: true } } },
     }),
+    db.stockAdjustment.findMany({ where: owned, orderBy: { createdAt: "asc" } }),
   ]);
   return computeStock(
     invoiceItems,
@@ -93,5 +151,6 @@ export async function loadStock(owned: { ownerId?: string }) {
       lengthInches: d.lengthInches,
       quantity: d.quantity,
     })),
+    adjustments,
   );
 }
