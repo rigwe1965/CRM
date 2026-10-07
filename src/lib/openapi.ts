@@ -5,17 +5,24 @@ import {
   createActivitySchema,
   createContactSchema,
   createDealSchema,
+  createInvoiceSchema,
   createOrganizationSchema,
+  createPaymentSchema,
+  createStockAdjustmentSchema,
   createTaskSchema,
   dealListQuery,
   dealStageSchema,
+  invoiceListQuery,
   organizationListQuery,
+  scheduleSchema,
   taskListQuery,
   updateActivitySchema,
   sendContactEmailSchema,
   updateContactSchema,
   updateDealSchema,
+  updateInvoiceSchema,
   updateOrganizationSchema,
+  updateStockAdjustmentSchema,
   updateTaskSchema,
 } from "@/lib/validations/crm";
 
@@ -26,8 +33,8 @@ import {
  */
 
 type Op = {
-  method: "get" | "post" | "patch" | "delete";
-  path: string; // OpenAPI-style, e.g. /contacts/{id}
+  method: "get" | "post" | "put" | "patch" | "delete";
+  path: string; // OpenAPI-style, e.g. /contacts/{id} or /deals/{id}/payments/{paymentId}
   tag: string;
   summary: string;
   description?: string;
@@ -76,6 +83,22 @@ const OPERATIONS: Op[] = [
   { method: "get", path: "/tasks/{id}", tag: "Tasks", summary: "Get a task" },
   { method: "patch", path: "/tasks/{id}", tag: "Tasks", summary: "Update a task", body: updateTaskSchema },
   { method: "delete", path: "/tasks/{id}", tag: "Tasks", summary: "Delete a task (hard delete)", success: 204 },
+  // Invoices (supplier stock purchases)
+  { method: "get", path: "/invoices", tag: "Invoices", summary: "List supplier invoices", description: "Search `q` matches number, bill-to and vendor name.", query: invoiceListQuery, list: true },
+  { method: "post", path: "/invoices", tag: "Invoices", summary: "Create an invoice with its line items", description: "Status defaults to DRAFT. Each line's total is quantity x unitPrice unless `lineTotal` is sent; the sheet subtotal is computed, and the deal price (`total`) defaults to subtotal + shipping. The owner is the caller. `dealIds` links the customer deals this order fulfils.", body: createInvoiceSchema, success: 201 },
+  { method: "get", path: "/invoices/{id}", tag: "Invoices", summary: "Get an invoice with its line items and linked deals" },
+  { method: "patch", path: "/invoices/{id}", tag: "Invoices", summary: "Update an invoice", description: "Sending `items` replaces all lines and recomputes the subtotal (and the deal price, unless `total` is sent). Sending `dealIds` replaces the linked deals.", body: updateInvoiceSchema },
+  { method: "delete", path: "/invoices/{id}", tag: "Invoices", summary: "Delete an invoice (hard delete; its lines go with it)", success: 204 },
+  // Payments and instalments (hang off a deal)
+  { method: "get", path: "/deals/{id}/payments", tag: "Payments", summary: "Payments received on a deal, its instalment schedule and the balance", description: "Payments are applied to the schedule oldest-first. An instalment is overdue when it is not fully covered and its due date is before today (due today is not overdue)." },
+  { method: "post", path: "/deals/{id}/payments", tag: "Payments", summary: "Record a payment", description: "Returns the updated payments view. 422 if the amount exceeds the remaining balance.", body: createPaymentSchema, success: 201 },
+  { method: "delete", path: "/deals/{id}/payments/{paymentId}", tag: "Payments", summary: "Remove a mistaken payment", description: "Returns the updated payments view (200), not an empty body." },
+  { method: "put", path: "/deals/{id}/schedule", tag: "Payments", summary: "Replace the instalment schedule", description: "Send an empty `instalments` list to clear it. Returns the updated payments view. 422 if the instalments total more than the deal amount.", body: scheduleSchema },
+  // Stock
+  { method: "get", path: "/stock", tag: "Stock", summary: "Stock on hand per product, colour and length", description: "On hand = pieces bought (lines of SENT and PAID invoices) - pieces sold (items on PROPOSAL, NEGOTIATION and CLOSED_WON deals) + manual adjustments, matched case-insensitively on product, colour and length. Each row lists its adjustments and the invoices it came from. `unmatched` lists sold items that matched no invoice line." },
+  { method: "post", path: "/stock/adjustments", tag: "Stock", summary: "Record a manual stock adjustment", description: "`quantity` is signed and non-zero: positive adds pieces (found stock, opening stock), negative removes them (damaged, lost). Matched to a stock row on product, colour and length; if no invoice line matches, it creates its own row.", body: createStockAdjustmentSchema, success: 201 },
+  { method: "patch", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Change an adjustment's quantity, reason or note", description: "The product, colour and length cannot be changed; delete and re-create the adjustment instead.", body: updateStockAdjustmentSchema },
+  { method: "delete", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Delete a stock adjustment (hard delete)", success: 204 },
   // Dashboard
   { method: "get", path: "/dashboard", tag: "Dashboard", summary: "Counts, pipeline value, revenue and recent activity" },
 ];
@@ -85,6 +108,9 @@ function jsonSchema(schema: ZodType): Record<string, unknown> {
   delete out.$schema;
   return out;
 }
+
+/** Every `{name}` in an OpenAPI-style path, in order. */
+const pathParamNames = (path: string) => [...path.matchAll(/\{(\w+)\}/g)].map((m) => m[1]);
 
 function queryParameters(schema: ZodType) {
   const { properties = {}, required = [] } = jsonSchema(schema) as {
@@ -107,7 +133,7 @@ export function buildOpenApiDocument() {
   for (const op of OPERATIONS) {
     const success = op.success ?? 200;
     const parameters = [
-      ...(op.path.includes("{id}") ? [{ name: "id", in: "path", required: true, schema: { type: "string" } }] : []),
+      ...pathParamNames(op.path).map((name) => ({ name, in: "path", required: true, schema: { type: "string" } })),
       ...(op.query ? queryParameters(op.query) : []),
     ];
     const responses: Record<string, unknown> =
@@ -125,7 +151,7 @@ export function buildOpenApiDocument() {
           };
     responses[401] = ref("Unauthorized");
     responses[403] = ref("Forbidden");
-    if (op.path.includes("{id}")) responses[404] = ref("NotFound");
+    if (op.path.includes("{")) responses[404] = ref("NotFound");
     if (op.body || op.query) responses[422] = ref("ValidationError");
 
     (paths[op.path] ??= {})[op.method] = {
@@ -153,8 +179,9 @@ export function buildOpenApiDocument() {
       description: [
         "REST API for the CRM. All endpoints require a signed-in session (Auth.js cookie) except where noted.",
         "",
-        "**Authorization:** non-admin users only see and edit their own data (owner of organizations, contacts and deals; author of activities; assignee or creator of tasks). Admins see everything.",
-        "**Soft delete:** organizations, contacts and deals set `deletedAt` and disappear from the API; admins can pass `includeDeleted=true` to lists and restore via `POST /{id}/restore`. Activities and tasks are hard-deleted.",
+        "**Authorization:** non-admin users only see and edit their own data (owner of organizations, contacts, deals, invoices and stock adjustments; author of activities; assignee or creator of tasks; payments and instalments follow their deal). Admins see everything.",
+        "**Money:** amounts are kept per currency (USD, EUR...) and are never added across currencies.",
+        "**Soft delete:** organizations, contacts and deals set `deletedAt` and disappear from the API; admins can pass `includeDeleted=true` to lists and restore via `POST /{id}/restore`. Activities, tasks, invoices, payments and stock adjustments are hard-deleted.",
         "**Lists:** `page` (default 1), `pageSize` (default 20, max 100), `sort`, `order` (asc|desc), `q` (text search) plus resource-specific filters. Enum filters accept comma-separated values.",
         "**Errors:** `{ error, code, fieldErrors? }`.",
       ].join("\n"),
@@ -191,7 +218,7 @@ export function buildOpenApiDocument() {
             error: { type: "string" },
             code: {
               type: "string",
-              enum: ["BAD_REQUEST", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "CONFLICT", "VALIDATION_ERROR", "INVALID_REFERENCE", "ALREADY_CONVERTED", "INTERNAL_ERROR"],
+              enum: ["BAD_REQUEST", "UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND", "CONFLICT", "VALIDATION_ERROR", "INVALID_REFERENCE", "ALREADY_CONVERTED", "RATE_LIMITED", "INTERNAL_ERROR"],
             },
             fieldErrors: { type: "object", additionalProperties: { type: "array", items: { type: "string" } } },
           },
