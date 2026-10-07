@@ -39,9 +39,10 @@ export const changePasswordSchema = z.object({
 
 export const adminUpdateUserSchema = z
   .object({
+    name: z.string().trim().min(1, "Name is required").max(100).optional(),
     role: z.enum(["ADMIN", "SALES", "SUPPORT"]).optional(),
     isActive: z.boolean().optional(),
   })
-  .refine((v) => v.role !== undefined || v.isActive !== undefined, {
-    message: "Provide role or isActive",
+  .refine((v) => v.name !== undefined || v.role !== undefined || v.isActive !== undefined, {
+    message: "Provide name, role or isActive",
   });

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -126,6 +127,53 @@ function PasswordCard() {
   );
 }
 
+/** Edit a user's name and role (email is their login and can't be changed here). */
+function EditUserDialog({ user, onClose, onSave, pending }: { user: TeamUser | null; onClose: () => void; onSave: (body: { id: string; name: string; role: Role }) => void; pending: boolean }) {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState<Role>("SALES");
+  const [shown, setShown] = useState<string | null>(null);
+  if (user && shown !== user.id) {
+    setShown(user.id);
+    setName(user.name);
+    setRole(user.role);
+  }
+  return (
+    <Dialog open={!!user} onOpenChange={(o) => !o && (setShown(null), onClose())}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit user</DialogTitle>
+          <DialogDescription>{user?.email}. The email is the login, so it cannot be changed.</DialogDescription>
+        </DialogHeader>
+        <form
+          className="grid gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (user) onSave({ id: user.id, name: name.trim(), role });
+          }}
+        >
+          <FormField label="Name">
+            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          </FormField>
+          <FormField label="Role">
+            <Select value={role} onValueChange={(r) => setRole(r as Role)}>
+              <SelectTrigger aria-label="Role"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="SALES">Sales</SelectItem>
+                <SelectItem value="SUPPORT">Support</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => (setShown(null), onClose())} disabled={pending}>Cancel</Button>
+            <Button type="submit" disabled={pending || !name.trim()}>{pending ? "Saving…" : "Save"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TeamCard() {
   const me = useCurrentUser();
   const qc = useQueryClient();
@@ -134,19 +182,35 @@ function TeamCard() {
     queryFn: async () => (await request<{ users: TeamUser[] }>("GET", "/api/admin/users")).users,
   });
   const update = useMutation({
-    mutationFn: ({ id, ...body }: { id: string; role?: Role; isActive?: boolean }) => request("PATCH", `/api/admin/users/${id}`, body),
+    mutationFn: ({ id, ...body }: { id: string; name?: string; role?: Role; isActive?: boolean }) => request("PATCH", `/api/admin/users/${id}`, body),
     onSuccess: () => {
       toast.success("User updated");
+      setEditing(null);
       return qc.invalidateQueries({ queryKey: ["team"] });
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const [editing, setEditing] = useState<TeamUser | null>(null);
+  // Set when no email provider is configured (development): the set-password link to pass on.
+  const [devLink, setDevLink] = useState<{ email: string; url: string } | null>(null);
+  const resend = useMutation({
+    mutationFn: (u: TeamUser) => request<{ emailed: boolean; devLink?: string }>("POST", `/api/admin/users/${u.id}/invite`).then((r) => ({ ...r, email: u.email })),
+    onSuccess: (r) => {
+      if (r.devLink) setDevLink({ email: r.email, url: r.devLink });
+      else if (r.emailed) toast.success("Invitation sent");
+      else toast.warning("The email could not be sent. Check the email settings.");
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
   const [invite, setInvite] = useState<{ name: string; email: string; role: Role }>({ name: "", email: "", role: "SALES" });
   const create = useMutation({
-    mutationFn: (body: typeof invite) => request<{ emailed: boolean }>("POST", "/api/admin/users", body),
-    onSuccess: (res) => {
-      if (res.emailed) toast.success("Invitation sent");
-      else toast.warning("User created, but the invitation email could not be sent. Ask them to use “Forgot password”.");
+    mutationFn: (body: typeof invite) => request<{ emailed: boolean; devLink?: string }>("POST", "/api/admin/users", body),
+    onSuccess: (res, body) => {
+      if (res.devLink) {
+        setDevLink({ email: body.email, url: res.devLink });
+        toast.success("User created");
+      } else if (res.emailed) toast.success("Invitation sent");
+      else toast.warning("User created, but the invitation email could not be sent. Use “Send invite” on their row to try again.");
       setInvite({ name: "", email: "", role: "SALES" });
       return qc.invalidateQueries({ queryKey: ["team"] });
     },
@@ -185,6 +249,19 @@ function TeamCard() {
         </form>
       </CardHeader>
       <CardContent className="px-0 pb-2">
+        {devLink && (
+          <div role="status" className="mx-5 mb-3 space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p>
+              No email provider is set up, so nothing was emailed to <strong>{devLink.email}</strong>. Open this link to set their password (valid 7 days):
+            </p>
+            <p className="break-all rounded bg-background p-2 font-mono text-xs">{devLink.url}</p>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(devLink.url).then(() => toast.success("Link copied"))}>Copy link</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setDevLink(null)}>Dismiss</Button>
+            </div>
+          </div>
+        )}
+        <EditUserDialog user={editing} onClose={() => setEditing(null)} onSave={(b) => update.mutate(b)} pending={update.isPending} />
         {isLoading ? (
           <Skeleton className="mx-5 h-32" />
         ) : error ? (
@@ -196,7 +273,7 @@ function TeamCard() {
                 <TableHead>User</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="hidden sm:table-cell">Joined</TableHead>
-                <TableHead className="w-28" />
+                <TableHead className="w-64" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -223,7 +300,11 @@ function TeamCard() {
                       </Select>
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">{shortDate(u.createdAt)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="space-x-2 text-right">
+                      <Button variant="outline" size="sm" onClick={() => setEditing(u)}>Edit</Button>
+                      {u.isActive && !u.hasPassword && (
+                        <Button variant="outline" size="sm" disabled={resend.isPending} onClick={() => resend.mutate(u)}>Send invite</Button>
+                      )}
                       {!self && (
                         <Button variant="outline" size="sm" disabled={update.isPending} onClick={() => update.mutate({ id: u.id, isActive: !u.isActive })}>
                           {u.isActive ? "Deactivate" : "Reactivate"}

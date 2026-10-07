@@ -180,6 +180,7 @@ export type TeamUser = {
   role: Role;
   isActive: boolean;
   createdAt: string;
+  hasPassword: boolean;
 };
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "CANCELLED";

@@ -56,6 +56,10 @@ export async function trySendMail(mail: Mail): Promise<boolean> {
   }
 }
 
+/** True when no provider is configured outside production: emails are only printed to the server console. */
+export const mailIsConsoleOnly = () =>
+  !process.env.RESEND_API_KEY && !process.env.EMAIL_SERVER && process.env.NODE_ENV !== "production";
+
 /** Public base URL of the app, without a trailing slash. */
 export function appUrl() {
   const explicit = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
