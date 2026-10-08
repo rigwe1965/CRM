@@ -61,7 +61,9 @@ export function safeRedirect(url: string | null | undefined): string {
   try {
     const parsed = new URL(url, base);
     if (parsed.origin !== base) return DEFAULT_REDIRECT;
-    return parsed.pathname + parsed.search + parsed.hash;
+    const target = parsed.pathname + parsed.search + parsed.hash;
+    // Dot-segments collapse ("/.//evil.com" -> "//evil.com"), which a browser reads as another site.
+    return target.startsWith("//") ? DEFAULT_REDIRECT : target;
   } catch {
     return DEFAULT_REDIRECT;
   }
