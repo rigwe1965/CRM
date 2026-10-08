@@ -196,7 +196,7 @@ Do before going live:
 - [ ] Separate Preview and Production databases and secrets.
 - [ ] Turn on database backups / point-in-time recovery.
 - [ ] Rotate `NEXTAUTH_SECRET` and `CRON_SECRET` if they were ever shared (rotating the auth secret signs everyone out).
-- [ ] Ask every admin to turn on two-step verification (Settings → Security). It is optional per user; it is not enforced.
+- [ ] Admins are required to use two-step verification in production (`REQUIRE_ADMIN_MFA`, default on): until they enrol they get a Sales-level session. Ask each admin to enrol on first sign-in. Other users can opt in under Settings → Security.
 - [ ] Add error monitoring (Sentry or Vercel log drains) and an uptime check on `/api/health`.
 - [ ] Enable GitHub secret scanning and Dependabot; run `npm audit` regularly.
 

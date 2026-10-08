@@ -9,6 +9,19 @@ export function hasRole(role: Role | undefined, allowed: readonly Role[]): boole
   return allowed.length === 0 || role === "ADMIN" || allowed.includes(role);
 }
 
+/**
+ * Admins must have two-step verification. Until they enrol they sign in as a plain SALES user (their
+ * own data only, no admin pages) so they can still reach Settings → Security to set it up. On by
+ * default in production; set REQUIRE_ADMIN_MFA=0 to switch off, or =1 to force it elsewhere.
+ */
+export const adminMfaRequired = () => {
+  const v = process.env.REQUIRE_ADMIN_MFA;
+  return v === undefined || v === "" ? process.env.NODE_ENV === "production" : v === "1" || v === "true";
+};
+
+export const mfaPending = (role: Role | undefined, mfaEnabled: boolean, required = adminMfaRequired()) =>
+  required && role === "ADMIN" && !mfaEnabled;
+
 /** Path prefixes that require specific roles. Add new protected areas here. */
 const ROLE_RULES: ReadonlyArray<{ prefix: string; roles: readonly Role[] }> = [
   { prefix: "/admin", roles: ["ADMIN"] },

@@ -115,6 +115,7 @@ function UserMenu() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const currentUser = useCurrentUser();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   // The Kanban board uses the full window width; other pages stay in a readable column.
@@ -146,6 +147,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <UserMenu />
           </div>
         </header>
+        {currentUser.mfaPending && (
+          <div role="status" className="border-b bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100 sm:px-6 print:hidden">
+            Admin access is on hold until you turn on two-step verification.{" "}
+            <Link href="/settings" className="font-medium underline">Set it up in Settings → Security</Link>, then reload.
+          </div>
+        )}
         <main className={cn("w-full p-4 sm:p-6 print:p-0", !wide && "mx-auto max-w-7xl print:max-w-none")}>{children}</main>
       </div>
     </div>

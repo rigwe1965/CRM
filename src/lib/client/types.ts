@@ -285,4 +285,4 @@ export type UnmatchedSale = { dealId: string; dealTitle: string; product: string
 
 export type Stock = { rows: StockRow[]; unmatched: UnmatchedSale[] };
 
-export type SessionUser = { id: string; name: string; email: string; role: Role };
+export type SessionUser = { id: string; name: string; email: string; role: Role; mfaPending?: boolean };

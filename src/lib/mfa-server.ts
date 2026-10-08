@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { ApiError } from "@/lib/api";
 import { decryptSecret, hashRecoveryCode, verifyTotp } from "@/lib/mfa";
 
 type MfaUser = { id: string; mfaSecret: string | null; mfaLastStep: number | null; mfaRecoveryCodes: string[] };
@@ -28,4 +29,18 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
     data: { mfaRecoveryCodes: user.mfaRecoveryCodes.filter((h) => h !== hash) },
   });
   return count === 1;
+}
+
+/**
+ * Step-up for sensitive actions: accounts with two-step verification must also give a current code.
+ * Does nothing for accounts without it.
+ */
+export async function requireMfaStepUp(user: MfaUser & { mfaEnabledAt: Date | null }, code: string | undefined) {
+  if (!user.mfaEnabledAt) return;
+  if (!code?.trim()) {
+    throw new ApiError(422, "Enter the code from your authenticator app", "VALIDATION_ERROR", { code: ["Enter the code from your authenticator app"] });
+  }
+  if (!(await verifyMfaCode(user, code))) {
+    throw new ApiError(400, "That code is not right", "BAD_REQUEST", { code: ["That code is not right"] });
+  }
 }

@@ -48,6 +48,8 @@ export const updateProfileSchema = z.object({
 export const changePasswordSchema = z.object({
   currentPassword: z.string().max(200).optional(),
   newPassword: passwordSchema,
+  /** Authenticator or recovery code; required when the account has two-step verification. */
+  code: z.string().trim().max(40).optional(),
 });
 
 export const adminUpdateUserSchema = z

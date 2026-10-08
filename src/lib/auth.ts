@@ -12,9 +12,12 @@ import { FROM, sendMail } from "@/lib/mail";
 import { magicLinkEmail } from "@/lib/email-templates";
 import { audit } from "@/lib/audit";
 import { verifyMfaCode } from "@/lib/mfa-server";
-import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
+import { clientIp, LIMITS, markKnownIp, rateLimit } from "@/lib/rate-limit";
+import { signInAllowed } from "@/lib/signin-limits";
 import { getCachedUser } from "@/lib/user-cache";
 import { signInSchema } from "@/lib/validations/auth";
+import type { Role } from "@prisma/client";
+import { mfaPending } from "@/lib/rbac";
 
 const prismaAdapter = PrismaAdapter(db);
 
@@ -40,14 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Throttle password guessing per IP+account. A blocked attempt looks like a wrong password.
         const ip = clientIp(await headers());
-        const buckets = [
-          [`signin:${ip}:${email}`, LIMITS.signIn],
-          [`signin-ip:${ip}`, { ...LIMITS.signIn, max: 50 }],
-          [`signin-account:${email}`, LIMITS.signInAccount],
-        ] as const;
-        for (const [key, opts] of buckets) {
-          if (!(await rateLimit(key, opts)).allowed) return null;
-        }
+        if (!(await signInAllowed(ip, email)).allowed) return null;
 
         const user = await db.user.findUnique({ where: { email } });
         const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
@@ -63,6 +59,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             return null;
           }
         }
+        await markKnownIp(user.id, ip);
         await audit({ id: user.id, email: user.email }, { action: "auth.signin", entity: "user", entityId: user.id });
 
         return { id: user.id, email: user.email, name: user.name, image: user.image, role: user.role };
@@ -105,8 +102,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const current = await getCachedUser(id, () =>
         db.user.findUnique({
           where: { id },
-          select: { name: true, role: true, isActive: true, passwordChangedAt: true },
-        }),
+          select: { name: true, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
+        }).then((u) => u && { name: u.name, role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
       );
       if (!current || !current.isActive) return null;
       if (
@@ -117,8 +114,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
       token.role = current.role;
+      token.mfaPending = mfaPending(current.role, current.mfaEnabled);
       token.name = current.name; // keeps the displayed name fresh after profile edits
       return token;
+    },
+    // Admins without two-step verification get a plain SALES session until they enrol. This runs
+    // after the jwt callback above on every full session read, so it is always current; the edge
+    // middleware keeps the real role (it can't see the database) and only does the coarse gate.
+    session({ session, token }) {
+      if (token.sub) session.user.id = token.sub;
+      if (token.role) session.user.role = token.mfaPending ? "SALES" : (token.role as Role);
+      session.user.mfaPending = !!token.mfaPending;
+      return session;
     },
   },
 });

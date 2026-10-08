@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { apiError } from "@/lib/api";
-import { requireApiUser } from "@/lib/auth-helpers";
+import { readQuery } from "@/lib/api";
+import { authed } from "@/lib/route";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +13,8 @@ const query = z.object({
 });
 
 /** GET /api/admin/audit: newest first. `q` matches the action, actor email, summary or record id. */
-export async function GET(req: Request) {
-  const guard = await requireApiUser("ADMIN");
-  if (!guard.ok) return guard.response;
-  const parsed = query.safeParse(Object.fromEntries(new URL(req.url).searchParams));
-  if (!parsed.success) return apiError("Invalid query", 422);
-  const { page, pageSize, q } = parsed.data;
+export const GET = authed(async ({ req }) => {
+  const { page, pageSize, q } = readQuery(req, query);
   const where = q
     ? {
         OR: [
@@ -34,4 +30,4 @@ export async function GET(req: Request) {
     db.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
   ]);
   return NextResponse.json({ data: rows, meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } });
-}
+}, "ADMIN");
