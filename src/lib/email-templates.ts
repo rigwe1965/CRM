@@ -8,6 +8,9 @@ type Rendered = { subject: string; text: string; html: string };
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+/** User-typed text for an email subject: any run of whitespace or control characters becomes one space. */
+export const oneLine = (s: string) => s.replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim();
+
 /** Plain text (user-typed) → HTML paragraphs with line breaks. */
 export const textToHtml = (s: string) =>
   s
@@ -103,7 +106,7 @@ export function dealStageEmail(d: {
   const change = `${stageLabel(d.from)} → ${stageLabel(d.to)}`;
   const reason = d.to === "CLOSED_LOST" && d.lostReason ? `\nReason: ${d.lostReason}` : "";
   return {
-    subject: `Deal "${d.title}" moved to ${stageLabel(d.to)}`,
+    subject: `Deal "${oneLine(d.title)}" moved to ${stageLabel(d.to)}`,
     text: `${d.actorName} moved "${d.title}" (${money}): ${change}.${reason}\n\nView the pipeline: ${url}\n`,
     html: layout(
       "Deal stage changed",
@@ -126,7 +129,7 @@ export function taskReminderEmail(name: string, tasks: DigestTask[]): Rendered {
     .join("");
   const n = tasks.length;
   return {
-    subject: n === 1 ? `Task due: ${tasks[0].title}` : `${n} tasks need your attention`,
+    subject: n === 1 ? `Task due: ${oneLine(tasks[0].title)}` : `${n} tasks need your attention`,
     text: `Hi ${name},\n\nThese tasks are due soon or overdue:\n${lines.join("\n")}\n\nOpen your tasks: ${url}\n`,
     html: layout(
       "Tasks due soon",
@@ -152,7 +155,7 @@ export function instalmentReminderEmail(name: string, rows: DigestInstalment[]):
     .join("");
   const n = rows.length;
   return {
-    subject: n === 1 ? `Payment due: ${rows[0].customer}, ${amt(rows[0])}` : `${n} customer payments need chasing`,
+    subject: n === 1 ? `Payment due: ${oneLine(rows[0].customer)}, ${amt(rows[0])}` : `${n} customer payments need chasing`,
     text: `Hi ${name},\n\nThese instalments are due within a day or already overdue:\n${lines.join("\n")}\n\nOpen the deals board and use each deal's Payments menu: ${url}\n`,
     html: layout(
       "Customer payments due",
