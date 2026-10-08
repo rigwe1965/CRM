@@ -1,5 +1,6 @@
 import type { DealStage, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { ApiError } from "@/lib/api";
 import { addMoney, sumMoney, type MoneyMap } from "@/lib/money";
 
 /** Pipeline order, left to right. */
@@ -50,6 +51,27 @@ type ItemInput = { quantity: number; unitPrice: number };
 /** A deal with line items is worth the sum of its lines. */
 export const itemsTotal = (items: ItemInput[]) =>
   Math.round(items.reduce((s, i) => s + i.quantity * i.unitPrice, 0) * 100) / 100;
+
+/**
+ * A deal's price can't drop below what the customer has paid, and its currency can't change once a
+ * payment exists (payments are held in the deal's currency). Throws a 422 naming the field.
+ */
+export function assertDealCoversPayments(opts: {
+  paid: number;
+  currency: string;
+  newTotal?: number;
+  newCurrency?: string;
+}) {
+  const paid = Math.round(opts.paid * 100) / 100;
+  if (opts.newTotal !== undefined && opts.newTotal < paid) {
+    const msg = `Amount is less than the ${paid.toFixed(2)} already paid on this deal`;
+    throw new ApiError(422, msg, "VALIDATION_ERROR", { amount: [msg] });
+  }
+  if (opts.newCurrency !== undefined && opts.newCurrency !== opts.currency && paid > 0) {
+    const msg = "Currency can't change after payments are recorded";
+    throw new ApiError(422, msg, "VALIDATION_ERROR", { currency: [msg] });
+  }
+}
 
 /** The single-line hair fields on Deal are superseded once line items are used. */
 export const NO_LEGACY_HAIR = {
