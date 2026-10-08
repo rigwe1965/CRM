@@ -37,10 +37,19 @@ export function isPublicPath(pathname: string): boolean {
   );
 }
 
-/** Only allow same-site relative redirects (blocks open redirects like //evil.com). */
+/**
+ * Only allow same-site relative redirects. URL parsers drop tab, CR and LF, so "/<TAB>/evil.com"
+ * would become "//evil.com": control characters and backslashes are refused, and the parsed
+ * result must stay on the same origin.
+ */
 export function safeRedirect(url: string | null | undefined): string {
-  if (!url || !url.startsWith("/") || url.startsWith("//") || url.startsWith("/\\")) {
+  if (!url || !url.startsWith("/") || /[\u0000-\u001f\u007f\\]/.test(url)) return DEFAULT_REDIRECT;
+  const base = "http://internal.invalid";
+  try {
+    const parsed = new URL(url, base);
+    if (parsed.origin !== base) return DEFAULT_REDIRECT;
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
     return DEFAULT_REDIRECT;
   }
-  return url;
 }

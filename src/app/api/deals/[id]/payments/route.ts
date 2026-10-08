@@ -30,6 +30,9 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   if (!deal) throw notFound("Deal");
 
   await db.$transaction(async (tx) => {
+    // Serialises concurrent payments on this deal: without the lock two requests can both read the
+    // same total and both pass the balance check.
+    await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${deal.id} FOR UPDATE`;
     const { _sum } = await tx.payment.aggregate({ where: { dealId: deal.id }, _sum: { amount: true } });
     const balance = Math.round((Number(deal.amount) - Number(_sum.amount ?? 0)) * 100) / 100;
     if (body.amount > balance) {

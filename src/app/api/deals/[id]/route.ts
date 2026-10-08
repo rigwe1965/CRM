@@ -1,9 +1,9 @@
 import { db } from "@/lib/db";
-import { ApiError, noContent, ok, readBody } from "@/lib/api";
+import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
 import { assertLinks, displayName, notFound, ownerScope, resolveOwner } from "@/lib/access";
-import { dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
+import { assertDealCoversPayments, dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
 import { notifyDealStageChange } from "@/lib/notifications";
 import { updateDealSchema } from "@/lib/validations/crm";
 
@@ -29,18 +29,9 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const { items, ...body } = await readBody(req, updateDealSchema);
   const existing = await db.deal.findFirst({
     where: { id: params.id, deletedAt: null, ...ownerScope(user) },
-    select: { stage: true },
+    select: { stage: true, currency: true },
   });
   if (!existing) throw notFound("Deal");
-  if (items?.length) {
-    // Don't let the new total drop below what the customer has already paid.
-    const { _sum } = await db.payment.aggregate({ where: { dealId: params.id }, _sum: { amount: true } });
-    const paid = Number(_sum.amount ?? 0);
-    if (itemsTotal(items) < paid) {
-      const msg = `Items total less than the ${paid.toFixed(2)} already paid on this deal`;
-      throw new ApiError(422, msg, "VALIDATION_ERROR", { items: [msg] });
-    }
-  }
   await assertLinks(user, { organizationId: body.organizationId, contactId: body.contactId });
   const ownerId = body.ownerId === undefined ? undefined : ((await resolveOwner(user, body.ownerId)) ?? undefined);
 
@@ -48,19 +39,33 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const transition = moving
     ? stageTransition(body.stage!, { probability: body.probability, lostReason: body.lostReason })
     : {};
+  const newTotal = items?.length ? itemsTotal(items) : body.amount;
 
-  const deal = await db.deal.update({
-    where: { id: params.id },
-    data: {
-      ...body,
-      ...(items && {
-        items: { deleteMany: {}, create: items.map((i, n) => ({ ...i, position: n + 1 })) },
-        ...(items.length > 0 && { ...NO_LEGACY_HAIR, amount: itemsTotal(items) }),
-      }),
-      ownerId,
-      ...transition,
-    },
-    include: dealInclude,
+  const deal = await db.$transaction(async (tx) => {
+    // Same row lock as recording a payment, so the paid total can't change between check and update.
+    await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${params.id} FOR UPDATE`;
+    if (newTotal !== undefined || body.currency !== undefined) {
+      const { _sum } = await tx.payment.aggregate({ where: { dealId: params.id }, _sum: { amount: true } });
+      assertDealCoversPayments({
+        paid: Number(_sum.amount ?? 0),
+        currency: existing.currency,
+        newTotal,
+        newCurrency: body.currency,
+      });
+    }
+    return tx.deal.update({
+      where: { id: params.id },
+      data: {
+        ...body,
+        ...(items && {
+          items: { deleteMany: {}, create: items.map((i, n) => ({ ...i, position: n + 1 })) },
+          ...(items.length > 0 && { ...NO_LEGACY_HAIR, amount: itemsTotal(items) }),
+        }),
+        ownerId,
+        ...transition,
+      },
+      include: dealInclude,
+    });
   });
   if (moving) {
     await notifyDealStageChange({
