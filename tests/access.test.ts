@@ -53,6 +53,11 @@ describe("rbac", () => {
   it("blocks open redirects", () => {
     expect(safeRedirect("//evil.com")).toBe("/dashboard");
     expect(safeRedirect("/deals")).toBe("/deals");
+    expect(safeRedirect("/deals?stage=PROPOSAL#top")).toBe("/deals?stage=PROPOSAL#top");
+    expect(safeRedirect("/\\evil.com")).toBe("/dashboard");
+    // Parsers strip tab/CR/LF, which would turn these into "//evil.com".
+    for (const bad of ["/\t/evil.com", "/\n/evil.com", "/\r/evil.com"]) expect(safeRedirect(bad)).toBe("/dashboard");
+    expect(safeRedirect("/%09/evil.com")).toBe("/%09/evil.com"); // percent-encoded stays a path
   });
 });
 
