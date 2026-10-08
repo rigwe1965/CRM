@@ -4,17 +4,21 @@ import { ApiError, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { audit } from "@/lib/audit";
+import { requireMfaStepUp } from "@/lib/mfa-server";
+import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { invalidateUserCache } from "@/lib/user-cache";
 import { changePasswordSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
 export const POST = authed(async ({ req, user: me }) => {
-  const { currentPassword, newPassword } = await readBody(req, changePasswordSchema);
+  const { currentPassword, newPassword, code } = await readBody(req, changePasswordSchema);
+  // Guessing the current password (or code) with a stolen session is throttled like the MFA endpoints.
+  await enforceRateLimit(`pwchange:${me.id}`, LIMITS.mfa);
 
   const user = await db.user.findUnique({
     where: { id: me.id },
-    select: { passwordHash: true },
+    select: { id: true, passwordHash: true, mfaSecret: true, mfaLastStep: true, mfaRecoveryCodes: true, mfaEnabledAt: true },
   });
   if (!user) throw new ApiError(401, "Unauthorized");
 
@@ -26,6 +30,8 @@ export const POST = authed(async ({ req, user: me }) => {
       });
     }
   }
+
+  await requireMfaStepUp(user, code);
 
   // All existing sessions (including this one) are invalidated; the client signs out afterwards.
   await db.user.update({

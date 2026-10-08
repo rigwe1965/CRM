@@ -76,8 +76,12 @@ function ProfileCard() {
 function PasswordCard() {
   const form = useFormState();
   const [saving, setSaving] = useState(false);
-  const [v, setV] = useState({ current: "", next: "", confirm: "" });
+  const [v, setV] = useState({ current: "", next: "", confirm: "", code: "" });
   const [mismatch, setMismatch] = useState(false);
+  const { data: me } = useQuery({
+    queryKey: ["me"],
+    queryFn: async () => (await request<{ user: { mfaEnabled: boolean } }>("GET", "/api/me")).user,
+  });
 
   return (
     <Card>
@@ -98,7 +102,7 @@ function PasswordCard() {
             setMismatch(false);
             setSaving(true);
             const ok = await form.run(() =>
-              request("POST", "/api/me/password", { currentPassword: v.current || undefined, newPassword: v.next }),
+              request("POST", "/api/me/password", { currentPassword: v.current || undefined, newPassword: v.next, code: v.code || undefined }),
             );
             if (ok) {
               toast.success("Password changed. Please sign in again.");
@@ -117,6 +121,11 @@ function PasswordCard() {
           <FormField label="New password" error={form.err("newPassword")} hint="At least 10 characters, with a letter and a number.">
             <Input type="password" autoComplete="new-password" value={v.next} onChange={(e) => setV({ ...v, next: e.target.value })} aria-invalid={!!form.err("newPassword")} />
           </FormField>
+          {me?.mfaEnabled && (
+            <FormField label="Authenticator code" error={form.err("code")} hint="The 6-digit code from your app, or a recovery code.">
+              <Input autoComplete="one-time-code" inputMode="text" value={v.code} onChange={(e) => setV({ ...v, code: e.target.value })} aria-invalid={!!form.err("code")} />
+            </FormField>
+          )}
           <FormField label="Confirm new password" error={mismatch ? "Passwords do not match" : undefined}>
             <Input type="password" autoComplete="new-password" value={v.confirm} onChange={(e) => setV({ ...v, confirm: e.target.value })} aria-invalid={mismatch} />
           </FormField>
