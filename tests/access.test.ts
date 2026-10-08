@@ -75,6 +75,11 @@ describe("rbac", () => {
     // Parsers strip tab/CR/LF, which would turn these into "//evil.com".
     for (const bad of ["/\t/evil.com", "/\n/evil.com", "/\r/evil.com"]) expect(safeRedirect(bad)).toBe("/dashboard");
     expect(safeRedirect("/%09/evil.com")).toBe("/%09/evil.com"); // percent-encoded stays a path
+    // Dot-segments collapse to "//evil.com" once parsed.
+    for (const bad of ["/.//evil.com", "/..//evil.com", "/a/..//evil.com", "/%2e//evil.com", "/%2E%2E//evil.com"]) {
+      expect(safeRedirect(bad)).toBe("/dashboard");
+    }
+    expect(safeRedirect("/a/../deals")).toBe("/deals");
   });
 });
 
