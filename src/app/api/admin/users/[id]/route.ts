@@ -1,41 +1,37 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { apiError, parseBody } from "@/lib/api";
-import { requireApiUser } from "@/lib/auth-helpers";
+import { ApiError, readBody } from "@/lib/api";
+import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { invalidateUserCache } from "@/lib/user-cache";
 import { adminUpdateUserSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
 
-export async function PATCH(req: Request, props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
-  const guard = await requireApiUser("ADMIN");
-  if (!guard.ok) return guard.response;
-  const body = await parseBody(req, adminUpdateUserSchema);
-  if ("response" in body) return body.response;
+export const PATCH = authed<{ id: string }>(async ({ req, user: admin, params }) => {
+  const data = await readBody(req, adminUpdateUserSchema);
 
   // Guarantees at least one active admin always remains: you can't demote or deactivate yourself.
-  const demoting = body.data.role !== undefined && body.data.role !== "ADMIN";
-  const deactivating = body.data.isActive === false;
-  if (params.id === guard.user.id && (demoting || deactivating)) {
-    return apiError("You can't demote or deactivate your own account", 400);
+  const demoting = data.role !== undefined && data.role !== "ADMIN";
+  const deactivating = data.isActive === false;
+  if (params.id === admin.id && (demoting || deactivating)) {
+    throw new ApiError(400, "You can't demote or deactivate your own account");
   }
 
   try {
     const user = await db.user.update({
       where: { id: params.id },
-      data: body.data,
+      data,
       select: { id: true, email: true, name: true, role: true, isActive: true },
     });
     invalidateUserCache(user.id);
-    await audit(guard.user, { action: "user.updated", entity: "user", entityId: user.id, summary: user.email, data: body.data });
+    await audit(admin, { action: "user.updated", entity: "user", entityId: user.id, summary: user.email, data }, req);
     return NextResponse.json({ user });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
-      return apiError("User not found", 404);
+      throw new ApiError(404, "User not found");
     }
     throw e;
   }
-}
+}, "ADMIN");
