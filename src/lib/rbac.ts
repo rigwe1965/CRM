@@ -41,7 +41,7 @@ const PUBLIC_PAGES = new Set([
   "/reset-password",
   "/verify-request",
 ]);
-const PUBLIC_PREFIXES = ["/api/auth/","/api/password/", "/api/openapi.json", "/api/health", "/api/cron/"];
+const PUBLIC_PREFIXES = ["/api/auth/","/api/password/", "/api/health", "/api/cron/"];
 
 export function isPublicPath(pathname: string): boolean {
   return (

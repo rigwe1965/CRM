@@ -16,6 +16,8 @@ const productionEnv = z
     EMAIL_SERVER: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
     CRON_SECRET: z.string().optional(),
+    MFA_ENCRYPTION_KEY: z.string().optional(),
+    MFA_ENCRYPTION_KEY_PREVIOUS: z.string().optional(),
     REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),
     UPSTASH_REDIS_REST_URL: z.string().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
@@ -27,6 +29,10 @@ const productionEnv = z
     else if (secret.length < 32) add("NEXTAUTH_SECRET", "must be at least 32 characters");
     if (!env.RESEND_API_KEY && !env.EMAIL_SERVER) add("RESEND_API_KEY", "required (or EMAIL_SERVER for SMTP)");
     if (!env.EMAIL_FROM) add("EMAIL_FROM", 'required, e.g. "CRM <noreply@your-verified-domain.com>"');
+    for (const name of ["MFA_ENCRYPTION_KEY", "MFA_ENCRYPTION_KEY_PREVIOUS"] as const) {
+      if (env[name] && Buffer.from(env[name]!, "base64").length < 32) add(name, "must be at least 32 random bytes, base64 encoded (openssl rand -base64 32)");
+    }
+    if (env.MFA_ENCRYPTION_KEY_PREVIOUS && !env.MFA_ENCRYPTION_KEY) add("MFA_ENCRYPTION_KEY", "required when MFA_ENCRYPTION_KEY_PREVIOUS is set");
     if (!env.CRON_SECRET || env.CRON_SECRET.length < 16) {
       add("CRON_SECRET", "required, at least 16 characters (protects /api/cron/*)");
     }

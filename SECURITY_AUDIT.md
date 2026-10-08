@@ -3,7 +3,7 @@
 - **Date:** 2026-10-08
 - **Scope:** whole repository at commit `710b636` (Next.js 15 App Router, Auth.js v5, Prisma/PostgreSQL, Upstash rate limiting, Resend/SMTP mail). Read: every route handler under `src/app/api`, `src/middleware.ts`, `src/lib/*`, validation schemas, `next.config.mjs`, `vercel.json`, CI, Docker, seed and scripts, the client import/API code.
 - **Method:** manual code review, plus `npm audit --omit=dev` (0 known vulnerabilities) and a scan of git history and tracked files for secrets (none found; `.env` was never committed).
-- **Status:** findings 1 to 3 (branch `security-fixes-1-3`) and 4 to 7 (branch `security-fixes-4-7`) were fixed after the owner approved a plan (see "Fix status" under each). Findings 8 onward are unchanged proposals; per `CLAUDE.md` they need an approved plan before any code changes.
+- **Status:** findings 1 to 3 (branch `security-fixes-1-3`) and 4 to 7 (branch `security-fixes-4-7`) and 8 to 13 (branch `security-fixes-8-13`) were fixed after the owner approved a plan (see "Fix status" under each).
 
 ## Summary
 
@@ -207,6 +207,8 @@ An XSS bug anywhere would not be stopped by the CSP. None was found: React escap
 
 **Likely fix.** Nonce-based CSP from `middleware.ts` (generate a per-request nonce, set `script-src 'self' 'nonce-…' 'strict-dynamic'`, and pass it to Next via the `x-nonce` request header). Keep `style-src 'unsafe-inline'` if Tailwind/Radix need it.
 
+
+**Fix status: fixed.** The CSP is now built per request in `src/middleware.ts` (`src/lib/csp.ts`): scripts need a fresh nonce with `'strict-dynamic'` and `'unsafe-inline'` is gone from `script-src` (`style-src` keeps it). Checked on a dev server: every one of the 40 to 51 `<script>` tags on the sign-in, dashboard, settings and deals pages carries the nonce and the nonce changes per request. Browser-console behaviour was not checked; `CSP_REPORT_ONLY=1` is available for a trial.
 ---
 
 ## 9. Last-admin guard is incomplete (Low)
@@ -228,6 +230,8 @@ if (demoting || deactivating) {
 }
 ```
 
+
+**Fix status: fixed.** Demoting or deactivating an admin now runs in a transaction that locks the active admin rows and refuses if no other active admin remains (`wouldLeaveNoAdmin` in `src/lib/access.ts`, unit tested).
 ---
 
 ## 10. MFA encryption key derivation (Info)
@@ -236,6 +240,8 @@ if (demoting || deactivating) {
 
 **Likely fix.** Use a dedicated `MFA_ENCRYPTION_KEY` env var (32 random bytes, base64) validated in `src/lib/env.ts`, or HKDF from the auth secret; document the rotation procedure (admin `mfa-reset` for affected users).
 
+
+**Fix status: fixed.** Optional `MFA_ENCRYPTION_KEY` (and `MFA_ENCRYPTION_KEY_PREVIOUS` for rotation) with HKDF and a `v2.` format. Legacy secrets keep working and are re-encrypted on the owner's next successful code check. Tests in `tests/mfa-key.test.ts`; procedure in `TECHNICIAN.md`.
 ---
 
 ## 11. Newlines in titles break notification emails (Info)
@@ -244,6 +250,8 @@ if (demoting || deactivating) {
 
 **Likely fix.** Strip control characters from the subject when building it (`title.replace(/\s+/g, " ")`) or reject newlines in `title` fields with the same refine used for the email subject.
 
+
+**Fix status: fixed.** Email subjects built from titles and customer names go through `oneLine()`; tests in `tests/email-subjects.test.ts`.
 ---
 
 ## 12. Informational
@@ -258,6 +266,10 @@ if (demoting || deactivating) {
 
 `src/lib/user-cache.ts` caches active users for 30 s per process. On a multi-instance deployment a demotion or deactivation can take up to 30 s to apply on other instances (already documented in the file). Acceptable; shorten the TTL or use Redis if immediate revocation is needed.
 
+
+**Fix status: fixed.** `/api/openapi.json` now needs a session. Migration `20261012000000_audit_log_append_only` adds triggers that refuse `UPDATE`, `DELETE` and `TRUNCATE` on `"AuditLog"` (tested in a throwaway schema; apply with `npm run db:deploy`, retention procedure in `TECHNICIAN.md`). Seed credentials and docker-compose were left as they are, and a breached-password check was deliberately not added.
+
+**Fix status: fixed.** Documented in `HANDOVER.md` and `TECHNICIAN.md`; no code change.
 ---
 
 ## Verified as sound (no action)

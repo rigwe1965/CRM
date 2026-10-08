@@ -90,5 +90,16 @@ export async function assertLinks(
 
 export const notFound = (what: string) => new ApiError(404, `${what} not found`);
 
+/** True when this change would take away the last active admin (demoting or deactivating one). */
+export function wouldLeaveNoAdmin(opts: {
+  target: { role: string; isActive: boolean };
+  demoting: boolean;
+  deactivating: boolean;
+  otherActiveAdmins: number;
+}) {
+  const losesAdmin = opts.target.role === "ADMIN" && opts.target.isActive && (opts.demoting || opts.deactivating);
+  return losesAdmin && opts.otherActiveAdmins === 0;
+}
+
 /** Name shown in notification emails (session fields are typed as optional by Auth.js). */
 export const displayName = (user: SessionUser) => user.name || user.email || "A teammate";

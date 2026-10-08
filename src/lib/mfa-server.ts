@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
-import { decryptSecret, hashRecoveryCode, verifyTotp } from "@/lib/mfa";
+import { decryptSecretInfo, encryptSecret, hashRecoveryCode, verifyTotp } from "@/lib/mfa";
 
 type MfaUser = { id: string; mfaSecret: string | null; mfaLastStep: number | null; mfaRecoveryCodes: string[] };
 
@@ -13,11 +13,13 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
   if (!user.mfaSecret || !code) return false;
 
   if (/^\d{3}\s?\d{3}$/.test(code)) {
-    const step = verifyTotp(decryptSecret(user.mfaSecret), code, user.mfaLastStep);
+    const { plain, current } = decryptSecretInfo(user.mfaSecret);
+    const step = verifyTotp(plain, code, user.mfaLastStep);
     if (step === null) return false;
     const { count } = await db.user.updateMany({
       where: { id: user.id, OR: [{ mfaLastStep: null }, { mfaLastStep: { lt: step } }] },
-      data: { mfaLastStep: step },
+      // A secret still stored under an old key is re-encrypted with the current one.
+      data: { mfaLastStep: step, ...(current ? {} : { mfaSecret: encryptSecret(plain) }) },
     });
     return count === 1;
   }

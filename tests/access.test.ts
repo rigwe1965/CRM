@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findFirst = vi.fn();
 vi.mock("@/lib/db", () => ({ db: { user: { findFirst: (...a: unknown[]) => findFirst(...a) } } }));
-import { liveFilter, ownerScope, resolveOwner } from "@/lib/access";
+import { liveFilter, ownerScope, resolveOwner, wouldLeaveNoAdmin } from "@/lib/access";
 import { hasRole, isPublicPath, requiredRolesFor, safeRedirect } from "@/lib/rbac";
 
 type U = Parameters<typeof ownerScope>[0];
@@ -37,6 +37,22 @@ describe("resolveOwner", () => {
   });
 });
 
+describe("wouldLeaveNoAdmin", () => {
+  const admin = { role: "ADMIN", isActive: true };
+  it("blocks removing the only active admin", () => {
+    expect(wouldLeaveNoAdmin({ target: admin, demoting: true, deactivating: false, otherActiveAdmins: 0 })).toBe(true);
+    expect(wouldLeaveNoAdmin({ target: admin, demoting: false, deactivating: true, otherActiveAdmins: 0 })).toBe(true);
+  });
+  it("allows it when another active admin remains", () => {
+    expect(wouldLeaveNoAdmin({ target: admin, demoting: true, deactivating: false, otherActiveAdmins: 1 })).toBe(false);
+  });
+  it("ignores changes that don't remove an admin", () => {
+    expect(wouldLeaveNoAdmin({ target: { role: "SALES", isActive: true }, demoting: true, deactivating: false, otherActiveAdmins: 0 })).toBe(false);
+    expect(wouldLeaveNoAdmin({ target: { role: "ADMIN", isActive: false }, demoting: false, deactivating: true, otherActiveAdmins: 0 })).toBe(false);
+    expect(wouldLeaveNoAdmin({ target: admin, demoting: false, deactivating: false, otherActiveAdmins: 0 })).toBe(false);
+  });
+});
+
 describe("rbac", () => {
   it("admin passes every role check", () => {
     expect(hasRole("ADMIN", ["SALES"])).toBe(true);
@@ -49,6 +65,7 @@ describe("rbac", () => {
     expect(isPublicPath("/api/register")).toBe(false);
     expect(isPublicPath("/sign-in")).toBe(true);
     expect(isPublicPath("/api/cron/task-reminders")).toBe(true);
+    expect(isPublicPath("/api/openapi.json")).toBe(false); // the API map needs a session
   });
   it("blocks open redirects", () => {
     expect(safeRedirect("//evil.com")).toBe("/dashboard");
