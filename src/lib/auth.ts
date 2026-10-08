@@ -12,7 +12,8 @@ import { FROM, sendMail } from "@/lib/mail";
 import { magicLinkEmail } from "@/lib/email-templates";
 import { audit } from "@/lib/audit";
 import { verifyMfaCode } from "@/lib/mfa-server";
-import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
+import { clientIp, LIMITS, markKnownIp, rateLimit } from "@/lib/rate-limit";
+import { signInAllowed } from "@/lib/signin-limits";
 import { getCachedUser } from "@/lib/user-cache";
 import { signInSchema } from "@/lib/validations/auth";
 import type { Role } from "@prisma/client";
@@ -42,14 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         // Throttle password guessing per IP+account. A blocked attempt looks like a wrong password.
         const ip = clientIp(await headers());
-        const buckets = [
-          [`signin:${ip}:${email}`, LIMITS.signIn],
-          [`signin-ip:${ip}`, { ...LIMITS.signIn, max: 50 }],
-          [`signin-account:${email}`, LIMITS.signInAccount],
-        ] as const;
-        for (const [key, opts] of buckets) {
-          if (!(await rateLimit(key, opts)).allowed) return null;
-        }
+        if (!(await signInAllowed(ip, email)).allowed) return null;
 
         const user = await db.user.findUnique({ where: { email } });
         const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
@@ -65,6 +59,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             return null;
           }
         }
+        await markKnownIp(user.id, ip);
         await audit({ id: user.id, email: user.email }, { action: "auth.signin", entity: "user", entityId: user.id });
 
         return { id: user.id, email: user.email, name: user.name, image: user.image, role: user.role };

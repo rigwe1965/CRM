@@ -53,6 +53,50 @@ export async function rateLimit(key: string, opts: { max: number; windowMs: numb
   return memoryHit(key, opts.windowMs, opts.max);
 }
 
+// ── Known sign-in addresses ───────────────────────────────────────────────────────────────────
+// The per-account sign-in limit counts attempts from every address, so on its own anyone could lock
+// a victim out by failing 40 times an hour. Addresses an account has signed in from successfully in
+// the last 30 days are exempt from that one limit (the per-address limits still apply), so the real
+// owner keeps getting in during an attack while guessing from new addresses stays capped.
+const KNOWN_IP_TTL_SEC = 30 * 24 * 60 * 60;
+const knownMemory = new Map<string, number>();
+const redisConfigured = () => !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+async function redisPipeline(commands: string[][]): Promise<Array<{ result: unknown }>> {
+  const res = await fetch(`${process.env.UPSTASH_REDIS_REST_URL}/pipeline`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(commands),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Upstash responded ${res.status}`);
+  return (await res.json()) as Array<{ result: unknown }>;
+}
+
+const knownKey = (userId: string, ip: string) => `known:${userId}:${ip}`;
+
+export async function markKnownIp(userId: string, ip: string): Promise<void> {
+  if (ip === "unknown") return;
+  try {
+    if (redisConfigured()) await redisPipeline([["SET", knownKey(userId, ip), "1", "EX", String(KNOWN_IP_TTL_SEC)]]);
+    else knownMemory.set(knownKey(userId, ip), Date.now() + KNOWN_IP_TTL_SEC * 1000);
+  } catch (e) {
+    console.error("[rate-limit] could not record known address", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Errors count as "not known": the account limit then applies as before. */
+export async function isKnownIp(userId: string, ip: string): Promise<boolean> {
+  if (ip === "unknown") return false;
+  try {
+    if (redisConfigured()) return (await redisPipeline([["GET", knownKey(userId, ip)]]))[0]?.result === "1";
+    return (knownMemory.get(knownKey(userId, ip)) ?? 0) > Date.now();
+  } catch (e) {
+    console.error("[rate-limit] could not read known address", e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
 /**
  * Client IP for rate limiting. X-Forwarded-For is client-controlled except for what OUR proxies
  * append, so the leftmost entry can be forged. We read from the right instead:

@@ -3,7 +3,7 @@
 - **Date:** 2026-10-08
 - **Scope:** whole repository at commit `710b636` (Next.js 15 App Router, Auth.js v5, Prisma/PostgreSQL, Upstash rate limiting, Resend/SMTP mail). Read: every route handler under `src/app/api`, `src/middleware.ts`, `src/lib/*`, validation schemas, `next.config.mjs`, `vercel.json`, CI, Docker, seed and scripts, the client import/API code.
 - **Method:** manual code review, plus `npm audit --omit=dev` (0 known vulnerabilities) and a scan of git history and tracked files for secrets (none found; `.env` was never committed).
-- **Status:** findings 1 to 3 were fixed on branch `security-fixes-1-3` after the owner approved a plan (see "Fix status" under each). Findings 4 onward are unchanged proposals; per `CLAUDE.md` they need an approved plan before any code changes.
+- **Status:** findings 1 to 3 (branch `security-fixes-1-3`) and 4 to 7 (branch `security-fixes-4-7`) were fixed after the owner approved a plan (see "Fix status" under each). Findings 8 onward are unchanged proposals; per `CLAUDE.md` they need an approved plan before any code changes.
 
 ## Summary
 
@@ -143,8 +143,10 @@ signInAccount: { max: 40, windowMs: 60 * 60_000, failClosed: true },   // keyed 
 
 **Risk.** The per-account bucket counts every attempt from every IP, and `mfa-check` and `authorize` each increment it before the password is checked. An unauthenticated attacker who knows an admin's email can send 40 requests an hour and keep that admin from signing in indefinitely (magic link is a separate bucket, so a no-MFA user can still recover that way; an MFA user cannot). Trade-off was chosen deliberately to stop distributed guessing, so this is a design risk rather than a bug.
 
-**Likely fix.** Keep the account bucket for brute-force defence but do not let attackers consume the owner's budget: count only **failed** attempts against the account bucket (increment after a wrong password/code, not before the check), and add a successful-device allowance (e.g. skip the account bucket when the request carries a valid session cookie). Alert on repeated `auth.signin.failed` for one account (already written to `AuditLog`).
+**Likely fix.** (Correction: an earlier draft suggested counting only failed attempts. That does not help, because the attacker's guesses are failures too.) Exempt addresses the account has already signed in from successfully (last 30 days) from the per-account limit; the per-address limits still apply to them.
 
+
+**Fix status: fixed.** New `signInAllowed` (`src/lib/signin-limits.ts`) is used by both sign-in and `mfa-check`; successful sign-ins record the address (`markKnownIp`, Upstash with 30-day expiry, in-memory in development) and a known address skips only the per-account limit. Residual risk: the real owner on a brand-new address can still be locked out during an attack (password reset or magic link still work); users behind the same shared address as an attacker get up to 60 tries per hour. Unit tests in `tests/signin-limits.test.ts`.
 ---
 
 ## 5. Change-password endpoint: no rate limit, no step-up (Low)
@@ -169,6 +171,8 @@ if (me.mfaEnabledAt && !(await verifyMfaCode(me, body.data.code))) return apiErr
 
 Add an optional `code` to `changePasswordSchema` and select the MFA fields in the lookup.
 
+
+**Fix status: fixed.** `POST /api/me/password` now rate limits (10 per 15 minutes per user) and requires an authenticator or recovery code when two-step verification is on (`requireMfaStepUp`); the settings form shows the code field.
 ---
 
 ## 6. Two-step verification is optional, including for ADMIN (Low)
@@ -179,6 +183,8 @@ Admins can read and edit every contact, deal, payment, invoice and user, and can
 
 **Likely fix.** Require MFA for ADMIN: in the `signIn` callback, refuse a magic link or password sign-in for `role === "ADMIN"` with `mfaEnabledAt === null` and redirect to an enrol-first page; or at minimum show a persistent banner and block `/admin`, `/api/admin` until enrolled. Consider disabling the magic-link provider for ADMIN accounts altogether.
 
+
+**Fix status: fixed.** Admins without two-step verification now get a Sales-level session (`mfaPending`, `REQUIRE_ADMIN_MFA`, on by default in production) with a banner pointing to Settings → Security; enrolling restores admin access without signing in again (checked in a dev server). Lock-out recovery: `npm run make-admin -- <email> --reset-mfa`. Magic link stays available for admins who have not enrolled yet, and is already refused once they have.
 ---
 
 ## 7. Routes outside `authed()` skip API rate limiting (Low)
@@ -189,6 +195,8 @@ Admins can read and edit every contact, deal, payment, invoice and user, and can
 
 **Likely fix.** Convert these routes to `authed(handler, "ADMIN")` (they already follow the same error contract), or call `enforceRateLimit` with the `api:w:<userId>` key and `LIMITS.apiWrite` in the guard. Add a small per-admin limit on invites (`sendEmail` bucket).
 
+
+**Fix status: fixed.** All routes under `src/app/api/admin` and `src/app/api/me` now use `authed()`; invite emails are rate limited per admin; `tests/route-contract.test.ts` fails if a route there skips `authed()`.
 ---
 
 ## 8. CSP permits inline scripts (Low)

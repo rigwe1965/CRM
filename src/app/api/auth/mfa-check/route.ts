@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { apiError, parseBody } from "@/lib/api";
 import { getDummyHash, verifyPassword } from "@/lib/password";
-import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { signInAllowed } from "@/lib/signin-limits";
 import { mfaCheckSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
@@ -19,14 +20,8 @@ export async function POST(req: Request) {
   const { email, password } = body.data;
 
   const ip = clientIp(await headers());
-  for (const [key, opts] of [
-    [`signin:${ip}:${email}`, LIMITS.signIn],
-    [`signin-ip:${ip}`, { ...LIMITS.signIn, max: 50 }],
-    [`signin-account:${email}`, LIMITS.signInAccount],
-  ] as const) {
-    const limit = await rateLimit(key, opts);
-    if (!limit.allowed) return apiError(`Too many attempts. Try again in ${limit.retryAfter}s.`, 429);
-  }
+  const limit = await signInAllowed(ip, email);
+  if (!limit.allowed) return apiError(`Too many attempts. Try again in ${limit.retryAfter}s.`, 429);
 
   const user = await db.user.findUnique({ where: { email }, select: { passwordHash: true, isActive: true, mfaEnabledAt: true } });
   const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
