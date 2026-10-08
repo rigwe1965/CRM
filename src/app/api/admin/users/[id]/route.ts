@@ -24,8 +24,8 @@ export const PATCH = authed<{ id: string }>(async ({ req, user: admin, params })
     const user = await db.$transaction(async (tx) => {
       if (demoting || deactivating) {
         // Lock every active admin so two admins demoting each other at the same moment are serialised
-        // and the second one sees the first one's change.
-        await tx.$queryRaw`SELECT id FROM "User" WHERE role = 'ADMIN' AND "isActive" = true FOR UPDATE`;
+        // and the second one sees the first one's change. Locked in id order so two of them can't deadlock.
+        await tx.$queryRaw`SELECT id FROM "User" WHERE role = 'ADMIN' AND "isActive" = true ORDER BY id FOR UPDATE`;
         const target = await tx.user.findUnique({ where: { id: params.id }, select: { role: true, isActive: true } });
         const otherActiveAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true, id: { not: params.id } } });
         if (target && wouldLeaveNoAdmin({ target, demoting, deactivating, otherActiveAdmins })) {

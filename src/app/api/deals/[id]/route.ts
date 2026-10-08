@@ -29,7 +29,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const { items, ...body } = await readBody(req, updateDealSchema);
   const existing = await db.deal.findFirst({
     where: { id: params.id, deletedAt: null, ...ownerScope(user) },
-    select: { stage: true, currency: true },
+    select: { stage: true },
   });
   if (!existing) throw notFound("Deal");
   await assertLinks(user, { organizationId: body.organizationId, contactId: body.contactId });
@@ -44,11 +44,14 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const deal = await db.$transaction(async (tx) => {
     // Same row lock as recording a payment, so the paid total can't change between check and update.
     await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${params.id} FOR UPDATE`;
+    // The currency is read under the lock too: a concurrent edit may have changed it since `existing`.
+    const current = await tx.deal.findUnique({ where: { id: params.id }, select: { currency: true, deletedAt: true } });
+    if (!current || current.deletedAt) throw notFound("Deal");
     if (newTotal !== undefined || body.currency !== undefined) {
       const { _sum } = await tx.payment.aggregate({ where: { dealId: params.id }, _sum: { amount: true } });
       assertDealCoversPayments({
         paid: Number(_sum.amount ?? 0),
-        currency: existing.currency,
+        currency: current.currency,
         newTotal,
         newCurrency: body.currency,
       });

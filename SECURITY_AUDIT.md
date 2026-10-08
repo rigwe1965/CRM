@@ -272,6 +272,15 @@ if (demoting || deactivating) {
 
 ---
 
+## Re-scan of the fixes (findings 14 and 15)
+
+Re-reading the changes from findings 1 to 13 found two problems the fixes themselves introduced or left open.
+
+- **14. `safeRedirect` open redirect.** The tab/newline fix returned the parsed path, and dot-segments collapse when parsed: `/.//evil.com` became `//evil.com`, which a browser reads as another site. The sign-in page redirected signed-in users there. **Fix status: fixed.** A result starting with `//` is refused; tests cover the dot-segment forms.
+- **15. Stale deal values read before the row lock.** Recording a payment used the deal amount read before taking the lock, so a concurrent edit that lowered the amount could still be overpaid; the deal edit did the same with the currency. **Fix status: fixed.** Both now re-read the deal under the lock (and refuse a deal deleted in the meantime). The admin lock query also locks in id order so two concurrent demotions cannot deadlock.
+
+---
+
 ## Verified as sound (no action)
 
 - **Authentication:** bcrypt cost 12; dummy hash for unknown users (no timing oracle); generic failures; reset tokens are random 256-bit, stored hashed, single use, 1 h TTL; password reset and change set `passwordChangedAt`, which the `jwt` callback uses to kill older sessions; deactivated users rejected on every request; magic link blocked for MFA accounts.
