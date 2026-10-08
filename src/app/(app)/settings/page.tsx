@@ -369,7 +369,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" description="Manage your account and, for admins, your team." />
-      <Tabs defaultValue="profile">
+      <Tabs defaultValue={user.mfaPending ? "security" : "profile"}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getCachedUser, invalidateUserCache, USER_CACHE_TTL_MS, type CachedUser } from "@/lib/user-cache";
 
-const active: CachedUser = { name: "Sam", role: "SALES", isActive: true, passwordChangedAt: null };
+const active: CachedUser = { name: "Sam", role: "SALES", isActive: true, passwordChangedAt: null, mfaEnabled: false };
 const load = vi.fn<() => Promise<CachedUser | null>>();
 
 beforeEach(() => {

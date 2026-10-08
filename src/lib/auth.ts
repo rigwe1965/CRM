@@ -15,6 +15,8 @@ import { verifyMfaCode } from "@/lib/mfa-server";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
 import { getCachedUser } from "@/lib/user-cache";
 import { signInSchema } from "@/lib/validations/auth";
+import type { Role } from "@prisma/client";
+import { mfaPending } from "@/lib/rbac";
 
 const prismaAdapter = PrismaAdapter(db);
 
@@ -105,8 +107,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const current = await getCachedUser(id, () =>
         db.user.findUnique({
           where: { id },
-          select: { name: true, role: true, isActive: true, passwordChangedAt: true },
-        }),
+          select: { name: true, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
+        }).then((u) => u && { name: u.name, role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
       );
       if (!current || !current.isActive) return null;
       if (
@@ -117,8 +119,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
       token.role = current.role;
+      token.mfaPending = mfaPending(current.role, current.mfaEnabled);
       token.name = current.name; // keeps the displayed name fresh after profile edits
       return token;
+    },
+    // Admins without two-step verification get a plain SALES session until they enrol. This runs
+    // after the jwt callback above on every full session read, so it is always current; the edge
+    // middleware keeps the real role (it can't see the database) and only does the coarse gate.
+    session({ session, token }) {
+      if (token.sub) session.user.id = token.sub;
+      if (token.role) session.user.role = token.mfaPending ? "SALES" : (token.role as Role);
+      session.user.mfaPending = !!token.mfaPending;
+      return session;
     },
   },
 });

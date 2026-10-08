@@ -16,6 +16,7 @@ const productionEnv = z
     EMAIL_SERVER: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
     CRON_SECRET: z.string().optional(),
+    REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),
     UPSTASH_REDIS_REST_URL: z.string().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   })

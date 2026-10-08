@@ -5,6 +5,7 @@ import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { verifyMfaCode } from "@/lib/mfa-server";
 import { verifyPassword } from "@/lib/password";
+import { invalidateUserCache } from "@/lib/user-cache";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { mfaDisableSchema } from "@/lib/validations/auth";
 
@@ -29,6 +30,7 @@ export const POST = authed(async ({ req, user }) => {
     where: { id: me.id },
     data: { mfaSecret: null, mfaEnabledAt: null, mfaLastStep: null, mfaRecoveryCodes: [] },
   });
+  invalidateUserCache(me.id);
   await audit(user, { action: "mfa.disabled", entity: "user", entityId: me.id }, req);
   return NextResponse.json({ ok: true });
 });

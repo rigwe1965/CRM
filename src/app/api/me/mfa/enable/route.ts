@@ -5,6 +5,7 @@ import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { generateRecoveryCodes, hashRecoveryCode } from "@/lib/mfa";
 import { verifyMfaCode } from "@/lib/mfa-server";
+import { invalidateUserCache } from "@/lib/user-cache";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { mfaCodeSchema } from "@/lib/validations/auth";
 
@@ -32,6 +33,7 @@ export const POST = authed(async ({ req, user }) => {
     where: { id: me.id },
     data: { mfaEnabledAt: new Date(), mfaRecoveryCodes: recoveryCodes.map(hashRecoveryCode) },
   });
+  invalidateUserCache(me.id);
   await audit(user, { action: "mfa.enabled", entity: "user", entityId: me.id }, req);
   return NextResponse.json({ recoveryCodes });
 });
