@@ -65,6 +65,7 @@ describe("rbac", () => {
     expect(isPublicPath("/api/register")).toBe(false);
     expect(isPublicPath("/sign-in")).toBe(true);
     expect(isPublicPath("/api/cron/task-reminders")).toBe(true);
+    expect(isPublicPath("/api/openapi.json")).toBe(false); // the API map needs a session
   });
   it("blocks open redirects", () => {
     expect(safeRedirect("//evil.com")).toBe("/dashboard");

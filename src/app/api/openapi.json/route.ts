@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
+import { authed } from "@/lib/route";
 import { buildOpenApiDocument } from "@/lib/openapi";
 
-// Public: describes the API, exposes no data.
-export function GET() {
-  return NextResponse.json(buildOpenApiDocument());
-}
+// Describes the API and exposes no data, but it maps every endpoint, so it needs a signed-in session.
+export const GET = authed(async () => NextResponse.json(buildOpenApiDocument()));

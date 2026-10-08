@@ -51,7 +51,7 @@ Notes on the UI:
 
 ## REST API
 
-All endpoints live under `/api`, return JSON and need a signed-in session (cookie). The machine-readable spec is generated from the same Zod schemas the handlers validate with: **`GET /api/openapi.json`** (OpenAPI 3.1; import it into Swagger UI, Postman or Insomnia).
+All endpoints live under `/api`, return JSON and need a signed-in session (cookie). The machine-readable spec (which also needs the session cookie) is generated from the same Zod schemas the handlers validate with: **`GET /api/openapi.json`** (OpenAPI 3.1; import it into Swagger UI, Postman or Insomnia).
 
 | Resource | Endpoints |
 | --- | --- |
