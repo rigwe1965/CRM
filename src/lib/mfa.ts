@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, hkdfSync, randomBytes, timingSafeEqual } from "crypto";
 
 /** TOTP (RFC 6238: 6 digits, 30 s, SHA-1), compatible with Google Authenticator, Authy, 1Password etc. */
 const STEP_SECONDS = 30;
@@ -67,26 +67,64 @@ export function verifyTotp(secret: string, code: string, lastStep: number | null
 export const otpauthUrl = (email: string, secret: string, issuer = "Ivycandy CRM") =>
   `otpauth://totp/${encodeURIComponent(`${issuer}:${email}`)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=${STEP_SECONDS}`;
 
-// ── Secret at rest: AES-256-GCM, key derived from the app secret ──────────────────────────────
-function key() {
+// ── Secret at rest: AES-256-GCM ──────────────────────────────────────────────────────────────
+// Stored as "iv.tag.ciphertext" (legacy: key derived from the app secret) or "v2.iv.tag.ciphertext"
+// (key from MFA_ENCRYPTION_KEY, 32+ random bytes in base64, expanded with HKDF). Set
+// MFA_ENCRYPTION_KEY_PREVIOUS while rotating. Decryption accepts all three, and `decryptSecretInfo`
+// says whether the stored value already uses the current key so callers can re-encrypt it.
+const V2 = "v2.";
+
+function legacyKey() {
   const s = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
   if (!s) throw new Error("NEXTAUTH_SECRET is required for two-step verification");
   return createHash("sha256").update(`mfa-secret:${s}`).digest();
 }
 
-export function encryptSecret(plain: string): string {
-  const iv = randomBytes(12);
-  const c = createCipheriv("aes-256-gcm", key(), iv);
-  const ct = Buffer.concat([c.update(plain, "utf8"), c.final()]);
-  return [iv, c.getAuthTag(), ct].map((b) => b.toString("base64url")).join(".");
+function v2Key(raw: string) {
+  const bytes = Buffer.from(raw, "base64");
+  if (bytes.length < 32) throw new Error("MFA_ENCRYPTION_KEY must be at least 32 bytes, base64 encoded");
+  return Buffer.from(hkdfSync("sha256", bytes, "", "ivycandy-crm mfa secret v2", 32));
 }
 
-export function decryptSecret(stored: string): string {
-  const [iv, tag, ct] = stored.split(".").map((p) => Buffer.from(p, "base64url"));
-  const d = createDecipheriv("aes-256-gcm", key(), iv);
+const seal = (key: Buffer, plain: string) => {
+  const iv = randomBytes(12);
+  const c = createCipheriv("aes-256-gcm", key, iv);
+  const ct = Buffer.concat([c.update(plain, "utf8"), c.final()]);
+  return [iv, c.getAuthTag(), ct].map((b) => b.toString("base64url")).join(".");
+};
+
+const open = (key: Buffer, payload: string) => {
+  const [iv, tag, ct] = payload.split(".").map((p) => Buffer.from(p, "base64url"));
+  const d = createDecipheriv("aes-256-gcm", key, iv);
   d.setAuthTag(tag);
   return Buffer.concat([d.update(ct), d.final()]).toString("utf8");
+};
+
+export function encryptSecret(plain: string): string {
+  const current = process.env.MFA_ENCRYPTION_KEY;
+  return current ? V2 + seal(v2Key(current), plain) : seal(legacyKey(), plain);
 }
+
+export function decryptSecretInfo(stored: string): { plain: string; current: boolean } {
+  if (!stored.startsWith(V2)) {
+    // Legacy value. It is "current" only while no dedicated key is configured.
+    return { plain: open(legacyKey(), stored), current: !process.env.MFA_ENCRYPTION_KEY };
+  }
+  const payload = stored.slice(V2.length);
+  const candidates = [process.env.MFA_ENCRYPTION_KEY, process.env.MFA_ENCRYPTION_KEY_PREVIOUS].filter((k): k is string => !!k);
+  if (candidates.length === 0) throw new Error("MFA_ENCRYPTION_KEY is required to read this secret");
+  let lastError: unknown;
+  for (const [i, raw] of candidates.entries()) {
+    try {
+      return { plain: open(v2Key(raw), payload), current: i === 0 };
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+}
+
+export const decryptSecret = (stored: string) => decryptSecretInfo(stored).plain;
 
 // ── Recovery codes: shown once, stored as SHA-256 hashes, single use ──────────────────────────
 const normalizeRecovery = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, "");
