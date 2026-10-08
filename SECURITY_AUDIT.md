@@ -68,8 +68,8 @@ export function safeRedirect(url: string | null | undefined): string {
 
 Add tests for `"/\t/evil.com"`, `"/\n/evil.com"`, `"/\r/evil.com"`, `"/%2f/evil.com"` (stays a path) and `"/deals?x=1"` (kept).
 
-
 **Fix status: fixed.** `safeRedirect` now refuses control characters and backslashes and requires the parsed URL to stay on the same origin; tests added in `tests/access.test.ts`.
+
 ---
 
 ## 2. Payment overpayment race (Medium)
@@ -99,8 +99,8 @@ await db.$transaction(async (tx) => {
 
 (Alternative: `{ isolationLevel: Prisma.TransactionIsolationLevel.Serializable }` plus a retry on P2034.) The same lock should be taken in `PATCH /api/deals/:id` (finding 3).
 
-
 **Fix status: fixed.** The payment transaction now locks the deal row (`SELECT … FOR UPDATE`). Reproduced in a throwaway schema: two concurrent 60 payments on a 100 deal both succeeded without the lock (120 paid) and one was rejected with it.
+
 ---
 
 ## 3. Deal amount and currency can be changed below what is already paid (Medium)
@@ -128,8 +128,8 @@ if (body.currency && paid > 0 && body.currency !== existing.currency) throw new 
 
 (`existing` must also select `currency`.) Do this inside the same row-locked transaction as finding 2.
 
-
 **Fix status: fixed.** `PATCH /api/deals/:id` now runs in a transaction with the same row lock and uses `assertDealCoversPayments` (`src/lib/deals.ts`) to refuse a total below the amount paid or a currency change once a payment exists; unit tests in `tests/deal-payments-guard.test.ts`.
+
 ---
 
 ## 4. Account lockout denial of service (Low)
@@ -145,8 +145,8 @@ signInAccount: { max: 40, windowMs: 60 * 60_000, failClosed: true },   // keyed 
 
 **Likely fix.** (Correction: an earlier draft suggested counting only failed attempts. That does not help, because the attacker's guesses are failures too.) Exempt addresses the account has already signed in from successfully (last 30 days) from the per-account limit; the per-address limits still apply to them.
 
-
 **Fix status: fixed.** New `signInAllowed` (`src/lib/signin-limits.ts`) is used by both sign-in and `mfa-check`; successful sign-ins record the address (`markKnownIp`, Upstash with 30-day expiry, in-memory in development) and a known address skips only the per-account limit. Residual risk: the real owner on a brand-new address can still be locked out during an attack (password reset or magic link still work); users behind the same shared address as an attacker get up to 60 tries per hour. Unit tests in `tests/signin-limits.test.ts`.
+
 ---
 
 ## 5. Change-password endpoint: no rate limit, no step-up (Low)
@@ -171,8 +171,8 @@ if (me.mfaEnabledAt && !(await verifyMfaCode(me, body.data.code))) return apiErr
 
 Add an optional `code` to `changePasswordSchema` and select the MFA fields in the lookup.
 
-
 **Fix status: fixed.** `POST /api/me/password` now rate limits (10 per 15 minutes per user) and requires an authenticator or recovery code when two-step verification is on (`requireMfaStepUp`); the settings form shows the code field.
+
 ---
 
 ## 6. Two-step verification is optional, including for ADMIN (Low)
@@ -183,8 +183,8 @@ Admins can read and edit every contact, deal, payment, invoice and user, and can
 
 **Likely fix.** Require MFA for ADMIN: in the `signIn` callback, refuse a magic link or password sign-in for `role === "ADMIN"` with `mfaEnabledAt === null` and redirect to an enrol-first page; or at minimum show a persistent banner and block `/admin`, `/api/admin` until enrolled. Consider disabling the magic-link provider for ADMIN accounts altogether.
 
-
 **Fix status: fixed.** Admins without two-step verification now get a Sales-level session (`mfaPending`, `REQUIRE_ADMIN_MFA`, on by default in production) with a banner pointing to Settings → Security; enrolling restores admin access without signing in again (checked in a dev server). Lock-out recovery: `npm run make-admin -- <email> --reset-mfa`. Magic link stays available for admins who have not enrolled yet, and is already refused once they have.
+
 ---
 
 ## 7. Routes outside `authed()` skip API rate limiting (Low)
@@ -195,8 +195,8 @@ Admins can read and edit every contact, deal, payment, invoice and user, and can
 
 **Likely fix.** Convert these routes to `authed(handler, "ADMIN")` (they already follow the same error contract), or call `enforceRateLimit` with the `api:w:<userId>` key and `LIMITS.apiWrite` in the guard. Add a small per-admin limit on invites (`sendEmail` bucket).
 
-
 **Fix status: fixed.** All routes under `src/app/api/admin` and `src/app/api/me` now use `authed()`; invite emails are rate limited per admin; `tests/route-contract.test.ts` fails if a route there skips `authed()`.
+
 ---
 
 ## 8. CSP permits inline scripts (Low)
@@ -207,8 +207,8 @@ An XSS bug anywhere would not be stopped by the CSP. None was found: React escap
 
 **Likely fix.** Nonce-based CSP from `middleware.ts` (generate a per-request nonce, set `script-src 'self' 'nonce-…' 'strict-dynamic'`, and pass it to Next via the `x-nonce` request header). Keep `style-src 'unsafe-inline'` if Tailwind/Radix need it.
 
-
 **Fix status: fixed.** The CSP is now built per request in `src/middleware.ts` (`src/lib/csp.ts`): scripts need a fresh nonce with `'strict-dynamic'` and `'unsafe-inline'` is gone from `script-src` (`style-src` keeps it). Checked on a dev server: every one of the 40 to 51 `<script>` tags on the sign-in, dashboard, settings and deals pages carries the nonce and the nonce changes per request. Browser-console behaviour was not checked; `CSP_REPORT_ONLY=1` is available for a trial.
+
 ---
 
 ## 9. Last-admin guard is incomplete (Low)
@@ -230,8 +230,8 @@ if (demoting || deactivating) {
 }
 ```
 
-
 **Fix status: fixed.** Demoting or deactivating an admin now runs in a transaction that locks the active admin rows and refuses if no other active admin remains (`wouldLeaveNoAdmin` in `src/lib/access.ts`, unit tested).
+
 ---
 
 ## 10. MFA encryption key derivation (Info)
@@ -240,8 +240,8 @@ if (demoting || deactivating) {
 
 **Likely fix.** Use a dedicated `MFA_ENCRYPTION_KEY` env var (32 random bytes, base64) validated in `src/lib/env.ts`, or HKDF from the auth secret; document the rotation procedure (admin `mfa-reset` for affected users).
 
-
 **Fix status: fixed.** Optional `MFA_ENCRYPTION_KEY` (and `MFA_ENCRYPTION_KEY_PREVIOUS` for rotation) with HKDF and a `v2.` format. Legacy secrets keep working and are re-encrypted on the owner's next successful code check. Tests in `tests/mfa-key.test.ts`; procedure in `TECHNICIAN.md`.
+
 ---
 
 ## 11. Newlines in titles break notification emails (Info)
@@ -250,8 +250,8 @@ if (demoting || deactivating) {
 
 **Likely fix.** Strip control characters from the subject when building it (`title.replace(/\s+/g, " ")`) or reject newlines in `title` fields with the same refine used for the email subject.
 
-
 **Fix status: fixed.** Email subjects built from titles and customer names go through `oneLine()`; tests in `tests/email-subjects.test.ts`.
+
 ---
 
 ## 12. Informational
@@ -266,10 +266,10 @@ if (demoting || deactivating) {
 
 `src/lib/user-cache.ts` caches active users for 30 s per process. On a multi-instance deployment a demotion or deactivation can take up to 30 s to apply on other instances (already documented in the file). Acceptable; shorten the TTL or use Redis if immediate revocation is needed.
 
-
 **Fix status: fixed.** `/api/openapi.json` now needs a session. Migration `20261012000000_audit_log_append_only` adds triggers that refuse `UPDATE`, `DELETE` and `TRUNCATE` on `"AuditLog"` (tested in a throwaway schema; apply with `npm run db:deploy`, retention procedure in `TECHNICIAN.md`). Seed credentials and docker-compose were left as they are, and a breached-password check was deliberately not added.
 
 **Fix status: fixed.** Documented in `HANDOVER.md` and `TECHNICIAN.md`; no code change.
+
 ---
 
 ## Verified as sound (no action)
