@@ -8,8 +8,11 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/common/page";
 import { OrganizationPicker } from "@/components/common/pickers";
+import { TagPicker } from "@/components/common/tag-picker";
 import { CONTACT_TYPES, LEAD_STATUSES } from "@/lib/client/constants";
-import { useSave, useSendContactEmail } from "@/lib/client/hooks";
+import { useCurrentUser } from "@/components/providers";
+import { fillTemplate, oneLineSubject } from "@/lib/email-template-vars";
+import { useEmailTemplates, useSave, useSendContactEmail } from "@/lib/client/hooks";
 import type { Contact, ContactType, LeadStatus, Organization } from "@/lib/client/types";
 import { FormShell, Grid2, nullable, useFormState } from "./form-kit";
 
@@ -66,6 +69,7 @@ function ContactForm({
     leadStatus: (contact?.leadStatus ?? "NEW") as LeadStatus,
     organizationId: (contact?.organizationId ?? defaults?.organizationId ?? null) as string | null,
     emailOptOut: contact?.emailOptOut ?? false,
+    tagIds: (contact?.tags ?? []).map((t) => t.tag.id),
   });
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((s) => ({ ...s, [k]: val }));
   const isLeadish = v.type === "LEAD" || v.type === "PROSPECT";
@@ -97,6 +101,7 @@ function ContactForm({
             leadStatus: isLeadish ? v.leadStatus : null,
             organizationId: v.organizationId,
             emailOptOut: v.emailOptOut,
+            tagIds: v.tagIds,
           });
         });
         if (ok) {
@@ -177,6 +182,9 @@ function ContactForm({
           <Input value={v.source} onChange={(e) => set("source", e.target.value)} placeholder="Referral, website…" />
         </FormField>
       )}
+      <FormField label="Tags" error={form.err("tagIds")} hint="Labels such as wholesale or VIP, so you can find groups of contacts later.">
+        <TagPicker value={v.tagIds} onChange={(ids) => set("tagIds", ids)} />
+      </FormField>
       <FormField label="Street address" error={form.err("address")}>
         <Input value={v.address} onChange={(e) => set("address", e.target.value)} placeholder="Street and number" autoComplete="street-address" />
       </FormField>
@@ -312,7 +320,7 @@ export function EmailContactDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  contact: Pick<Contact, "id" | "firstName" | "email">;
+  contact: EmailTarget;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -323,10 +331,23 @@ export function EmailContactDialog({
   );
 }
 
-function EmailContactForm({ contact, onClose }: { contact: Pick<Contact, "id" | "firstName" | "email">; onClose: () => void }) {
+type EmailTarget = Pick<Contact, "id" | "firstName" | "email"> & Partial<Pick<Contact, "lastName" | "organization">>;
+
+function EmailContactForm({ contact, onClose }: { contact: EmailTarget; onClose: () => void }) {
+  const me = useCurrentUser();
   const send = useSendContactEmail(contact.id);
+  const templates = useEmailTemplates();
   const form = useFormState();
   const [v, setV] = useState({ subject: "", message: "" });
+  const [templateId, setTemplateId] = useState("");
+
+  function pickTemplate(id: string) {
+    const t = templates.data?.find((x) => x.id === id);
+    if (!t) return;
+    setTemplateId(id);
+    const vars = { firstName: contact.firstName, lastName: contact.lastName, company: contact.organization?.name, senderName: me.name };
+    setV({ subject: oneLineSubject(fillTemplate(t.subject, vars)), message: fillTemplate(t.body, vars) });
+  }
 
   return (
     <FormShell
@@ -345,6 +366,22 @@ function EmailContactForm({ contact, onClose }: { contact: Pick<Contact, "id" | 
         }
       }}
     >
+      {!!templates.data?.length && (
+        <FormField label="Start from a template (optional)" hint="Fills in the subject and message. You can still edit them before sending.">
+          <Select value={templateId} onValueChange={pickTemplate}>
+            <SelectTrigger aria-label="Template">
+              <SelectValue placeholder="Choose a template" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.data.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
       <FormField label="Subject" error={form.err("subject")}>
         <Input value={v.subject} maxLength={200} onChange={(e) => setV((s) => ({ ...s, subject: e.target.value }))} autoFocus />
       </FormField>

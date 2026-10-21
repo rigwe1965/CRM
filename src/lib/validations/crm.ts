@@ -106,6 +106,8 @@ const contactFields = z.object({
   postalCode: text(20),
   country: text(100),
   emailOptOut: z.boolean().optional(),
+  /** The contact's tags, as a whole: the list replaces whatever it had. */
+  tagIds: z.array(id).max(20).optional(),
   organizationId: id.nullish(),
   ownerId: id.nullish(),
 });
@@ -116,10 +118,28 @@ export const contactListQuery = z.object({
   sort: z.enum(["name", "type", "leadStatus", "createdAt", "updatedAt"]).default("createdAt"),
   type: csv(z.enum(ContactType)).optional(),
   leadStatus: csv(z.enum(LeadStatus)).optional(),
+  tag: id.optional(),
   organizationId: id.optional(),
   ownerId: id.optional(),
   includeDeleted: bool.optional(),
 });
+
+// ─── Tags and saved filters ─────────────────────────────
+
+const tagName = z.string().trim().min(1, "Required").max(40);
+export const createTagSchema = z.object({ name: tagName });
+export const updateTagSchema = z.object({ name: tagName });
+
+const savedFilterEntity = z.enum(["contacts"]);
+/** The contacts-list filters a view can remember (what the page puts in the URL query). */
+const savedFilterQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  type: z.string().trim().max(100).optional(),
+  leadStatus: z.string().trim().max(100).optional(),
+  tag: id.optional(),
+});
+export const createSavedFilterSchema = z.object({ entity: savedFilterEntity, name: requiredText(40), query: savedFilterQuery });
+export const savedFilterListQuery = z.object({ entity: savedFilterEntity.default("contacts") });
 
 // ─── Deals ──────────────────────────────────────────────
 
@@ -196,6 +216,16 @@ export const sendContactEmailSchema = z.object({
   subject: requiredText(200).refine((v) => !/[\r\n]/.test(v), "Subject must be a single line"),
   message: requiredText(10_000),
 });
+
+// ─── Email templates ────────────────────────────────────
+
+const emailTemplateFields = z.object({
+  name: requiredText(80),
+  subject: requiredText(200).refine((v) => !/[\r\n]/.test(v), "Subject must be a single line"),
+  body: requiredText(10_000),
+});
+export const createEmailTemplateSchema = emailTemplateFields;
+export const updateEmailTemplateSchema = emailTemplateFields.partial().refine(nonEmpty, atLeastOne);
 
 // ─── Activities ─────────────────────────────────────────
 

@@ -22,7 +22,7 @@ export const GET = authed<P>(async ({ user, params }) => {
 
 /** PATCH /api/contacts/:id: partial update; null clears optional fields. */
 export const PATCH = authed<P>(async ({ req, user, params }) => {
-  const body = await readBody(req, updateContactSchema);
+  const { tagIds, ...body } = await readBody(req, updateContactSchema);
   const existing = await db.contact.findFirst({
     where: { id: params.id, deletedAt: null, ...ownerScope(user) },
     select: { id: true },
@@ -32,7 +32,13 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const ownerId = body.ownerId === undefined ? undefined : await resolveOwner(user, body.ownerId);
   const contact = await db.contact.update({
     where: { id: params.id },
-    data: { ...body, ownerId, ...(body.phone !== undefined && { phoneE164: normalizePhone(body.phone) }) },
+    data: {
+      ...body,
+      ownerId,
+      ...(body.phone !== undefined && { phoneE164: normalizePhone(body.phone) }),
+      // The list replaces the contact's tags as a whole.
+      ...(tagIds !== undefined && { tags: { deleteMany: {}, create: [...new Set(tagIds)].map((tagId) => ({ tagId })) } }),
+    },
     include: contactInclude,
   });
   return ok(contact);

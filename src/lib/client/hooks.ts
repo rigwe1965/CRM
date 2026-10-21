@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, EmailTemplate, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -185,6 +185,86 @@ export function useSaveAutomations() {
     mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails">>) =>
       (await request<{ data: AutomationsView }>("PUT", "/api/admin/automations", body)).data,
     onSuccess: (data) => qc.setQueryData(["automations"], data),
+  });
+}
+
+export function useTags() {
+  return useQuery({
+    queryKey: ["tags"],
+    queryFn: async () => (await request<{ data: Tag[] }>("GET", "/api/tags")).data,
+  });
+}
+
+/** Creates a tag, or returns the existing one with that name. */
+export function useCreateTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => (await request<{ data: Tag }>("POST", "/api/tags", { name })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tags"] }),
+  });
+}
+
+export function useRenameTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => (await request<{ data: Tag }>("PATCH", `/api/tags/${id}`, { name })).data,
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useDeleteTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<void>("DELETE", `/api/tags/${id}`),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useSavedFilters() {
+  return useQuery({
+    queryKey: ["saved-filters", "contacts"],
+    queryFn: async () => (await request<{ data: SavedFilter[] }>("GET", "/api/saved-filters?entity=contacts")).data,
+  });
+}
+
+export function useSaveFilter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { name: string; query: SavedFilter["query"] }) =>
+      (await request<{ data: SavedFilter }>("POST", "/api/saved-filters", { entity: "contacts", ...body })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-filters"] }),
+  });
+}
+
+export function useDeleteSavedFilter() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<void>("DELETE", `/api/saved-filters/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["saved-filters"] }),
+  });
+}
+
+export function useEmailTemplates() {
+  return useQuery({
+    queryKey: ["email-templates"],
+    queryFn: async () => (await request<{ data: EmailTemplate[] }>("GET", "/api/email-templates")).data,
+  });
+}
+
+export function useSaveEmailTemplate(id?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { name?: string; subject?: string; body?: string }) =>
+      (await request<{ data: EmailTemplate }>(id ? "PATCH" : "POST", `/api/email-templates${id ? `/${id}` : ""}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-templates"] }),
+  });
+}
+
+export function useDeleteEmailTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => request<void>("DELETE", `/api/email-templates/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-templates"] }),
   });
 }
 

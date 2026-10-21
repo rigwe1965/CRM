@@ -24,6 +24,8 @@ import { useRouter } from "next/navigation";
 import { AuditLogCard } from "@/components/settings/audit-log";
 import { AutomationsCard } from "@/components/settings/automations";
 import { DataExportCard } from "@/components/settings/data-export";
+import { EmailTemplatesCard } from "@/components/settings/email-templates";
+import { TagsCard } from "@/components/settings/tags";
 import { MfaCard, SessionsCard } from "@/components/settings/security";
 
 function ProfileCard() {
@@ -376,6 +378,8 @@ export default function SettingsPage() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           {user.role === "ADMIN" && <TabsTrigger value="team">Team</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="tags">Tags</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="templates">Templates</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="automations">Automations</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="export">Data export</TabsTrigger>}
@@ -393,6 +397,16 @@ export default function SettingsPage() {
         {user.role === "ADMIN" && (
           <TabsContent value="team">
             <TeamCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="tags">
+            <TagsCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="templates">
+            <EmailTemplatesCard />
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

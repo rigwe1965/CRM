@@ -104,6 +104,11 @@ export default function ContactDetailPage() {
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge variant={t.tone}>{t.label}</Badge>
                 {contact.leadStatus && <Badge variant={leadStatusInfo(contact.leadStatus).tone}>{leadStatusInfo(contact.leadStatus).label}</Badge>}
+                {contact.tags.map(({ tag }) => (
+                  <Badge key={tag.id} variant="outline">
+                    {tag.name}
+                  </Badge>
+                ))}
               </div>
             </div>
           </div>

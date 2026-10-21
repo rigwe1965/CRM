@@ -25,6 +25,7 @@ export const GET = authed(async ({ req, user }) => {
         ...(q.leadStatus && { leadStatus: { in: q.leadStatus } }),
         ...(q.organizationId && { organizationId: q.organizationId }),
         ...(q.ownerId && { ownerId: q.ownerId }),
+        ...(q.tag && { tags: { some: { tagId: q.tag } } }),
         ...(q.q && {
           OR: [
             { firstName: { contains: q.q, mode: "insensitive" } },
@@ -56,11 +57,16 @@ export const GET = authed(async ({ req, user }) => {
 
 /** POST /api/contacts: create. Type defaults to LEAD; owner defaults to the caller. */
 export const POST = authed(async ({ req, user }) => {
-  const body = await readBody(req, createContactSchema);
+  const { tagIds, ...body } = await readBody(req, createContactSchema);
   await assertLinks(user, { organizationId: body.organizationId });
   const ownerId = await resolveOwner(user, body.ownerId);
   const contact = await db.contact.create({
-    data: { ...body, ownerId, phoneE164: normalizePhone(body.phone) },
+    data: {
+      ...body,
+      ownerId,
+      phoneE164: normalizePhone(body.phone),
+      ...(tagIds?.length ? { tags: { create: [...new Set(tagIds)].map((tagId) => ({ tagId })) } } : {}),
+    },
     include: contactInclude,
   });
   return ok(contact, 201);

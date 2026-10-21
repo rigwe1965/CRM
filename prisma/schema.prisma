@@ -128,6 +128,7 @@ model User {
   stockAdjustments   StockAdjustment[] @relation("StockAdjustmentOwner")
   recordedPayments   Payment[]         @relation("PaymentRecorder")
   paymentLinks       PaymentLink[]     @relation("PaymentLinkCreator")
+  savedFilters       SavedFilter[]
 
   @@index([role])
 }
@@ -234,6 +235,7 @@ model Contact {
   deals        Deal[]
   activities   Activity[]
   tasks        Task[]
+  tags         ContactTag[]
 
   @@index([lastName, firstName])
   @@index([type])
@@ -344,6 +346,55 @@ model Task {
   @@index([contactId])
   @@index([dealId])
   @@index([automationKey])
+}
+
+// ─── Tags and saved filters ─────────────────────────────
+
+// A label the team puts on contacts ("wholesale", "VIP", "curly") to find them as a group.
+model Tag {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  createdAt DateTime     @default(now())
+  contacts  ContactTag[]
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+  @@index([tagId])
+}
+
+// A person's own named set of list filters (today for the contacts list), shown as one-click chips.
+model SavedFilter {
+  id        String   @id @default(cuid())
+  userId    String
+  entity    String
+  name      String
+  query     Json
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entity, name])
+}
+
+// ─── Email templates ────────────────────────────────────
+
+// Wording the team picks in the "Email a contact" dialog. Shared by everyone, managed by admins. The words
+// {firstName}, {lastName}, {company} and {senderName} are filled in when a template is chosen.
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  subject     String
+  body        String
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ─── Automations ────────────────────────────────────────

@@ -98,6 +98,10 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
   - Stage tasks and quiet leads only create tasks for your own team. Only the customer payment reminders email customers, and only in Live mode.
   - The daily run needs the daily trigger (automatic on Vercel; on your own computer see `TECHNICIAN.md`).
 
+- **Email templates (admins: Settings → Templates).** Ready-made wording for the **Send email** button on a contact. In a template you can write `{firstName}`, `{lastName}`, `{company}` and `{senderName}`; they are filled in when someone picks the template, and the person can still edit the text before sending. Anyone can use templates; only admins create, change or delete them. **Add starter templates** gives you a quote, a payment reminder and a shipping update to edit. Words in [square brackets] in a starter are for you to replace.
+- **Tags.** In a contact's form, tick existing tags or type a new one and click **Add**. Tags show on the contact and in the contacts list, and the list has an **Any tag** filter. Everyone can add tags; admins rename or delete them in Settings → Tags (deleting removes the tag from every contact).
+- **Saved views.** On the Contacts page, once you have a search or filter set, click **Save this view** and name it. It appears as a chip above the filters: click to apply it again, or the cross to delete it. Views are private to you, and you can keep 20.
+
 *Example:* Task "Call Adaeze about 2nd instalment", due Friday, priority High.
 
 ### 3.7 Read the Dashboard

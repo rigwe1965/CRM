@@ -61,6 +61,7 @@ export type Contact = {
   updatedAt: string;
   organization: { id: string; name: string } | null;
   owner: Person | null;
+  tags: { tag: { id: string; name: string } }[];
   _count: { deals: number; activities: number; tasks: number };
 };
 
@@ -126,6 +127,16 @@ export type Payment = {
   /** Null for online payments: nobody typed them in. */
   recordedBy: Person | null;
 };
+
+export type Tag = { id: string; name: string; createdAt: string };
+export type SavedFilter = {
+  id: string;
+  name: string;
+  entity: "contacts";
+  query: { q?: string; type?: string; leadStatus?: string; tag?: string };
+};
+
+export type EmailTemplate = { id: string; name: string; subject: string; body: string; createdAt: string; updatedAt: string };
 
 export type StageRule = { enabled: boolean; title: string; dueInDays: number; priority: TaskPriority };
 export type StageTasksConfig = { enabled: boolean; stages: Record<DealStage, StageRule> };

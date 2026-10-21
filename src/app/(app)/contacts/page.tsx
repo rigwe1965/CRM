@@ -17,7 +17,8 @@ import { useCurrentUser } from "@/components/providers";
 import { ContactDialog } from "@/components/forms/contact-org-dialogs";
 import { CONTACT_TYPES, LEAD_STATUSES, contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
-import { errorMessage, useList, useRemove } from "@/lib/client/hooks";
+import { errorMessage, useList, useRemove, useTags } from "@/lib/client/hooks";
+import { SavedViews } from "@/components/common/saved-views";
 import type { Contact } from "@/lib/client/types";
 
 type SortKey = "name" | "createdAt";
@@ -28,6 +29,7 @@ export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
+  const [tag, setTag] = useState("");
   const [sort, setSort] = useState<SortKey>("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
@@ -36,13 +38,15 @@ export default function ContactsPage() {
   const [deleting, setDeleting] = useState<Contact | null>(null);
 
   const q = useDebounced(search);
-  const filtered = !!(q || type || status);
+  const filtered = !!(q || type || status || tag);
+  const tags = useTags();
   const { data, isLoading, isFetching, error, refetch } = useList<Contact>("contacts", {
     page,
     pageSize: 15,
     q,
     type,
     leadStatus: status,
+    tag,
     sort,
     order,
   });
@@ -84,6 +88,16 @@ export default function ContactsPage() {
       />
 
       <Card>
+        <SavedViews
+          current={{ q: search, type, leadStatus: status, tag }}
+          onApply={(v) => {
+            setSearch(v.q ?? "");
+            setType(v.type ?? "");
+            setStatus(v.leadStatus ?? "");
+            setTag(v.tag ?? "");
+            setPage(1);
+          }}
+        />
         <div className="flex flex-col gap-2 border-b p-4 sm:flex-row">
           <SearchInput
             value={search}
@@ -112,6 +126,17 @@ export default function ContactsPage() {
             allLabel="Any lead status"
             options={LEAD_STATUSES}
           />
+          {!!tags.data?.length && (
+            <FilterSelect
+              value={tag}
+              onChange={(v) => {
+                setTag(v);
+                setPage(1);
+              }}
+              allLabel="Any tag"
+              options={tags.data.map((t) => ({ value: t.id, label: t.name }))}
+            />
+          )}
         </div>
 
         {isLoading ? (
@@ -131,6 +156,7 @@ export default function ContactsPage() {
                     setSearch("");
                     setType("");
                     setStatus("");
+                    setTag("");
                   }}
                 >
                   Clear filters
@@ -182,6 +208,15 @@ export default function ContactsPage() {
                                 {fullName(c)}
                               </Link>
                               {c.title && <p className="truncate text-xs text-muted-foreground">{c.title}</p>}
+                              {c.tags.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {c.tags.map(({ tag: t }) => (
+                                    <Badge key={t.id} variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+                                      {t.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </TableCell>

@@ -18,6 +18,7 @@ export const organizationInclude = {
 export const contactInclude = {
   organization: { select: { id: true, name: true } },
   owner: person,
+  tags: { select: { tag: { select: { id: true, name: true } } }, orderBy: { tag: { name: "asc" } } },
   _count: {
     select: {
       deals: { where: { deletedAt: null } },
