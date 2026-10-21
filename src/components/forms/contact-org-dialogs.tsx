@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -64,6 +65,7 @@ function ContactForm({
     type: (contact?.type ?? defaults?.type ?? "LEAD") as ContactType,
     leadStatus: (contact?.leadStatus ?? "NEW") as LeadStatus,
     organizationId: (contact?.organizationId ?? defaults?.organizationId ?? null) as string | null,
+    emailOptOut: contact?.emailOptOut ?? false,
   });
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((s) => ({ ...s, [k]: val }));
   const isLeadish = v.type === "LEAD" || v.type === "PROSPECT";
@@ -94,6 +96,7 @@ function ContactForm({
             type: v.type,
             leadStatus: isLeadish ? v.leadStatus : null,
             organizationId: v.organizationId,
+            emailOptOut: v.emailOptOut,
           });
         });
         if (ok) {
@@ -191,6 +194,13 @@ function ContactForm({
           <Input value={v.country} onChange={(e) => set("country", e.target.value)} autoComplete="country-name" />
         </FormField>
       </Grid2>
+      <label className="flex items-start gap-2 text-sm">
+        <Checkbox className="mt-0.5" checked={v.emailOptOut} onCheckedChange={(c) => set("emailOptOut", c === true)} />
+        <span>
+          Don&apos;t send automatic emails to this contact
+          <span className="block text-xs text-muted-foreground">Stops automatic payment reminders. Emails you send by hand are not affected.</span>
+        </span>
+      </label>
     </FormShell>
   );
 }

@@ -210,6 +210,8 @@ model Contact {
   phone          String?
   // `phone` normalised to E.164 (+4915906462275); null when it can't be worked out. Kept in sync by the contact routes.
   phoneE164      String?
+  // When true, no automatic emails (such as instalment reminders) are sent to this contact.
+  emailOptOut    Boolean     @default(false)
   title          String?
   type           ContactType @default(LEAD)
   leadStatus     LeadStatus? @default(NEW)
@@ -322,6 +324,9 @@ model Task {
   completedAt    DateTime?
   // Set when the due-soon reminder email went out; cleared when the due date changes.
   reminderSentAt DateTime?
+  // Set on tasks created by an automation (e.g. "stage:<dealId>:<stage>", "quiet:<contactId>"): lets a rule see
+  // that it has already made this task instead of making it twice.
+  automationKey  String?
   assigneeId     String
   createdById    String
   contactId      String?
@@ -338,6 +343,18 @@ model Task {
   @@index([createdById])
   @@index([contactId])
   @@index([dealId])
+  @@index([automationKey])
+}
+
+// ─── Automations ────────────────────────────────────────
+
+// Admin overrides for the built-in automations (key "stage-tasks", "quiet-leads"). Defaults live in code
+// (src/lib/automations/config.ts); a missing row means "defaults", which are all switched off.
+model AutomationSetting {
+  key         String   @id
+  config      Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
 }
 
 // ─── Invoices ───────────────────────────────────────────
@@ -456,9 +473,33 @@ model Instalment {
   // Set when the due-soon reminder email went out (or when nothing was left to chase).
   reminderSentAt DateTime?
 
-  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  deal      Deal                 @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  reminders InstalmentReminder[]
 
   @@index([dealId, dueDate])
+}
+
+enum InstalmentReminderKind {
+  UPCOMING
+  OVERDUE_1
+  OVERDUE_2
+}
+
+// One row per reminder email sent to a customer about an instalment. The unique key is what stops a
+// repeated daily run from sending the same reminder twice.
+model InstalmentReminder {
+  id           String                 @id @default(cuid())
+  instalmentId String
+  kind         InstalmentReminderKind
+  // True for emails sent to the admin in test mode; kept apart so going live still sends the real ones.
+  test         Boolean                @default(false)
+  recipient    String
+  sentAt       DateTime               @default(now())
+
+  instalment Instalment @relation(fields: [instalmentId], references: [id], onDelete: Cascade)
+
+  @@unique([instalmentId, kind, test])
+  @@index([instalmentId])
 }
 
 // ─── Deal line items ────────────────────────────────────

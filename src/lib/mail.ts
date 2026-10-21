@@ -56,6 +56,13 @@ export async function trySendMail(mail: Mail): Promise<boolean> {
   }
 }
 
+/** Same sender address as EMAIL_FROM with another display name: `"Ivycandy Hair" <noreply@x.com>` (name sanitised). */
+export function fromWithName(name: string) {
+  const address = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
+  const display = name.replace(/["<>\r\n\\]/g, "").trim() || "CRM";
+  return `"${display}" <${address}>`;
+}
+
 /** True when no provider is configured outside production: emails are only printed to the server console. */
 export const mailIsConsoleOnly = () =>
   !process.env.RESEND_API_KEY && !process.env.EMAIL_SERVER && process.env.NODE_ENV !== "production";

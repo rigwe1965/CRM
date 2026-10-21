@@ -89,6 +89,15 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
 - **Instalment reminders:** a daily email goes out for instalments that are due.
 - **WhatsApp:** a contact with a phone number in international form (`+49…`, `0049…`) gets a **WhatsApp** button. It opens a chat in WhatsApp with a greeting typed in; nothing is sent until you press send there. Afterwards click **Log message** in the pop-up to save it on the contact's timeline (or use **Log activity**, type WhatsApp, to record a message a customer sent you). On a deal's **Payments**, **Remind on WhatsApp** prefills the next instalment amount and due date. Numbers written like `0803…` need `DEFAULT_PHONE_COUNTRY_CODE` set (see `TECHNICIAN.md`); until then those contacts show no button. The CRM does not read your WhatsApp chats, so only messages you log appear.
 
+- **Automations (admins: Settings → Automations).** Both are **off** until you switch them on.
+  - **Stage tasks:** when a deal moves into a stage, a task is created for the deal's owner (for example *Order Confirmed* → "Send payment details to {customer}"). You choose the title, days until due and priority per stage. A deal gets one open task per stage, so dragging a card back and forth does not pile them up.
+  - **Quiet leads:** once a day, a lead or prospect with nothing logged (on the contact or its deals) and no task completed for 7 days (you can change this) gets a follow-up task for its owner. Unqualified leads, contacts without an owner and brand-new contacts are skipped; a lead has at most one open follow-up. Before you switch it on, the screen shows how many tasks the first run would create, and sample leads count too. At most 500 are created per run, and they appear in the owner's daily task email.
+  - **Customer payment reminders:** emails the customer about an instalment: a friendly reminder 2 days before it is due, a polite notice 1 day after it is late, and a firmer second notice after 7 days (all adjustable). After the second notice the deal owner gets a "call them" task. Replies go to the deal owner, and each email is logged on the contact and deal. It never sends for paid instalments, lost or deleted deals, contacts without an email or marked **Don't send automatic emails** (a checkbox in the contact form), or instalments more than 30 days overdue.
+    - It starts in **test mode**: every email goes to an address you choose, marked [TEST] with who would really have received it, and nothing else changes. Read a few, then switch to **Live**.
+    - The screen shows how many emails the next run would send before you switch anything on.
+  - Stage tasks and quiet leads only create tasks for your own team. Only the customer payment reminders email customers, and only in Live mode.
+  - The daily run needs the daily trigger (automatic on Vercel; on your own computer see `TECHNICIAN.md`).
+
 *Example:* Task "Call Adaeze about 2nd instalment", due Friday, priority High.
 
 ### 3.7 Read the Dashboard

@@ -164,6 +164,66 @@ export function instalmentReminderEmail(name: string, rows: DigestInstalment[]):
   };
 }
 
+export type CustomerInstalmentMail = {
+  brand: string;
+  firstName: string;
+  dealTitle: string;
+  amountDue: number;
+  currency: string;
+  dueDate: Date;
+  daysLate: number;
+  kind: "UPCOMING" | "OVERDUE_1" | "OVERDUE_2";
+  /** Test mode only: who would really have received this. Shown at the top of the email. */
+  testNote?: string;
+};
+
+/**
+ * The automatic reminder a customer gets about an instalment: a friendly note before it is due, a polite
+ * one after it is late, and a firmer second notice. It never states payment details (the owner replies
+ * with those) and always leaves room for "I have already paid".
+ */
+export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
+  let amt: string;
+  try {
+    amt = new Intl.NumberFormat("en-US", { style: "currency", currency: d.currency }).format(d.amountDue);
+  } catch {
+    amt = `${d.amountDue} ${d.currency}`;
+  }
+  const date = d.dueDate.toISOString().slice(0, 10);
+  const deal = oneLine(d.dealTitle);
+  const hi = `Hi ${oneLine(d.firstName)},`;
+  const bye = `Thank you,\n${d.brand}`;
+  const reply = "If you have any questions, just reply to this email.";
+
+  let subject: string;
+  let title: string;
+  let body: string;
+  if (d.kind === "UPCOMING") {
+    subject = `Payment reminder: ${amt} due ${date}`;
+    title = "Payment reminder";
+    body = `${hi}\n\nThis is a friendly reminder that your next instalment of ${amt} for "${deal}" is due on ${date}.\n\nIf you have already paid, thank you, and please ignore this message. ${reply}\n\n${bye}`;
+  } else if (d.kind === "OVERDUE_1") {
+    subject = `Your payment of ${amt} was due on ${date}`;
+    title = "Payment overdue";
+    body = `${hi}\n\nWe have not yet received your instalment of ${amt} for "${deal}", which was due on ${date}.\n\nIf you have already paid, thank you, and please let us know so we can check. Otherwise, please arrange the payment as soon as you can. If anything is in the way, reply to this email and we will help.\n\n${bye}`;
+  } else {
+    subject = `Second reminder: ${amt} is overdue`;
+    title = "Payment overdue";
+    body = `${hi}\n\nYour instalment of ${amt} for "${deal}" is now ${d.daysLate} days overdue (it was due on ${date}).\n\nPlease arrange the payment, or reply to this email to tell us when we can expect it. If you have already paid, please send us the details so we can match it to your order.\n\n${bye}`;
+  }
+
+  const note = d.testNote ? `[TEST MODE] ${d.testNote}` : "";
+  return {
+    subject: oneLine(subject),
+    text: note ? `${note}\n\n${body}` : body,
+    html: layout(
+      title,
+      `${note ? `<p style="margin:0 0 14px;padding:8px 10px;background:#fef3c7;border-radius:6px;font-size:13px">${esc(note)}</p>` : ""}${textToHtml(body)}`,
+      d.brand,
+    ),
+  };
+}
+
 /** Body of an email composed by a CRM user and sent to a contact (subject comes from the user). */
 export function contactEmail(message: string, senderName: string): Pick<Rendered, "text" | "html"> {
   return {

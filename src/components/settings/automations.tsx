@@ -1,0 +1,246 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/common/page";
+import { DEAL_STAGES, TASK_PRIORITIES } from "@/lib/client/constants";
+import { errorMessage, useAutomations, useSaveAutomations } from "@/lib/client/hooks";
+import type { AutomationsView, InstalmentEmailsConfig, QuietLeadsConfig, StageRule, StageTasksConfig, TaskPriority } from "@/lib/client/types";
+
+const clampInt = (raw: string, min: number, max: number) => Math.min(max, Math.max(min, Math.floor(Number(raw) || 0)));
+
+function SwitchRow({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
+  return (
+    <label className="flex items-start gap-3 text-sm">
+      <Checkbox className="mt-0.5" checked={checked} onCheckedChange={(c) => onChange(c === true)} />
+      <span>
+        <span className="font-medium">{label}</span>
+        {hint && <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>}
+      </span>
+    </label>
+  );
+}
+
+function StageTasksCard({ initial }: { initial: StageTasksConfig }) {
+  const save = useSaveAutomations();
+  const [draft, setDraft] = useState<StageTasksConfig>(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const setRule = (stage: keyof StageTasksConfig["stages"], patch: Partial<StageRule>) =>
+    setDraft((d) => ({ ...d, stages: { ...d.stages, [stage]: { ...d.stages[stage], ...patch } } }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stage tasks</CardTitle>
+        <CardDescription>
+          When a deal moves into a stage, a task is created for the deal&apos;s owner. A deal gets one open task per stage, so moving a card back and forth does not pile them up. In the title you can use{" "}
+          <code>{"{customer}"}</code>, <code>{"{deal}"}</code> and <code>{"{stage}"}</code>. A stage with no title does nothing.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <SwitchRow checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} label="Create tasks when deals change stage" />
+        <div className="space-y-3">
+          {DEAL_STAGES.map((s) => {
+            const rule = draft.stages[s.value];
+            return (
+              <div key={s.value} className="grid items-center gap-2 rounded-md border p-3 sm:grid-cols-[9rem_1fr_6rem_8rem]">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <Checkbox checked={rule.enabled} disabled={!draft.enabled} onCheckedChange={(c) => setRule(s.value, { enabled: c === true })} aria-label={`Create a task for ${s.label}`} />
+                  {s.label}
+                </label>
+                <Input
+                  aria-label={`Task title for ${s.label}`}
+                  placeholder="Task title (leave empty for none)"
+                  maxLength={150}
+                  value={rule.title}
+                  disabled={!draft.enabled}
+                  onChange={(e) => setRule(s.value, { title: e.target.value })}
+                />
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={60}
+                    aria-label={`Days until due for ${s.label}`}
+                    className="h-9 w-16"
+                    value={rule.dueInDays}
+                    disabled={!draft.enabled}
+                    onChange={(e) => setRule(s.value, { dueInDays: clampInt(e.target.value, 0, 60) })}
+                  />
+                  days
+                </div>
+                <Select value={rule.priority} disabled={!draft.enabled} onValueChange={(p) => setRule(s.value, { priority: p as TaskPriority })}>
+                  <SelectTrigger aria-label={`Priority for ${s.label}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_PRIORITIES.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
+        </div>
+        <Button
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate({ stageTasks: draft }, { onSuccess: () => toast.success("Stage tasks saved"), onError: (e) => toast.error(errorMessage(e)) })}
+        >
+          {save.isPending ? "Saving…" : "Save stage tasks"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function QuietLeadsCard({ initial, wouldCreate }: { initial: QuietLeadsConfig; wouldCreate: number }) {
+  const save = useSaveAutomations();
+  const [draft, setDraft] = useState<QuietLeadsConfig>(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Quiet leads</CardTitle>
+        <CardDescription>
+          Once a day, every lead or prospect with nothing logged (on the contact or its deals) and no task completed for a number of days gets a follow-up task for its owner. Unqualified leads and contacts without an owner are skipped. A lead gets one open follow-up at a time. At most 500 tasks are created per run.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <SwitchRow checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} label="Remind owners about quiet leads" />
+        <label className="flex items-center gap-2 text-sm">
+          Quiet for
+          <Input
+            type="number"
+            min={1}
+            max={90}
+            aria-label="Days of silence before a follow-up task"
+            className="h-9 w-20"
+            value={draft.days}
+            onChange={(e) => setDraft((d) => ({ ...d, days: clampInt(e.target.value, 1, 90) }))}
+          />
+          days
+        </label>
+        <p className="rounded-md border bg-muted/40 p-3 text-sm">
+          {initial.enabled
+            ? `On the next daily run, ${wouldCreate} lead${wouldCreate === 1 ? "" : "s"} would get a follow-up task.`
+            : `If you switch this on, the first run would create ${wouldCreate} follow-up task${wouldCreate === 1 ? "" : "s"} (every lead quiet for ${initial.days}+ days, including any sample data). Save, then it starts with the next daily run.`}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          The daily run happens with the reminder emails. Hosted on Vercel it is automatic; on your own computer nothing triggers it until you schedule it (see TECHNICIAN.md).
+        </p>
+        <Button
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate({ quietLeads: draft }, { onSuccess: () => toast.success("Quiet-lead setting saved"), onError: (e) => toast.error(errorMessage(e)) })}
+        >
+          {save.isPending ? "Saving…" : "Save quiet leads"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmailsConfig; wouldSend: number }) {
+  const save = useSaveAutomations();
+  const [draft, setDraft] = useState<InstalmentEmailsConfig>(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  const num = (k: "daysBefore" | "firstOverdueDays" | "secondOverdueDays", min: number, max: number) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft((d) => ({ ...d, [k]: clampInt(e.target.value, min, max) }));
+  const live = draft.mode === "LIVE";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Customer payment reminders</CardTitle>
+        <CardDescription>
+          Emails the customer about an instalment: a friendly reminder before it is due, a polite notice once it is late, and a firmer second notice. After the second notice the deal owner gets a &quot;call them&quot; task. Replies go to the deal owner. Nothing is sent for lost or deleted deals, for contacts without an email address or who are marked &quot;don&apos;t send automatic emails&quot;, for instalments already paid, or for instalments more than 30 days overdue.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <SwitchRow checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} label="Send payment reminders to customers" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium">Mode</span>
+            <Select value={draft.mode} onValueChange={(m) => setDraft((d) => ({ ...d, mode: m as "TEST" | "LIVE" }))}>
+              <SelectTrigger aria-label="Mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TEST">Test: send every email to me instead</SelectItem>
+                <SelectItem value="LIVE">Live: send to customers</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="space-y-1.5 text-sm">
+            <span className="font-medium">Sender name</span>
+            <Input value={draft.brandName} maxLength={60} onChange={(e) => setDraft((d) => ({ ...d, brandName: e.target.value }))} />
+          </label>
+        </div>
+        {!live && (
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Send test emails to</span>
+            <Input type="email" placeholder="you@example.com" value={draft.testEmail} onChange={(e) => setDraft((d) => ({ ...d, testEmail: e.target.value }))} />
+            <span className="block text-xs text-muted-foreground">Required in test mode. Each email is marked [TEST] and says who would really have received it. Nothing is logged on the customer or the deal, and no tasks are created.</span>
+          </label>
+        )}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            Reminder
+            <Input type="number" min={0} max={14} aria-label="Days before the due date" className="h-9 w-16" value={draft.daysBefore} onChange={num("daysBefore", 0, 14)} />
+            days before it is due
+          </label>
+          <label className="flex items-center gap-2">
+            Overdue notices after
+            <Input type="number" min={1} max={30} aria-label="Days until the first overdue notice" className="h-9 w-16" value={draft.firstOverdueDays} onChange={num("firstOverdueDays", 1, 30)} />
+            and
+            <Input type="number" min={2} max={60} aria-label="Days until the second overdue notice" className="h-9 w-16" value={draft.secondOverdueDays} onChange={num("secondOverdueDays", 2, 60)} />
+            days
+          </label>
+        </div>
+        {live && (
+          <p role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            Live mode emails your real customers. Run it in test mode first and read a few of the emails.
+          </p>
+        )}
+        <p className="rounded-md border bg-muted/40 p-3 text-sm">
+          {initial.enabled
+            ? `On the next daily run, ${wouldSend} email${wouldSend === 1 ? "" : "s"} would be sent${initial.mode === "TEST" ? " to your test address" : " to customers"}.`
+            : `If you switch this on with the saved settings, the first run would send ${wouldSend} email${wouldSend === 1 ? "" : "s"}${initial.mode === "TEST" ? " to your test address" : " to customers"}.`}
+        </p>
+        <Button
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate({ instalmentEmails: draft }, { onSuccess: () => toast.success("Payment reminder settings saved"), onError: (e) => toast.error(errorMessage(e)) })}
+        >
+          {save.isPending ? "Saving…" : "Save payment reminders"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function AutomationsCard() {
+  const { data, isLoading, error, refetch } = useAutomations();
+  if (isLoading) return <Skeleton className="h-64" />;
+  if (error || !data) return <ErrorState message={error?.message} onRetry={() => refetch()} />;
+  return <AutomationsForms data={data} />;
+}
+
+// Keyed by the saved values so the drafts reset to what was just saved.
+function AutomationsForms({ data }: { data: AutomationsView }) {
+  return (
+    <div className="space-y-6">
+      <StageTasksCard key={JSON.stringify(data.stageTasks)} initial={data.stageTasks} />
+      <QuietLeadsCard key={JSON.stringify(data.quietLeads)} initial={data.quietLeads} wouldCreate={data.quietLeadsWouldCreate} />
+      <InstalmentEmailsCard key={JSON.stringify(data.instalmentEmails)} initial={data.instalmentEmails} wouldSend={data.instalmentEmailsWouldSend} />
+    </div>
+  );
+}

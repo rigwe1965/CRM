@@ -105,6 +105,7 @@ const contactFields = z.object({
   state: text(100),
   postalCode: text(20),
   country: text(100),
+  emailOptOut: z.boolean().optional(),
   organizationId: id.nullish(),
   ownerId: id.nullish(),
 });

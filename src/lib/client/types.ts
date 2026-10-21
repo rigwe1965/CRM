@@ -45,6 +45,7 @@ export type Contact = {
   email: string | null;
   phone: string | null;
   phoneE164: string | null;
+  emailOptOut: boolean;
   title: string | null;
   type: ContactType;
   leadStatus: LeadStatus | null;
@@ -124,6 +125,28 @@ export type Payment = {
   source: "MANUAL" | "ONLINE";
   /** Null for online payments: nobody typed them in. */
   recordedBy: Person | null;
+};
+
+export type StageRule = { enabled: boolean; title: string; dueInDays: number; priority: TaskPriority };
+export type StageTasksConfig = { enabled: boolean; stages: Record<DealStage, StageRule> };
+export type QuietLeadsConfig = { enabled: boolean; days: number };
+export type InstalmentEmailsConfig = {
+  enabled: boolean;
+  mode: "TEST" | "LIVE";
+  testEmail: string;
+  brandName: string;
+  daysBefore: number;
+  firstOverdueDays: number;
+  secondOverdueDays: number;
+};
+export type AutomationsView = {
+  stageTasks: StageTasksConfig;
+  quietLeads: QuietLeadsConfig;
+  instalmentEmails: InstalmentEmailsConfig;
+  /** Contacts that would get a follow-up task on the next daily run. */
+  quietLeadsWouldCreate: number;
+  /** Customer emails that would go out on the next daily run (to the test address in test mode). */
+  instalmentEmailsWouldSend: number;
 };
 
 export type PaymentLinkStatus = "PENDING" | "PAID" | "CANCELLED" | "REFUND_NEEDED";

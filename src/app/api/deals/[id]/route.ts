@@ -5,6 +5,7 @@ import { dealInclude } from "@/lib/includes";
 import { assertLinks, displayName, notFound, ownerScope, resolveOwner } from "@/lib/access";
 import { assertDealCoversPayments, dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
 import { notifyDealStageChange } from "@/lib/notifications";
+import { runStageAutomations } from "@/lib/automations";
 import { updateDealSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
       to: deal.stage,
       actor: { id: user.id, name: displayName(user) },
     });
+    await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id } });
   }
   return ok(dealDto(deal));
 });

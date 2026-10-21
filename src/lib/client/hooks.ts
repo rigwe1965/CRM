@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { Dashboard, Deal, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -171,6 +171,22 @@ export const useAddPayment = (dealId: string) =>
 
 export const useDeletePayment = (dealId: string) =>
   usePaymentMutation((paymentId: string) => request("DELETE", `/api/deals/${dealId}/payments/${paymentId}`));
+
+export function useAutomations() {
+  return useQuery({
+    queryKey: ["automations"],
+    queryFn: async () => (await request<{ data: AutomationsView }>("GET", "/api/admin/automations")).data,
+  });
+}
+
+export function useSaveAutomations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails">>) =>
+      (await request<{ data: AutomationsView }>("PUT", "/api/admin/automations", body)).data,
+    onSuccess: (data) => qc.setQueryData(["automations"], data),
+  });
+}
 
 export function usePaymentLinks(dealId: string) {
   return useQuery({

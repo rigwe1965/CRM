@@ -22,6 +22,7 @@ import { errorMessage } from "@/lib/client/hooks";
 import type { Role, TeamUser } from "@/lib/client/types";
 import { useRouter } from "next/navigation";
 import { AuditLogCard } from "@/components/settings/audit-log";
+import { AutomationsCard } from "@/components/settings/automations";
 import { DataExportCard } from "@/components/settings/data-export";
 import { MfaCard, SessionsCard } from "@/components/settings/security";
 
@@ -375,6 +376,7 @@ export default function SettingsPage() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           {user.role === "ADMIN" && <TabsTrigger value="team">Team</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="automations">Automations</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="export">Data export</TabsTrigger>}
         </TabsList>
@@ -391,6 +393,11 @@ export default function SettingsPage() {
         {user.role === "ADMIN" && (
           <TabsContent value="team">
             <TeamCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="automations">
+            <AutomationsCard />
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

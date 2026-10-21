@@ -5,6 +5,7 @@ import { dealInclude } from "@/lib/includes";
 import { displayName, notFound, ownerScope } from "@/lib/access";
 import { dealDto, stageTransition } from "@/lib/deals";
 import { notifyDealStageChange } from "@/lib/notifications";
+import { runStageAutomations } from "@/lib/automations";
 import { dealStageSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -32,5 +33,6 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
     to: deal.stage,
     actor: { id: user.id, name: displayName(user) },
   });
+  await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id } });
   return ok(dealDto(deal));
 });
