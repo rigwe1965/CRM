@@ -40,8 +40,10 @@ const PUBLIC_PAGES = new Set([
   "/forgot-password",
   "/reset-password",
   "/verify-request",
+  "/pay/result",
 ]);
-const PUBLIC_PREFIXES = ["/api/auth/","/api/password/", "/api/health", "/api/cron/"];
+// /api/webhooks/ is signed by the sender (checked in each route), not by a session.
+const PUBLIC_PREFIXES = ["/api/auth/","/api/password/", "/api/health", "/api/cron/", "/api/webhooks/"];
 
 export function isPublicPath(pathname: string): boolean {
   return (

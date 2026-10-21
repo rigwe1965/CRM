@@ -54,11 +54,31 @@ enum PaymentMethod {
   OTHER
 }
 
+enum PaymentSource {
+  MANUAL
+  ONLINE
+}
+
+enum PaymentLinkStatus {
+  PENDING
+  PAID
+  CANCELLED
+  // Paid online but the deal balance had dropped meanwhile: not recorded, the owner must refund it.
+  REFUND_NEEDED
+}
+
 enum ActivityType {
   NOTE
   CALL
   EMAIL
   MEETING
+  WHATSAPP
+}
+
+// Which way a message went. Only set on WhatsApp activities.
+enum ActivityDirection {
+  IN
+  OUT
 }
 
 enum TaskStatus {
@@ -107,6 +127,7 @@ model User {
   ownedInvoices      Invoice[]         @relation("InvoiceOwner")
   stockAdjustments   StockAdjustment[] @relation("StockAdjustmentOwner")
   recordedPayments   Payment[]         @relation("PaymentRecorder")
+  paymentLinks       PaymentLink[]     @relation("PaymentLinkCreator")
 
   @@index([role])
 }
@@ -187,6 +208,8 @@ model Contact {
   lastName       String
   email          String?     @unique
   phone          String?
+  // `phone` normalised to E.164 (+4915906462275); null when it can't be worked out. Kept in sync by the contact routes.
+  phoneE164      String?
   title          String?
   type           ContactType @default(LEAD)
   leadStatus     LeadStatus? @default(NEW)
@@ -216,6 +239,7 @@ model Contact {
   @@index([organizationId])
   @@index([ownerId])
   @@index([deletedAt])
+  @@index([phoneE164])
 }
 
 model Deal {
@@ -250,6 +274,7 @@ model Deal {
   tasks        Task[]
   invoices     Invoice[]
   payments     Payment[]
+  paymentLinks PaymentLink[]
   instalments  Instalment[]
   items        DealItem[]
 
@@ -267,6 +292,7 @@ model Activity {
   subject        String
   body           String?
   occurredAt     DateTime     @default(now())
+  direction      ActivityDirection?
   authorId       String
   contactId      String?
   dealId         String?
@@ -380,14 +406,44 @@ model Payment {
   method       PaymentMethod @default(BANK_TRANSFER)
   reference    String?
   note         String?
-  recordedById String
+  // Null for online payments (nobody typed them in): the payment link and audit log show where they came from.
+  recordedById String?
+  source       PaymentSource @default(MANUAL)
+  // Stripe PaymentIntent id. Unique, so a repeated webhook can never record the same payment twice.
+  providerRef   String?      @unique
+  paymentLinkId String?      @unique
   createdAt    DateTime      @default(now())
 
-  deal       Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  recordedBy User @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  deal        Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  recordedBy  User?        @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  paymentLink PaymentLink? @relation(fields: [paymentLinkId], references: [id], onDelete: SetNull)
 
   @@index([dealId, paidAt])
   @@index([recordedById])
+}
+
+// A Stripe-hosted page where a customer pays part of a deal's balance online. Pending links reserve
+// their amount, so links can never add up to more than what is still owed.
+model PaymentLink {
+  id             String            @id @default(cuid())
+  dealId         String
+  amount         Decimal           @db.Decimal(14, 2)
+  currency       String
+  status         PaymentLinkStatus @default(PENDING)
+  // Stripe Payment Link id (plink_...) and its public URL; null only while it is being created.
+  providerLinkId String?           @unique
+  url            String?
+  note           String?
+  createdById    String
+  createdAt      DateTime          @default(now())
+  paidAt         DateTime?
+
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("PaymentLinkCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  payment   Payment?
+
+  @@index([dealId, status])
+  @@index([createdById])
 }
 
 // Optional agreed due dates for a deal. Payments are applied to these oldest-first.

@@ -46,6 +46,7 @@ export const ACTIVITY_TYPES: { value: ActivityType; label: string }[] = [
   { value: "CALL", label: "Call" },
   { value: "EMAIL", label: "Email" },
   { value: "MEETING", label: "Meeting" },
+  { value: "WHATSAPP", label: "WhatsApp" },
 ];
 
 export const TASK_STATUSES: { value: TaskStatus; label: string }[] = [

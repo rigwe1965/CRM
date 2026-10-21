@@ -15,7 +15,18 @@ Next.js 14 (App Router) + TypeScript, Tailwind + shadcn/ui, TanStack Query, Pris
 | `scripts/make-admin.ts` | Promote a user to admin |
 
 ## Environment variables (names only; see `.env.example`)
-`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`.
+`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
+
+## Online payments (Stripe)
+Payment links are Stripe Payment Links (one payment each, USD and EUR only). The CRM never sees card details.
+1. Use **test mode** first. Create a restricted key (`rk_test_…`) that can write *Payment Links*, or a `sk_test_…` key, and put it in `.env` as `STRIPE_SECRET_KEY`.
+2. Locally: `stripe listen --forward-to localhost:3001/api/webhooks/stripe` prints a `whsec_…` secret; put it in `.env` as `STRIPE_WEBHOOK_SECRET` and restart the dev server.
+3. In production: in the Stripe dashboard add the endpoint `https://<your-domain>/api/webhooks/stripe` for the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and use its signing secret. Switch to live keys only after one real small payment works.
+4. `NEXTAUTH_URL` is used for the "thank you" page address (`/pay/result`); outside Vercel it must be your public https URL.
+- The webhook (`/api/webhooks/stripe`) is public and protected only by Stripe's signature. A bad signature gets 400; a processing failure gets 500 so Stripe retries. Recording is idempotent (unique `Payment.providerRef`).
+- Every online event is in the audit log (`payment.recorded_online`, `payment.online_refund_needed`, `payment_link.created`, `payment_link.cancelled`).
+- A payment that can't be recorded (balance dropped, link cancelled, deal deleted) is never dropped silently: link status `REFUND_NEEDED` plus an URGENT task for the deal owner.
+- Test cards: `4242 4242 4242 4242`, any future date, any CVC.
 
 ## Commands
 | Command | Use |

@@ -7,6 +7,7 @@ import {
   createDealSchema,
   createInvoiceSchema,
   createOrganizationSchema,
+  createPaymentLinkSchema,
   createPaymentSchema,
   createStockAdjustmentSchema,
   createTaskSchema,
@@ -98,6 +99,9 @@ const OPERATIONS: Op[] = [
   { method: "get", path: "/stock", tag: "Stock", summary: "Stock on hand per product, colour and length", description: "On hand = pieces bought (lines of SENT and PAID invoices) - pieces sold (items on PROPOSAL, NEGOTIATION and CLOSED_WON deals) + manual adjustments, matched case-insensitively on product, colour and length. Each row lists its adjustments and the invoices it came from. `unmatched` lists sold items that matched no invoice line." },
   { method: "post", path: "/stock/adjustments", tag: "Stock", summary: "Record a manual stock adjustment", description: "`quantity` is signed and non-zero: positive adds pieces (found stock, opening stock), negative removes them (damaged, lost). Matched to a stock row on product, colour and length; if no invoice line matches, it creates its own row.", body: createStockAdjustmentSchema, success: 201 },
   { method: "patch", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Change an adjustment's quantity, reason or note", description: "The product, colour and length cannot be changed; delete and re-create the adjustment instead.", body: updateStockAdjustmentSchema },
+  { method: "get", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Online payment links for a deal", description: "Returns `{ configured, links }`. `configured` is false until the Stripe keys are set." },
+  { method: "post", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Create a Stripe payment link", description: "Amount defaults to everything left to collect and cannot exceed it; open links count as collected. USD and EUR deals only (422 CURRENCY_NOT_SUPPORTED). 503 PAYMENTS_NOT_CONFIGURED without Stripe keys, 502 PAYMENT_PROVIDER_FAILED if Stripe rejects it. When the customer pays, Stripe calls the webhook and a DIGITAL payment is recorded automatically.", body: createPaymentLinkSchema, success: 201 },
+  { method: "delete", path: "/deals/{id}/payment-links/{linkId}", tag: "Payments", summary: "Cancel an open payment link", description: "Switches the link off at Stripe. 409 LINK_NOT_OPEN if it was already paid or closed. Returns the updated `{ configured, links }`." },
   { method: "delete", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Delete a stock adjustment (hard delete)", success: 204 },
   // Dashboard
   { method: "get", path: "/dashboard", tag: "Dashboard", summary: "Counts, pipeline value, revenue and recent activity" },

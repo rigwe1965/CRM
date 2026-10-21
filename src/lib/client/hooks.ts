@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { Dashboard, Deal, DealStage, Paginated, PaymentsView, Stock, Task, TaskStatus } from "./types";
+import type { Dashboard, Deal, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -21,6 +21,7 @@ export function useItem<T>(resource: Resource, id: string) {
   return useQuery({
     queryKey: [resource, "item", id],
     queryFn: async () => (await request<{ data: T }>("GET", `/api/${resource}/${id}`)).data,
+    enabled: id.length > 0,
     retry: (count, err) => !(err instanceof ApiClientError && err.status < 500) && count < 2,
   });
 }
@@ -170,6 +171,19 @@ export const useAddPayment = (dealId: string) =>
 
 export const useDeletePayment = (dealId: string) =>
   usePaymentMutation((paymentId: string) => request("DELETE", `/api/deals/${dealId}/payments/${paymentId}`));
+
+export function usePaymentLinks(dealId: string) {
+  return useQuery({
+    queryKey: ["deals", "payment-links", dealId],
+    queryFn: async () => (await request<{ data: PaymentLinksView }>("GET", `/api/deals/${dealId}/payment-links`)).data,
+  });
+}
+
+export const useCreatePaymentLink = (dealId: string) =>
+  usePaymentMutation((body: { amount?: number; note?: string | null }) => request("POST", `/api/deals/${dealId}/payment-links`, body));
+
+export const useCancelPaymentLink = (dealId: string) =>
+  usePaymentMutation((linkId: string) => request("DELETE", `/api/deals/${dealId}/payment-links/${linkId}`));
 
 export const useSaveSchedule = (dealId: string) =>
   usePaymentMutation((instalments: { dueDate: string; amount: number }[]) =>

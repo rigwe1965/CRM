@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  ActivityDirection,
   ActivityType,
   ContactType,
   DealStage,
@@ -199,6 +200,7 @@ export const sendContactEmailSchema = z.object({
 
 const activityFields = z.object({
   type: z.enum(ActivityType).optional(),
+  direction: z.enum(ActivityDirection).nullish(),
   subject: requiredText(200),
   body: text(10_000),
   occurredAt: isoDate.optional(),
@@ -298,6 +300,12 @@ export const createInvoiceSchema = invoiceFields.extend({
 export const updateInvoiceSchema = invoiceFields.partial().refine(nonEmpty, atLeastOne);
 
 // ─── Payments ───────────────────────────────────────────
+
+/** Amount defaults to everything still left to collect. */
+export const createPaymentLinkSchema = z.object({
+  amount: amount.refine((n) => n > 0, "Must be more than 0").optional(),
+  note: text(200),
+});
 
 export const createPaymentSchema = z.object({
   amount: amount.refine((n) => n > 0, "Must be more than 0"),

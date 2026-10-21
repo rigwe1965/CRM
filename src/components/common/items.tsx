@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarClock, Mail, MoreHorizontal, Pencil, Phone, StickyNote, Trash2, Users, type LucideIcon } from "lucide-react";
+import { CalendarClock, Mail, MessageCircle, MoreHorizontal, Pencil, Phone, StickyNote, Trash2, Users, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -99,6 +99,7 @@ const ACTIVITY_ICON: Record<ActivityType, { icon: LucideIcon; className: string 
   CALL: { icon: Phone, className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
   EMAIL: { icon: Mail, className: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300" },
   MEETING: { icon: Users, className: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300" },
+  WHATSAPP: { icon: MessageCircle, className: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" },
 };
 
 export function ActivityItem({
@@ -122,6 +123,12 @@ export function ActivityItem({
         <p className="text-sm font-medium">{activity.subject}</p>
         {activity.body && <p className="mt-0.5 whitespace-pre-line text-sm text-muted-foreground">{activity.body}</p>}
         <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          {activity.direction && (
+            <>
+              <span>{activity.direction === "IN" ? "Received" : "Sent"}</span>
+              <span>·</span>
+            </>
+          )}
           <span>{activity.author.name}</span>
           <span>·</span>
           <span>{timeAgo(activity.occurredAt)}</span>

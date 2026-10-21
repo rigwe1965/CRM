@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { addMonths, addWeeks, format, parseISO } from "date-fns";
-import { Trash2 } from "lucide-react";
+import { Copy, Mail, MessageCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, FormField } from "@/components/common/page";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/client/constants";
 import { dateOnly, money, toDateInput } from "@/lib/client/format";
-import { errorMessage, useAddPayment, useDeletePayment, usePayments, useSaveSchedule } from "@/lib/client/hooks";
-import type { Deal, InstalmentStatus, PaymentMethod, PaymentsView } from "@/lib/client/types";
+import {
+  errorMessage,
+  useAddPayment,
+  useCancelPaymentLink,
+  useCreatePaymentLink,
+  useDeletePayment,
+  useItem,
+  usePaymentLinks,
+  usePayments,
+  useSave,
+  useSaveSchedule,
+  useSendContactEmail,
+} from "@/lib/client/hooks";
+import type { Activity, Contact, Deal, InstalmentStatus, PaymentLink, PaymentMethod, PaymentsView } from "@/lib/client/types";
+import { whatsappUrl } from "@/lib/client/whatsapp";
 import { cn } from "@/lib/utils";
 import { nullable, useFormState } from "./form-kit";
 
@@ -45,7 +58,7 @@ function PaymentsBody({ deal }: { deal: Deal }) {
       ) : error || !data ? (
         <ErrorState message={error?.message} onRetry={() => refetch()} />
       ) : (
-        <PaymentsContent dealId={deal.id} view={data} />
+        <PaymentsContent deal={deal} view={data} />
       )}
     </>
   );
@@ -60,7 +73,211 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "ba
   );
 }
 
-function PaymentsContent({ dealId, view }: { dealId: string; view: PaymentsView }) {
+function WhatsAppReminder({ deal, view, contactId }: { deal: Deal; view: PaymentsView; contactId: string }) {
+  const { data: contact } = useItem<Contact>("contacts", contactId);
+  const log = useSave<Activity>("activities");
+  const { summary } = view;
+  if (!contact?.phoneE164 || summary.balance <= 0) return null;
+
+  const amount = money(summary.nextDue?.amount ?? summary.balance, view.currency);
+  const text = summary.nextDue
+    ? `Hi ${contact.firstName}, a friendly reminder that your ${amount} instalment for "${deal.title}" is due on ${dateOnly(summary.nextDue.dueDate)}. Thank you!`
+    : `Hi ${contact.firstName}, a friendly reminder that ${amount} is still outstanding for "${deal.title}". Thank you!`;
+
+  return (
+    <Button variant="outline" size="sm" asChild>
+      <a
+        href={whatsappUrl(contact.phoneE164, text)}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() =>
+          toast("WhatsApp opened in a new tab", {
+            action: {
+              label: "Log message",
+              onClick: () =>
+                log.mutate(
+                  { type: "WHATSAPP", direction: "OUT", subject: "Payment reminder", body: text, contactId, dealId: deal.id },
+                  { onSuccess: () => toast.success("WhatsApp message logged"), onError: (e) => toast.error(errorMessage(e)) },
+                ),
+            },
+          })
+        }
+      >
+        <MessageCircle /> Remind on WhatsApp
+      </a>
+    </Button>
+  );
+}
+
+const LINK_STATUS: Record<PaymentLink["status"], { label: string; tone: "secondary" | "success" | "destructive" | "warning" }> = {
+  PENDING: { label: "Open", tone: "warning" },
+  PAID: { label: "Paid", tone: "success" },
+  CANCELLED: { label: "Cancelled", tone: "secondary" },
+  REFUND_NEEDED: { label: "Refund needed", tone: "destructive" },
+};
+
+function PaymentLinksSection({ deal, view }: { deal: Deal; view: PaymentsView }) {
+  const { data, isLoading, error } = usePaymentLinks(deal.id);
+  const create = useCreatePaymentLink(deal.id);
+  const cancel = useCancelPaymentLink(deal.id);
+  const form = useFormState();
+  const { data: contact } = useItem<Contact>("contacts", deal.contactId ?? "");
+  const sendEmail = useSendContactEmail(deal.contactId ?? "");
+  const log = useSave<Activity>("activities");
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const supported = deal.currency === "USD" || deal.currency === "EUR";
+  const suggested = view.summary.nextDue?.amount ?? view.summary.balance;
+  const messageFor = (url: string, linkAmount: number) =>
+    `Hi ${contact?.firstName ?? "there"}, here is your secure link to pay ${money(linkAmount, view.currency)} for "${deal.title}": ${url}`;
+
+  async function copy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Could not copy. Select the link and copy it by hand.");
+    }
+  }
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold">Payment links</h3>
+      {isLoading ? (
+        <Skeleton className="h-12" />
+      ) : error || !data ? (
+        <p className="text-sm text-destructive">Could not load payment links.</p>
+      ) : !data.configured ? (
+        <p className="text-sm text-muted-foreground">Online payment is not set up yet. Ask your technician to add the Stripe keys (see TECHNICIAN.md).</p>
+      ) : (
+        <>
+          {data.links.length > 0 && (
+            <ul className="divide-y rounded-md border">
+              {data.links.map((l) => {
+                const st = LINK_STATUS[l.status];
+                return (
+                  <li key={l.id} className="space-y-2 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium tabular-nums">{money(l.amount, l.currency)}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {dateOnly(l.createdAt)} · {l.createdBy.name}
+                          {l.note ? ` · ${l.note}` : ""}
+                        </p>
+                      </div>
+                      <Badge variant={st.tone}>{st.label}</Badge>
+                    </div>
+                    {l.status === "REFUND_NEEDED" && (
+                      <p className="text-xs text-destructive">Paid, but it could not be recorded. A task was created to refund it in Stripe.</p>
+                    )}
+                    {l.status === "PENDING" && l.url && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => copy(l.url!)}>
+                          <Copy /> Copy link
+                        </Button>
+                        {contact?.phoneE164 && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a
+                              href={whatsappUrl(contact.phoneE164, messageFor(l.url, l.amount))}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() =>
+                                toast("WhatsApp opened in a new tab", {
+                                  action: {
+                                    label: "Log message",
+                                    onClick: () =>
+                                      log.mutate(
+                                        { type: "WHATSAPP", direction: "OUT", subject: "Payment link sent", body: messageFor(l.url!, l.amount), contactId: contact.id, dealId: deal.id },
+                                        { onSuccess: () => toast.success("WhatsApp message logged"), onError: (e) => toast.error(errorMessage(e)) },
+                                      ),
+                                  },
+                                })
+                              }
+                            >
+                              <MessageCircle /> Send on WhatsApp
+                            </a>
+                          </Button>
+                        )}
+                        {contact?.email && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={sendEmail.isPending}
+                            onClick={() =>
+                              sendEmail.mutate(
+                                { subject: `Payment link for ${deal.title}`.slice(0, 200), message: messageFor(l.url!, l.amount) },
+                                { onSuccess: () => toast.success(`Email sent to ${contact.email}`), onError: (e) => toast.error(errorMessage(e)) },
+                              )
+                            }
+                          >
+                            <Mail /> Email link
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          disabled={cancel.isPending}
+                          onClick={() =>
+                            cancel.mutate(l.id, {
+                              onSuccess: () => toast.success("Link cancelled"),
+                              onError: (e) => toast.error(errorMessage(e)),
+                            })
+                          }
+                        >
+                          Cancel link
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {view.summary.balance > 0 &&
+            (supported ? (
+              <form
+                noValidate
+                className="space-y-3 rounded-md border bg-muted/30 p-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const ok = await form.run(() =>
+                    create.mutateAsync({ amount: amount.trim() === "" ? undefined : Number(amount), note: nullable(note) }),
+                  );
+                  if (ok) {
+                    toast.success("Payment link created");
+                    setAmount("");
+                    setNote("");
+                  }
+                }}
+              >
+                <p className="text-sm font-medium">New payment link</p>
+                {form.formError && !form.err("amount") && <p role="alert" className="text-xs text-destructive">{form.formError}</p>}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FormField label={`Amount (${view.currency})`} error={form.err("amount")}>
+                    <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={String(suggested)} />
+                  </FormField>
+                  <FormField label="Note (optional)" error={form.err("note")}>
+                    <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Instalment 2" />
+                  </FormField>
+                </div>
+                <Button type="submit" size="sm" disabled={create.isPending}>
+                  {create.isPending ? "Creating…" : "Create payment link"}
+                </Button>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">Online payment supports USD and EUR deals only; this deal is in {deal.currency}.</p>
+            ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
+  const dealId = deal.id;
   const cur = (n: number) => money(n, view.currency);
   const { summary } = view;
   const settled = summary.balance <= 0;
@@ -80,6 +297,7 @@ function PaymentsContent({ dealId, view }: { dealId: string; view: PaymentsView 
             ? `Next due ${dateOnly(summary.nextDue.dueDate)}: ${cur(summary.nextDue.amount)}${summary.overdue ? " (overdue)" : ""}`
             : "No schedule set. Add one below if the customer is paying in instalments."}
       </p>
+      {deal.contactId && <WhatsAppReminder deal={deal} view={view} contactId={deal.contactId} />}
 
       <section className="space-y-2">
         <h3 className="text-sm font-semibold">Payments received</h3>
@@ -94,7 +312,7 @@ function PaymentsContent({ dealId, view }: { dealId: string; view: PaymentsView 
                   <p className="truncate text-xs text-muted-foreground">
                     {dateOnly(p.paidAt)} · {paymentMethodLabel(p.method)}
                     {p.reference ? ` · ${p.reference}` : ""}
-                    {p.note ? ` · ${p.note}` : ""} · by {p.recordedBy.name}
+                    {p.note ? ` · ${p.note}` : ""} · {p.recordedBy ? `by ${p.recordedBy.name}` : "paid online"}
                   </p>
                 </div>
                 <Button
@@ -117,6 +335,8 @@ function PaymentsContent({ dealId, view }: { dealId: string; view: PaymentsView 
         )}
         {!settled && <AddPayment dealId={dealId} balance={summary.balance} />}
       </section>
+
+      <PaymentLinksSection deal={deal} view={view} />
 
       <ScheduleSection dealId={dealId} view={view} />
     </div>

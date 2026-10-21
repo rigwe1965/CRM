@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { contactInclude } from "@/lib/includes";
+import { normalizePhone } from "@/lib/phone";
 import { assertLinks, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
 import { contactListQuery, createContactSchema } from "@/lib/validations/crm";
 
@@ -58,6 +59,9 @@ export const POST = authed(async ({ req, user }) => {
   const body = await readBody(req, createContactSchema);
   await assertLinks(user, { organizationId: body.organizationId });
   const ownerId = await resolveOwner(user, body.ownerId);
-  const contact = await db.contact.create({ data: { ...body, ownerId }, include: contactInclude });
+  const contact = await db.contact.create({
+    data: { ...body, ownerId, phoneE164: normalizePhone(body.phone) },
+    include: contactInclude,
+  });
   return ok(contact, 201);
 });

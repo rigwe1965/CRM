@@ -21,6 +21,8 @@ const productionEnv = z
     REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),
     UPSTASH_REDIS_REST_URL: z.string().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     const add = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
@@ -38,6 +40,10 @@ const productionEnv = z
     }
     if (!env.UPSTASH_REDIS_REST_URL) add("UPSTASH_REDIS_REST_URL", "required so rate limits are shared across instances");
     if (!env.UPSTASH_REDIS_REST_TOKEN) add("UPSTASH_REDIS_REST_TOKEN", "required together with UPSTASH_REDIS_REST_URL");
+    // Online payments are optional, but half a setup would take payments the CRM can't record.
+    if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) add("STRIPE_WEBHOOK_SECRET", "required together with STRIPE_SECRET_KEY");
+    if (env.STRIPE_WEBHOOK_SECRET && !env.STRIPE_SECRET_KEY) add("STRIPE_SECRET_KEY", "required together with STRIPE_WEBHOOK_SECRET");
+    if (env.STRIPE_SECRET_KEY && !/^(sk|rk)_(test|live)_/.test(env.STRIPE_SECRET_KEY)) add("STRIPE_SECRET_KEY", "must be a Stripe secret or restricted key (sk_… or rk_…)");
     if (!env.VERCEL && !env.NEXTAUTH_URL) add("NEXTAUTH_URL", "required outside Vercel (your public https URL)");
     if (!env.VERCEL && !env.AUTH_TRUST_HOST) add("AUTH_TRUST_HOST", "set to true when self-hosting behind your own domain");
   });

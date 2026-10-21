@@ -20,7 +20,7 @@ import {
 } from "@/lib/client/constants";
 import { money, toDateInput } from "@/lib/client/format";
 import { useSave } from "@/lib/client/hooks";
-import type { Activity, ActivityType, Deal, DealStage, Task, TaskPriority, TaskStatus } from "@/lib/client/types";
+import type { Activity, ActivityDirection, ActivityType, Deal, DealStage, Task, TaskPriority, TaskStatus } from "@/lib/client/types";
 import { FormShell, Grid2, nullable, useFormState } from "./form-kit";
 
 // ─── Deal ───────────────────────────────────────────────
@@ -399,7 +399,15 @@ function TaskForm({ task, defaults, onClose }: { task?: Task; defaults?: TaskDef
 
 // ─── Activity ───────────────────────────────────────────
 
-type ActivityDefaults = { contactId?: string | null; dealId?: string | null; organizationId?: string | null };
+type ActivityDefaults = {
+  contactId?: string | null;
+  dealId?: string | null;
+  organizationId?: string | null;
+  type?: ActivityType;
+  direction?: ActivityDirection;
+  subject?: string;
+  body?: string;
+};
 
 export function ActivityDialog({
   open,
@@ -433,9 +441,10 @@ function ActivityForm({
   const save = useSave<Activity>("activities", activity?.id);
   const form = useFormState();
   const [v, setV] = useState({
-    type: (activity?.type ?? "NOTE") as ActivityType,
-    subject: activity?.subject ?? "",
-    body: activity?.body ?? "",
+    type: (activity?.type ?? defaults?.type ?? "NOTE") as ActivityType,
+    direction: (activity?.direction ?? defaults?.direction ?? "OUT") as ActivityDirection,
+    subject: activity?.subject ?? defaults?.subject ?? "",
+    body: activity?.body ?? defaults?.body ?? "",
     occurredAt: format(activity ? new Date(activity.occurredAt) : new Date(), "yyyy-MM-dd'T'HH:mm"),
     contactId: (activity?.contactId ?? defaults?.contactId ?? null) as string | null,
     dealId: (activity?.dealId ?? defaults?.dealId ?? null) as string | null,
@@ -446,7 +455,7 @@ function ActivityForm({
   return (
     <FormShell
       title={activity ? "Edit activity" : "Log activity"}
-      description={activity ? undefined : "Record a call, email, meeting or note."}
+      description={activity ? undefined : "Record a call, email, WhatsApp message, meeting or note."}
       submitLabel={activity ? "Save changes" : "Log activity"}
       pending={save.isPending}
       formError={form.formError}
@@ -455,6 +464,7 @@ function ActivityForm({
         const ok = await form.run(() =>
           save.mutateAsync({
             type: v.type,
+            direction: v.type === "WHATSAPP" ? v.direction : null,
             subject: v.subject,
             body: nullable(v.body),
             occurredAt: v.occurredAt ? new Date(v.occurredAt).toISOString() : undefined,
@@ -488,6 +498,19 @@ function ActivityForm({
           <Input type="datetime-local" value={v.occurredAt} onChange={(e) => set("occurredAt", e.target.value)} />
         </FormField>
       </Grid2>
+      {v.type === "WHATSAPP" && (
+        <FormField label="Direction">
+          <Select value={v.direction} onValueChange={(d) => set("direction", d as ActivityDirection)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="OUT">Sent to the customer</SelectItem>
+              <SelectItem value="IN">Received from the customer</SelectItem>
+            </SelectContent>
+          </Select>
+        </FormField>
+      )}
       <FormField label="Subject" error={form.err("subject")}>
         <Input value={v.subject} onChange={(e) => set("subject", e.target.value)} aria-invalid={!!form.err("subject")} autoFocus />
       </FormField>

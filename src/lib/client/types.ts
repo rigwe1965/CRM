@@ -11,7 +11,8 @@ export type DealStage =
   | "NEGOTIATION"
   | "CLOSED_WON"
   | "CLOSED_LOST";
-export type ActivityType = "NOTE" | "CALL" | "EMAIL" | "MEETING";
+export type ActivityType = "NOTE" | "CALL" | "EMAIL" | "MEETING" | "WHATSAPP";
+export type ActivityDirection = "IN" | "OUT";
 export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
@@ -43,6 +44,7 @@ export type Contact = {
   lastName: string;
   email: string | null;
   phone: string | null;
+  phoneE164: string | null;
   title: string | null;
   type: ContactType;
   leadStatus: LeadStatus | null;
@@ -119,8 +121,26 @@ export type Payment = {
   method: PaymentMethod;
   reference: string | null;
   note: string | null;
-  recordedBy: Person;
+  source: "MANUAL" | "ONLINE";
+  /** Null for online payments: nobody typed them in. */
+  recordedBy: Person | null;
 };
+
+export type PaymentLinkStatus = "PENDING" | "PAID" | "CANCELLED" | "REFUND_NEEDED";
+
+export type PaymentLink = {
+  id: string;
+  amount: number;
+  currency: string;
+  status: PaymentLinkStatus;
+  url: string | null;
+  note: string | null;
+  createdAt: string;
+  paidAt: string | null;
+  createdBy: Person;
+};
+
+export type PaymentLinksView = { configured: boolean; links: PaymentLink[] };
 
 export type InstalmentStatus = {
   id: string;
@@ -145,6 +165,7 @@ export type Activity = {
   subject: string;
   body: string | null;
   occurredAt: string;
+  direction: ActivityDirection | null;
   authorId: string;
   contactId: string | null;
   dealId: string | null;

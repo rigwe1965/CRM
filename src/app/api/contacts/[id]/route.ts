@@ -4,6 +4,7 @@ import { authed } from "@/lib/route";
 import { assertLinks, notFound, ownerScope, resolveOwner } from "@/lib/access";
 import { updateContactSchema } from "@/lib/validations/crm";
 import { contactInclude } from "@/lib/includes";
+import { normalizePhone } from "@/lib/phone";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const ownerId = body.ownerId === undefined ? undefined : await resolveOwner(user, body.ownerId);
   const contact = await db.contact.update({
     where: { id: params.id },
-    data: { ...body, ownerId },
+    data: { ...body, ownerId, ...(body.phone !== undefined && { phoneE164: normalizePhone(body.phone) }) },
     include: contactInclude,
   });
   return ok(contact);

@@ -63,6 +63,13 @@ Rules to know:
 
 *Example:* Total $300, three instalments of $100. Adaeze pays $100 now. Paid $100, balance $200, next due next month.
 
+**Online payment links (USD and EUR deals).** In the deal's **Payments**, under **Payment links**, enter an amount (blank = everything still owed) and click **Create payment link**. Copy it, or send it by WhatsApp or email from the same row. The customer pays on a Stripe page; the payment then appears under **Payments received** by itself (method Digital, marked "paid online") and the balance, instalments and dashboard update. Notes:
+- Open links count as collected, so links can never add up to more than the balance. **Cancel link** frees the amount.
+- Each link takes one payment only.
+- If a customer pays a link after the balance has dropped (for example you recorded a bank transfer meanwhile), the CRM does **not** record it. The link shows **Refund needed** and an urgent task is created for the deal owner: refund it in the Stripe dashboard.
+- Refunds are made in Stripe, not in the CRM. If you refund, also remove the payment from **Payments received**.
+- Needs the Stripe keys (see `TECHNICIAN.md`). Until then the section says online payment is not set up.
+
 ### 3.4 Add a supplier invoice (Invoices)
 Three ways:
 - **By hand:** **Invoices**, **New**. Fill in number, supplier, billed-to, and the lines.
@@ -80,6 +87,7 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
 - **Tasks:** things to do with a due date and priority. A daily email reminds the owner.
 - **Activities:** a log of notes, calls, emails and meetings on a contact or deal.
 - **Instalment reminders:** a daily email goes out for instalments that are due.
+- **WhatsApp:** a contact with a phone number in international form (`+49…`, `0049…`) gets a **WhatsApp** button. It opens a chat in WhatsApp with a greeting typed in; nothing is sent until you press send there. Afterwards click **Log message** in the pop-up to save it on the contact's timeline (or use **Log activity**, type WhatsApp, to record a message a customer sent you). On a deal's **Payments**, **Remind on WhatsApp** prefills the next instalment amount and due date. Numbers written like `0803…` need `DEFAULT_PHONE_COUNTRY_CODE` set (see `TECHNICIAN.md`); until then those contacts show no button. The CRM does not read your WhatsApp chats, so only messages you log appear.
 
 *Example:* Task "Call Adaeze about 2nd instalment", due Friday, priority High.
 

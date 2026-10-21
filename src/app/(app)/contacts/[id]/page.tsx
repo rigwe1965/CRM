@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Building2, Mail, MapPin, Pencil, Phone, Plus, Trash2, UserCheck, Activity as ActivityIcon, CheckSquare, CircleDollarSign, UserX } from "lucide-react";
+import { ArrowLeft, Building2, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Trash2, UserCheck, Activity as ActivityIcon, CheckSquare, CircleDollarSign, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { ActivityDialog, DealDialog, TaskDialog } from "@/components/forms/deal-
 import { contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
 import { ApiClientError } from "@/lib/client/api";
+import { whatsappUrl } from "@/lib/client/whatsapp";
 import { errorMessage, useConvertContact, useItem, useList, useRemove } from "@/lib/client/hooks";
 import type { Activity, Contact, Deal, Task } from "@/lib/client/types";
 
@@ -45,7 +46,7 @@ export default function ContactDetailPage() {
   const [editing, setEditing] = useState(false);
   const [emailing, setEmailing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [activityDialog, setActivityDialog] = useState<{ open: boolean; activity?: Activity }>({ open: false });
+  const [activityDialog, setActivityDialog] = useState<{ open: boolean; activity?: Activity; whatsapp?: boolean }>({ open: false });
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; task?: Task }>({ open: false });
   const [dealDialog, setDealDialog] = useState<{ open: boolean; deal?: Deal }>({ open: false });
 
@@ -124,6 +125,22 @@ export default function ContactDetailPage() {
             {contact.email && (
               <Button onClick={() => setEmailing(true)}>
                 <Mail /> Send email
+              </Button>
+            )}
+            {contact.phoneE164 && (
+              <Button variant="outline" asChild>
+                <a
+                  href={whatsappUrl(contact.phoneE164, `Hi ${contact.firstName}, `)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() =>
+                    toast("WhatsApp opened in a new tab", {
+                      action: { label: "Log message", onClick: () => setActivityDialog({ open: true, whatsapp: true }) },
+                    })
+                  }
+                >
+                  <MessageCircle /> WhatsApp
+                </a>
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditing(true)}>
@@ -262,7 +279,7 @@ export default function ContactDetailPage() {
 
       {editing && <ContactDialog open onOpenChange={(o) => !o && setEditing(false)} contact={contact} />}
       {emailing && contact.email && <EmailContactDialog open onOpenChange={(o) => !o && setEmailing(false)} contact={contact} />}
-      {activityDialog.open && <ActivityDialog open onOpenChange={(o) => !o && setActivityDialog({ open: false })} activity={activityDialog.activity} defaults={{ contactId: contact.id }} />}
+      {activityDialog.open && <ActivityDialog open onOpenChange={(o) => !o && setActivityDialog({ open: false })} activity={activityDialog.activity} defaults={{ contactId: contact.id, ...(activityDialog.whatsapp && { type: "WHATSAPP", direction: "OUT", subject: "WhatsApp message" }) }} />}
       {taskDialog.open && <TaskDialog open onOpenChange={(o) => !o && setTaskDialog({ open: false })} task={taskDialog.task} defaults={{ contactId: contact.id }} />}
       {dealDialog.open && <DealDialog open onOpenChange={(o) => !o && setDealDialog({ open: false })} deal={dealDialog.deal} defaults={{ contactId: contact.id, organizationId: contact.organizationId }} />}
       <ConfirmDialog
