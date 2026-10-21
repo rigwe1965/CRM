@@ -403,17 +403,50 @@ export const updateStockAdjustmentSchema = adjustmentFields
 // Same filters as the list screens, minus paging (an export is one file). Deleted rows are never
 // exportable here: includeDeleted is dropped, so the filter stays `deletedAt: null`.
 export const exportFormatQuery = z.object({ format: z.enum(["csv"]).default("csv") });
-export const exportOrganizationsQuery = organizationListQuery.omit({ page: true, pageSize: true, includeDeleted: true });
-export const exportDealsQuery = dealListQuery.omit({ page: true, pageSize: true, includeDeleted: true });
-export const exportInvoicesQuery = invoiceListQuery.omit({ page: true, pageSize: true });
-export const exportTasksQuery = taskListQuery.omit({ page: true, pageSize: true });
-export const exportActivitiesQuery = activityListQuery.omit({ page: true, pageSize: true });
-export const exportDealItemsQuery = z.object({ dealId: id.optional() });
-export const exportInstalmentsQuery = z.object({ dealId: id.optional() });
-export const exportPaymentsQuery = z.object({ dealId: id.optional(), from: isoDate.optional(), to: isoDate.optional() });
+/**
+ * Rows the person ticked on screen (`ids=a,b,c`). Optional, and it only narrows: it is ANDed with the same
+ * visibility rules as the list, so an id the caller may not see simply matches nothing. Capped, deduplicated,
+ * and each id must look like an id (short plain text), so nothing odd reaches a query.
+ */
+export const MAX_SELECTED_ROWS = 200;
+const pickedIds = z
+  .string()
+  .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
+  .pipe(z.array(id).min(1).max(MAX_SELECTED_ROWS))
+  .transform((a) => [...new Set(a)])
+  .optional();
+export const exportOrganizationsQuery = organizationListQuery.omit({ page: true, pageSize: true, includeDeleted: true }).extend({ ids: pickedIds });
+export const exportDealsQuery = dealListQuery.omit({ page: true, pageSize: true, includeDeleted: true }).extend({ ids: pickedIds });
+export const exportInvoicesQuery = invoiceListQuery.omit({ page: true, pageSize: true }).extend({ ids: pickedIds });
+export const exportTasksQuery = taskListQuery.omit({ page: true, pageSize: true }).extend({ ids: pickedIds });
+export const exportActivitiesQuery = activityListQuery.omit({ page: true, pageSize: true }).extend({ ids: pickedIds });
+// `dealIds` (deal items, payments, instalments): only the rows of these deals, which must be deals the caller can see.
+export const exportDealItemsQuery = z.object({ dealId: id.optional(), dealIds: pickedIds });
+export const exportInstalmentsQuery = z.object({ dealId: id.optional(), dealIds: pickedIds });
+export const exportPaymentsQuery = z.object({ dealId: id.optional(), from: isoDate.optional(), to: isoDate.optional(), dealIds: pickedIds });
 export const exportNoFilters = z.object({});
+/**
+ * `keys` for the stock file: stock rows have no id, so a row is named by its product, colour and length
+ * ("product|colour|length"), each key URL-encoded by the browser so a comma in a product name cannot split it.
+ * Only used to pick from rows already loaded for the caller (matched in memory, never put in a query).
+ */
+export const MAX_STOCK_KEYS = 100;
+export const exportStockQuery = z.object({
+  keys: z
+    .string()
+    .transform((s) => {
+      try {
+        return s.split(",").map((x) => decodeURIComponent(x.trim())).filter(Boolean);
+      } catch {
+        return [];
+      }
+    })
+    .pipe(z.array(z.string().max(300)).min(1).max(MAX_STOCK_KEYS))
+    .transform((a) => [...new Set(a)])
+    .optional(),
+});
 // Admin-only areas. Deleted rows are never a URL filter: they come only from the POST body below.
-export const exportContactsQuery = contactListQuery.omit({ page: true, pageSize: true, includeDeleted: true });
+export const exportContactsQuery = contactListQuery.omit({ page: true, pageSize: true, includeDeleted: true }).extend({ ids: pickedIds });
 export const exportAuditQuery = z.object({
   q: z.string().trim().max(100).optional(),
   from: isoDate.optional(),
@@ -424,4 +457,11 @@ export const exportPostBody = z.object({
   code: z.string().trim().max(32).optional(),
   includeDeleted: z.boolean().optional(),
 });
-export const exportDocumentQuery = z.object({ format: z.enum(["pdf"]).default("pdf") });
+/** `lines=a,b,c`: only these line items of the invoice go into the PDF (they must belong to that invoice). */
+const pickedLines = z
+  .string()
+  .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
+  .pipe(z.array(id).min(1).max(2000))
+  .transform((a) => [...new Set(a)])
+  .optional();
+export const exportDocumentQuery = z.object({ format: z.enum(["pdf"]).default("pdf"), lines: pickedLines });

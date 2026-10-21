@@ -19,6 +19,8 @@ const contactWhere = (user: SessionUser, q: WithDeleted<z.infer<typeof exportCon
     liveFilter(user, q.includeDeleted),
     ownerScope(user),
     {
+      ...(q.ids && { id: { in: q.ids } }),
+      ...(q.tag && { tags: { some: { tagId: q.tag } } }),
       ...(q.type && { type: { in: q.type } }),
       ...(q.leadStatus && { leadStatus: { in: q.leadStatus } }),
       ...(q.organizationId && { organizationId: q.organizationId }),

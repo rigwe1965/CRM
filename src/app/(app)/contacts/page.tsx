@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog, EmptyState, ErrorState, FilterSelect, PageHeader, Pagination, SearchInput, TableSkeleton, useDebounced } from "@/components/common/page";
 import { RowMenu } from "@/components/common/items";
-import { ExportMenu } from "@/components/export/export-menu";
+import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { useCurrentUser } from "@/components/providers";
 import { ContactDialog } from "@/components/forms/contact-org-dialogs";
 import { CONTACT_TYPES, LEAD_STATUSES, contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
@@ -78,7 +78,17 @@ export default function ContactsPage() {
           <>
             {/* Contacts hold personal data (emails, phones, addresses), so only admins can export them. */}
             {user.role === "ADMIN" && (
-              <ExportMenu items={[{ label: "Contacts (CSV)", entity: "contacts", count: data?.meta.total, params: { q, type, leadStatus: status, sort, order } }]} />
+              <ExportMenu
+                items={[
+                  {
+                    label: "Contacts (CSV)",
+                    entity: "contacts",
+                    count: data?.meta.total,
+                    params: { q, type, leadStatus: status, tag, sort, order },
+                    choose: chooseRows<Contact>("contacts", (c) => ({ title: fullName(c), detail: [c.email, contactTypeInfo(c.type).label].filter(Boolean).join(" · ") })),
+                  },
+                ]}
+              />
             )}
             <Button onClick={() => setCreating(true)}>
               <Plus /> New contact

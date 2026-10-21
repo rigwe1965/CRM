@@ -24,7 +24,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/input";
 import { ConfirmDialog, EmptyState, ErrorState, FormField, PageHeader, SearchInput, useDebounced } from "@/components/common/page";
-import { ExportMenu } from "@/components/export/export-menu";
+import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { FormShell } from "@/components/forms/form-kit";
 import { DealDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { PaymentsDialog } from "@/components/forms/payments-dialog";
@@ -212,6 +212,12 @@ export default function DealsPage() {
   const [search, setSearch] = useState("");
   const q = useDebounced(search);
   const { data, isLoading, error, refetch } = useList<Deal>("deals", { pageSize: BOARD_LIMIT, q, sort: "updatedAt", order: "desc" });
+  const dealsChoice = (hint: string) =>
+    chooseRows<Deal>(
+      "deals",
+      (d) => ({ title: d.title, detail: `${money(d.amount, d.currency)} · ${DEAL_STAGES.find((s) => s.value === d.stage)?.label ?? d.stage}` }),
+      { param: "dealIds", listParams: { q, sort: "updatedAt", order: "desc" }, hint },
+    );
   const move = useMoveDeal();
   const remove = useRemove("deals");
 
@@ -260,12 +266,13 @@ export default function DealsPage() {
         actions={
           <>
             <SearchInput value={search} onChange={setSearch} placeholder="Search deals…" className="w-full sm:w-56" />
+            {/* Items, payments and instalments are picked by deal: tick deals, get those deals' rows. */}
             <ExportMenu
               items={[
-                { label: "Deals (CSV)", entity: "deals", count: data?.meta.total, params: { q, sort: "updatedAt", order: "desc" } },
-                { label: "Deal items (CSV)", entity: "deal-items" },
-                { label: "Payments (CSV)", entity: "payments" },
-                { label: "Instalments (CSV)", entity: "instalments" },
+                { label: "Deals (CSV)", entity: "deals", count: data?.meta.total, params: { q, sort: "updatedAt", order: "desc" }, choose: chooseRows<Deal>("deals", (d) => ({ title: d.title, detail: `${money(d.amount, d.currency)} · ${DEAL_STAGES.find((s) => s.value === d.stage)?.label ?? d.stage}` })) },
+                { label: "Deal items (CSV)", entity: "deal-items", choose: dealsChoice("Tick the deals whose items you want.") },
+                { label: "Payments (CSV)", entity: "payments", choose: dealsChoice("Tick the deals whose payments you want.") },
+                { label: "Instalments (CSV)", entity: "instalments", choose: dealsChoice("Tick the deals whose instalments you want.") },
               ]}
             />
             <Button onClick={() => setCreating({})}>

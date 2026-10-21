@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog, EmptyState, ErrorState, FilterSelect, PageHeader, Pagination, SearchInput, useDebounced } from "@/components/common/page";
 import { ActivityItem } from "@/components/common/items";
-import { ExportMenu } from "@/components/export/export-menu";
+import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { ActivityDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { ACTIVITY_TYPES } from "@/lib/client/constants";
 import { errorMessage, useList, useRemove } from "@/lib/client/hooks";
@@ -34,7 +34,7 @@ export default function ActivitiesPage() {
         description="Calls, emails, meetings and notes."
         actions={
           <>
-            <ExportMenu items={[{ label: "Activities (CSV)", entity: "activities", count: data?.meta.total, params: { q, type, sort: "occurredAt", order: "desc" } }]} />
+            <ExportMenu items={[{ label: "Activities (CSV)", entity: "activities", count: data?.meta.total, params: { q, type, sort: "occurredAt", order: "desc" }, choose: chooseRows<Activity>("activities", (a) => ({ title: a.subject, detail: `${a.type.toLowerCase()} · ${a.occurredAt.slice(0, 10)}` })) }]} />
             <Button onClick={() => setCreating(true)}>
               <Plus /> Log activity
             </Button>

@@ -75,6 +75,18 @@ describe("PDF builders", () => {
     expect(looksLikePdf(await invoicePdf(inv))).toBe(true);
     expect(looksLikePdf(await invoicePdf({ ...inv, invoice: { ...inv.invoice, notes: null }, items: [] }))).toBe(true);
   });
+
+  it("makes a valid partial invoice, which prints the lines' own subtotal instead of the invoice total", async () => {
+    const inv: InvoiceDocument = {
+      generatedAt: new Date("2026-10-20T00:00:00Z"),
+      invoice: { number: "INV-002", status: "PAID", invoiceDate: new Date("2026-09-01T00:00:00Z"), currency: "USD", vendorName: "Supplier Co", vendorRep: null, vendorPhone: null, billTo: "Ivycandy", subtotal: 300, shipping: 10, total: 310, notes: null },
+      items: [{ ref: "1-1", style: "Bone", description: "Bone straight 18in", color: null, density: null, lengthInches: 18, quantity: 1, unitPrice: 100, lineTotal: 100 }],
+      partial: { shown: 1, of: 3 },
+    };
+    const bytes = await invoicePdf(inv);
+    expect(looksLikePdf(bytes)).toBe(true);
+    expect(bytes.length).toBeGreaterThan(1000);
+  });
 });
 
 describe("GET /api/export/:entity/:id (PDF)", () => {

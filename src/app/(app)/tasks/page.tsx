@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog, EmptyState, ErrorState, FilterSelect, PageHeader, Pagination, SearchInput, useDebounced } from "@/components/common/page";
 import { TaskRow } from "@/components/common/items";
-import { ExportMenu } from "@/components/export/export-menu";
+import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { TaskDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { TASK_PRIORITIES } from "@/lib/client/constants";
 import { errorMessage, useList, useRemove } from "@/lib/client/hooks";
@@ -66,6 +66,7 @@ export default function TasksPage() {
                   label: "Tasks (CSV)",
                   entity: "tasks",
                   count: data?.meta.total,
+                  choose: chooseRows<Task>("tasks", (t) => ({ title: t.title, detail: [t.priority.toLowerCase(), t.dueDate ? `due ${t.dueDate.slice(0, 10)}` : null].filter(Boolean).join(" · ") })),
                   params: {
                     q,
                     priority,

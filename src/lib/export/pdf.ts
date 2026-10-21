@@ -170,6 +170,8 @@ export type InvoiceDocument = {
     vendorPhone: string | null; billTo: string; subtotal: number; shipping: number; total: number; notes: string | null;
   };
   items: { ref: string; style: string; description: string; color: string | null; density: string | null; lengthInches: number | null; quantity: number; unitPrice: number; lineTotal: number }[];
+  /** Set when only some of the invoice's lines were chosen: the full total and shipping are then left out. */
+  partial?: { shown: number; of: number } | null;
 };
 
 export async function invoicePdf(d: InvoiceDocument): Promise<Uint8Array> {
@@ -203,11 +205,24 @@ export async function invoicePdf(d: InvoiceDocument): Promise<Uint8Array> {
   );
 
   heading(doc, "Totals");
-  facts(doc, [
-    ["Items subtotal", amount(v.subtotal, v.currency)],
-    ["Shipping", amount(v.shipping, v.currency)],
-    ["Total", amount(v.total, v.currency)],
-  ]);
+  if (d.partial) {
+    // The invoice's own total covers every line, so it would be wrong next to a few of them: show what is printed.
+    const shownTotal = Math.round(d.items.reduce((s, i) => s + i.lineTotal, 0) * 100) / 100;
+    facts(doc, [
+      ["Lines shown", `${d.partial.shown} of ${d.partial.of}`],
+      ["Subtotal of lines shown", amount(shownTotal, v.currency)],
+    ]);
+    doc.moveDown(0.4).font("regular").fontSize(9).fillColor("#555").text(
+      "Partial copy: only the chosen lines are listed. Shipping and the full invoice total are not shown.",
+      MARGIN, doc.y, { width: WIDTH },
+    );
+  } else {
+    facts(doc, [
+      ["Items subtotal", amount(v.subtotal, v.currency)],
+      ["Shipping", amount(v.shipping, v.currency)],
+      ["Total", amount(v.total, v.currency)],
+    ]);
+  }
   if (v.notes) {
     heading(doc, "Notes");
     doc.font("regular").fontSize(9.5).fillColor("#111").text(t(v.notes), MARGIN, doc.y, { width: WIDTH });

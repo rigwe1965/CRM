@@ -9,11 +9,12 @@ import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, R
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
 /** Paginated list. Previous page stays visible while the next one loads. */
-export function useList<T>(resource: Resource, params: Query) {
+export function useList<T>(resource: Resource, params: Query, enabled = true) {
   return useQuery({
     queryKey: [resource, "list", params],
     queryFn: () => request<Paginated<T>>("GET", `/api/${resource}${qs(params)}`),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

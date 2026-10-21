@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog, EmptyState, ErrorState, PageHeader, Pagination, SearchInput, TableSkeleton, useDebounced } from "@/components/common/page";
 import { RowMenu } from "@/components/common/items";
-import { ExportMenu } from "@/components/export/export-menu";
+import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { OrganizationDialog } from "@/components/forms/contact-org-dialogs";
 import { initials, shortDate } from "@/lib/client/format";
 import { errorMessage, useList, useRemove } from "@/lib/client/hooks";
@@ -57,7 +57,7 @@ export default function CompaniesPage() {
         description="Organizations you sell to or work with."
         actions={
           <>
-            <ExportMenu items={[{ label: "Companies (CSV)", entity: "organizations", count: data?.meta.total, params: { q, sort, order } }]} />
+            <ExportMenu items={[{ label: "Companies (CSV)", entity: "organizations", count: data?.meta.total, params: { q, sort, order }, choose: chooseRows<Organization>("organizations", (o) => ({ title: o.name, detail: o.industry ?? undefined })) }]} />
             <Button onClick={() => setCreating(true)}>
               <Plus /> New company
             </Button>

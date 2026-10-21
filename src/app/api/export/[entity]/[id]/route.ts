@@ -32,7 +32,8 @@ function pdfResponse(bytes: Uint8Array, name: string) {
 export const GET = authed<{ entity: string; id: string }>(async ({ req, user, params }) => {
   if (params.entity !== "deals" && params.entity !== "invoices") throw notFound("Export");
   const { id } = idParam.parse({ id: params.id });
-  readQuery(req, exportDocumentQuery);
+  const { lines: pickedLines } = readQuery(req, exportDocumentQuery);
+  if (pickedLines && params.entity !== "invoices") throw new ApiError(422, "Choosing lines is only available for invoices", "VALIDATION_ERROR");
   await enforceExportLimit(user);
   const generatedAt = new Date();
   const date = generatedAt.toISOString().slice(0, 10);
@@ -84,16 +85,26 @@ export const GET = authed<{ entity: string; id: string }>(async ({ req, user, pa
       // The internal resale/margin figure is deliberately not selected: this document gets shared.
       items: {
         orderBy: { position: "asc" },
-        select: { ref: true, style: true, description: true, color: true, density: true, lengthInches: true, quantity: true, unitPrice: true, lineTotal: true },
+        select: { id: true, ref: true, style: true, description: true, color: true, density: true, lengthInches: true, quantity: true, unitPrice: true, lineTotal: true },
       },
     },
   });
   if (!invoice) throw notFound("Invoice");
-  if (invoice.items.length > MAX_PDF_LINES) {
-    throw new ApiError(422, `This invoice has ${invoice.items.length} lines; the limit is ${MAX_PDF_LINES}. Export the CSV instead.`, "EXPORT_TOO_LARGE");
+  // Only lines of THIS invoice can be picked: ids from anywhere else are simply not in the list.
+  const chosen = pickedLines ? new Set(pickedLines) : null;
+  const shown = chosen ? invoice.items.filter((i) => chosen.has(i.id)) : invoice.items;
+  if (chosen && shown.length === 0) {
+    throw new ApiError(422, "None of the chosen lines belong to this invoice", "VALIDATION_ERROR");
   }
+  if (shown.length > MAX_PDF_LINES) {
+    throw new ApiError(422, `This invoice has ${shown.length} lines; the limit is ${MAX_PDF_LINES}. Export the CSV instead.`, "EXPORT_TOO_LARGE");
+  }
+  const partial = chosen && shown.length < invoice.items.length ? { shown: shown.length, of: invoice.items.length } : null;
   await recordExport(req, user, {
-    entity: "invoices", format: "pdf", rows: 1, filters: { id }, summary: `Exported invoice ${invoice.number} as PDF`,
+    entity: "invoices", format: "pdf", rows: 1, filters: partial ? { id, lines: shown.length } : { id },
+    summary: partial
+      ? `Exported ${partial.shown} of ${partial.of} lines of invoice ${invoice.number} as PDF`
+      : `Exported invoice ${invoice.number} as PDF`,
   });
   const bytes = await invoicePdf({
     generatedAt,
@@ -102,7 +113,11 @@ export const GET = authed<{ entity: string; id: string }>(async ({ req, user, pa
       vendorName: invoice.vendorName, vendorRep: invoice.vendorRep, vendorPhone: invoice.vendorPhone, billTo: invoice.billTo,
       subtotal: num(invoice.subtotal), shipping: num(invoice.shipping), total: num(invoice.total), notes: invoice.notes,
     },
-    items: invoice.items.map((i) => ({ ...i, unitPrice: num(i.unitPrice), lineTotal: num(i.lineTotal) })),
+    items: shown.map((i) => ({
+      ref: i.ref, style: i.style, description: i.description, color: i.color, density: i.density,
+      lengthInches: i.lengthInches, quantity: i.quantity, unitPrice: num(i.unitPrice), lineTotal: num(i.lineTotal),
+    })),
+    partial,
   });
-  return pdfResponse(bytes, `invoice-${safeName(invoice.number)}-${date}`);
+  return pdfResponse(bytes, `invoice-${safeName(invoice.number)}${partial ? "-selected-lines" : ""}-${date}`);
 });

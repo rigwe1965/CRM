@@ -7,7 +7,7 @@ import type { SessionUser } from "@/lib/auth-helpers";
 import { loadStock } from "@/lib/stock";
 import { cashflow } from "@/lib/cashflow";
 import { paymentSummaries, summarize } from "@/lib/payments";
-import { computed, listing, paged, type ExportEntity, type WithDeleted } from "@/lib/export/define";
+import { computed, listing, paged, pickedCount, type ExportEntity, type WithDeleted } from "@/lib/export/define";
 import {
   exportActivitiesQuery,
   exportDealItemsQuery,
@@ -15,6 +15,7 @@ import {
   exportInstalmentsQuery,
   exportInvoicesQuery,
   exportNoFilters,
+  exportStockQuery,
   exportOrganizationsQuery,
   exportPaymentsQuery,
   exportTasksQuery,
@@ -41,6 +42,12 @@ const round2 = (x: number) => Math.round(x * 100) / 100;
 const visibleDeal = (user: SessionUser, includeDeleted?: boolean): Prisma.DealWhereInput => ({
   AND: [liveFilter(user, includeDeleted), ownerScope(user)],
 });
+/** `visibleDeal`, narrowed to the deals picked on screen when `dealIds` is given (still only deals the caller may see). */
+const dealsIn = (user: SessionUser, q: { includeDeleted?: boolean; dealIds?: string[] }): Prisma.DealWhereInput => {
+  const visible = visibleDeal(user, q.includeDeleted);
+  // Without a pick the filter is exactly what it always was; with one, the pick is added to the same list.
+  return q.dealIds ? { AND: [...(visible.AND as Prisma.DealWhereInput[]), { id: { in: q.dealIds } }] } : visible;
+};
 const person = { select: { name: true } } as const;
 const contactName = { select: { firstName: true, lastName: true } } as const;
 
@@ -57,6 +64,7 @@ const orgWhere = (user: SessionUser, q: WithDeleted<z.infer<typeof exportOrganiz
     liveFilter(user, q.includeDeleted),
     ownerScope(user),
     {
+      ...(q.ids && { id: { in: q.ids } }),
       ...(q.industry && { industry: { equals: q.industry, mode: "insensitive" } }),
       ...(q.ownerId && { ownerId: q.ownerId }),
       ...(q.q && {
@@ -103,6 +111,7 @@ const dealWhere = (user: SessionUser, q: WithDeleted<z.infer<typeof exportDealsQ
     liveFilter(user, q.includeDeleted),
     ownerScope(user),
     {
+      ...(q.ids && { id: { in: q.ids } }),
       ...(q.stage && { stage: { in: q.stage } }),
       ...(q.organizationId && { organizationId: q.organizationId }),
       ...(q.contactId && { contactId: q.contactId }),
@@ -148,10 +157,10 @@ const dealItems = listing({
   softDeleted: true,
   schema: exportDealItemsQuery,
   count: (user, q) =>
-    db.dealItem.count({ where: { deal: visibleDeal(user, q.includeDeleted), ...(q.dealId && { dealId: q.dealId }) } }),
+    db.dealItem.count({ where: { deal: dealsIn(user, q), ...(q.dealId && { dealId: q.dealId }) } }),
   fetch: (user, q, page) =>
     db.dealItem.findMany({
-      where: { deal: visibleDeal(user, q.includeDeleted), ...(q.dealId && { dealId: q.dealId }) },
+      where: { deal: dealsIn(user, q), ...(q.dealId && { dealId: q.dealId }) },
       select: {
         id: true, dealId: true, position: true, productType: true, texture: true, lengthInches: true,
         color: true, laceType: true, quantity: true, unitPrice: true, note: true,
@@ -170,7 +179,7 @@ const dealItems = listing({
 });
 
 const paymentWhere = (user: SessionUser, q: WithDeleted<z.infer<typeof exportPaymentsQuery>>): Prisma.PaymentWhereInput => ({
-  deal: visibleDeal(user, q.includeDeleted),
+  deal: dealsIn(user, q),
   ...(q.dealId && { dealId: q.dealId }),
   ...((q.from || q.to) && { paidAt: { gte: q.from, lte: q.to } }),
 });
@@ -207,11 +216,11 @@ const instalments: ExportEntity = {
   softDeleted: true,
   async plan(user, req, opts) {
     const q = readQuery(req, exportInstalmentsQuery);
-    const visible = visibleDeal(user, opts.includeDeleted);
+    const visible = dealsIn(user, { includeDeleted: opts.includeDeleted, dealIds: q.dealIds });
     return {
       total: await db.instalment.count({ where: { deal: visible, ...(q.dealId && { dealId: q.dealId }) } }),
       headers: ["dealId", "dealTitle", "position", "dueDate", "amount", "covered", "overdue", "currency"],
-      filters: { ...q, includeDeleted: opts.includeDeleted },
+      filters: pickedCount({ ...q, includeDeleted: opts.includeDeleted }),
       async *batches() {
         const where: Prisma.DealWhereInput = {
           AND: [visible, q.dealId ? { id: q.dealId } : {}, { instalments: { some: {} } }],
@@ -248,6 +257,7 @@ const instalments: ExportEntity = {
 
 const invoiceWhere = (user: SessionUser, q: z.infer<typeof exportInvoicesQuery>): Prisma.InvoiceWhereInput => ({
   ...ownerScope(user),
+  ...(q.ids && { id: { in: q.ids } }),
   ...(q.status && { status: q.status }),
   ...(q.q && {
     OR: [
@@ -315,6 +325,7 @@ const taskWhere = (user: SessionUser, q: z.infer<typeof exportTasksQuery>): Pris
   AND: [
     taskScope(user),
     {
+      ...(q.ids && { id: { in: q.ids } }),
       ...(q.status && { status: { in: q.status } }),
       ...(q.priority && { priority: { in: q.priority } }),
       ...(q.assigneeId && { assigneeId: q.assigneeId }),
@@ -355,6 +366,7 @@ const activityWhere = (user: SessionUser, q: z.infer<typeof exportActivitiesQuer
   AND: [
     authorScope(user),
     {
+      ...(q.ids && { id: { in: q.ids } }),
       ...(q.type && { type: { in: q.type } }),
       ...(q.contactId && { contactId: q.contactId }),
       ...(q.dealId && { dealId: q.dealId }),
@@ -396,10 +408,13 @@ const activities = listing({
 
 const stock = computed({
   file: "stock",
-  schema: exportNoFilters,
+  schema: exportStockQuery,
   headers: ["product", "description", "color", "lengthInches", "bought", "sold", "adjusted", "onHand", "invoices"],
-  rows: async (user) =>
-    (await loadStock(ownerScope(user))).rows.map((r) => [
+  rows: async (user, q) =>
+    (await loadStock(ownerScope(user))).rows
+      // Only the rows picked on screen (named product|colour|length), out of the rows this person can already see.
+      .filter((r) => !q.keys || q.keys.includes(`${r.product}|${r.color}|${r.lengthInches}`))
+      .map((r) => [
       r.product, r.description, r.color, r.lengthInches, r.bought, r.sold, r.adjusted, r.onHand,
       r.sources.map((s) => s.number).join("; "),
     ]),

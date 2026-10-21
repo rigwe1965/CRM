@@ -32,6 +32,19 @@ type Col<R, C> = readonly [header: string, get: (row: R, ctx: C) => unknown];
 
 const BATCH = 500;
 
+/**
+ * The filters for the audit record: a hand-picked list (`ids` or stock `keys`, rows picked on screen, or
+ * `dealIds`, deals picked) is written as a count (`pickedRows` / `pickedDeals`), never as the list itself.
+ */
+export function pickedCount(q: object): Record<string, unknown> {
+  const { ids, keys, dealIds, ...rest } = q as { ids?: string[]; keys?: string[]; dealIds?: string[] } & Record<string, unknown>;
+  const out: Record<string, unknown> = { ...rest };
+  if (Array.isArray(ids)) out.pickedRows = ids.length;
+  if (Array.isArray(keys)) out.pickedRows = keys.length;
+  if (Array.isArray(dealIds)) out.pickedDeals = dealIds.length;
+  return out;
+}
+
 export async function* paged<T extends { id: string }>(fetch: (page: Page) => Promise<T[]>) {
   let cursor: string | undefined;
   for (;;) {
@@ -65,7 +78,8 @@ export function listing<Q extends object, R extends { id: string }, C = undefine
       return {
         total: await o.count(user, q),
         headers: o.columns.map((c) => c[0]),
-        filters: q,
+        // A hand-picked selection is recorded as how many rows were asked for, not as a long list of ids.
+        filters: pickedCount(q),
         async *batches() {
           for await (const rows of paged((page) => o.fetch(user, q, page))) {
             const ctx = o.prepare ? await o.prepare(rows) : (undefined as C);
@@ -95,7 +109,7 @@ export function computed<Q extends object>(o: {
       return {
         total: rows.length,
         headers: o.headers,
-        filters: q as Record<string, unknown>,
+        filters: pickedCount(q),
         async *batches() {
           yield rows;
         },

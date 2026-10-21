@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog, EmptyState, ErrorState, Tone } from "@/components/common/page";
-import { PdfButton } from "@/components/export/export-menu";
+import { InvoiceLinesButton, PdfButton } from "@/components/export/export-menu";
 import { InvoiceDialog } from "@/components/forms/invoice-dialog";
 import { invoiceStatusInfo } from "@/lib/client/constants";
 import { ApiClientError } from "@/lib/client/api";
@@ -73,6 +73,7 @@ export default function InvoiceDetailPage() {
             <Printer /> Print / PDF
           </Button>
           <PdfButton entity="invoices" id={inv.id} label="Download PDF" className="print:hidden" />
+          {(inv.items?.length ?? 0) > 1 && <InvoiceLinesButton invoiceId={inv.id} items={inv.items ?? []} currency={inv.currency} className="print:hidden" />}
           <Button variant="outline" size="sm" className="print:hidden" onClick={() => setEditing(true)}>
             <Pencil /> Edit
           </Button>
