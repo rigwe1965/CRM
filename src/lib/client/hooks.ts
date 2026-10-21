@@ -188,6 +188,12 @@ export function useSaveAutomations() {
   });
 }
 
+export const useSendSampleEmail = () =>
+  useMutation({
+    mutationFn: async (body: { to: string; brandName: string; kind: "UPCOMING" | "OVERDUE_1" | "OVERDUE_2" }) =>
+      (await request<{ data: { to: string; consoleOnly: boolean } }>("POST", "/api/admin/automations/sample-email", body)).data,
+  });
+
 export function usePaymentLinks(dealId: string) {
   return useQuery({
     queryKey: ["deals", "payment-links", dealId],

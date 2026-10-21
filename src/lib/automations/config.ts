@@ -63,6 +63,13 @@ export const instalmentEmailsSchema = z
   });
 export type InstalmentEmailsConfig = z.infer<typeof instalmentEmailsSchema>;
 
+/** Body of POST /api/admin/automations/sample-email: which sample, to whom, signed as whom. */
+export const sampleEmailSchema = z.object({
+  to: z.email("Enter a valid email address"),
+  brandName: z.string().trim().min(1, "Required").max(60),
+  kind: z.enum(["UPCOMING", "OVERDUE_1", "OVERDUE_2"]),
+});
+
 /** Body of PUT /api/admin/automations: send any of them. */
 export const automationsUpdateSchema = z
   .object({ stageTasks: stageTasksSchema, quietLeads: quietLeadsSchema, instalmentEmails: instalmentEmailsSchema })

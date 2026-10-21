@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/page";
 import { DEAL_STAGES, TASK_PRIORITIES } from "@/lib/client/constants";
-import { errorMessage, useAutomations, useSaveAutomations } from "@/lib/client/hooks";
+import { errorMessage, useAutomations, useSaveAutomations, useSendSampleEmail } from "@/lib/client/hooks";
 import type { AutomationsView, InstalmentEmailsConfig, QuietLeadsConfig, StageRule, StageTasksConfig, TaskPriority } from "@/lib/client/types";
 
 const clampInt = (raw: string, min: number, max: number) => Math.min(max, Math.max(min, Math.floor(Number(raw) || 0)));
@@ -151,6 +151,8 @@ function QuietLeadsCard({ initial, wouldCreate }: { initial: QuietLeadsConfig; w
 
 function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmailsConfig; wouldSend: number }) {
   const save = useSaveAutomations();
+  const sample = useSendSampleEmail();
+  const [sampleKind, setSampleKind] = useState<"UPCOMING" | "OVERDUE_1" | "OVERDUE_2">("UPCOMING");
   const [draft, setDraft] = useState<InstalmentEmailsConfig>(initial);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   const num = (k: "daysBefore" | "firstOverdueDays" | "secondOverdueDays", min: number, max: number) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -185,13 +187,15 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
             <Input value={draft.brandName} maxLength={60} onChange={(e) => setDraft((d) => ({ ...d, brandName: e.target.value }))} />
           </label>
         </div>
-        {!live && (
-          <label className="block space-y-1.5 text-sm">
-            <span className="font-medium">Send test emails to</span>
-            <Input type="email" placeholder="you@example.com" value={draft.testEmail} onChange={(e) => setDraft((d) => ({ ...d, testEmail: e.target.value }))} />
-            <span className="block text-xs text-muted-foreground">Required in test mode. Each email is marked [TEST] and says who would really have received it. Nothing is logged on the customer or the deal, and no tasks are created.</span>
-          </label>
-        )}
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium">{live ? "Send samples to" : "Send test emails to"}</span>
+          <Input type="email" placeholder="you@example.com" value={draft.testEmail} onChange={(e) => setDraft((d) => ({ ...d, testEmail: e.target.value }))} />
+          <span className="block text-xs text-muted-foreground">
+            {live
+              ? "Used only for the sample emails below."
+              : "Required in test mode. Each email is marked [TEST] and says who would really have received it. Nothing is logged on the customer or the deal, and no tasks are created."}
+          </span>
+        </label>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <label className="flex items-center gap-2">
             Reminder
@@ -205,6 +209,42 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
             <Input type="number" min={2} max={60} aria-label="Days until the second overdue notice" className="h-9 w-16" value={draft.secondOverdueDays} onChange={num("secondOverdueDays", 2, 60)} />
             days
           </label>
+        </div>
+        <div className="space-y-2 rounded-md border p-3">
+          <p className="text-sm font-medium">Check the wording now</p>
+          <p className="text-xs text-muted-foreground">
+            Sends one sample email with made-up details to the address above, using the sender name above (it need not be saved first). Nothing is recorded and no customer is emailed.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={sampleKind} onValueChange={(k) => setSampleKind(k as typeof sampleKind)}>
+              <SelectTrigger className="w-64" aria-label="Which sample email">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="UPCOMING">Reminder before it is due</SelectItem>
+                <SelectItem value="OVERDUE_1">First overdue notice</SelectItem>
+                <SelectItem value="OVERDUE_2">Second overdue notice</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              disabled={!draft.testEmail.trim() || !draft.brandName.trim() || sample.isPending}
+              onClick={() =>
+                sample.mutate(
+                  { to: draft.testEmail.trim(), brandName: draft.brandName.trim(), kind: sampleKind },
+                  {
+                    onSuccess: (r) =>
+                      r.consoleOnly
+                        ? toast.warning("No email provider is set up, so nothing was delivered. The email was only printed in the server window. See TECHNICIAN.md.")
+                        : toast.success(`Sample sent to ${r.to}. Check that inbox (and spam).`),
+                    onError: (e) => toast.error(errorMessage(e)),
+                  },
+                )
+              }
+            >
+              {sample.isPending ? "Sending…" : "Send sample"}
+            </Button>
+          </div>
         </div>
         {live && (
           <p role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
