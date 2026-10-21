@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   Activity as ActivityIcon,
+  BarChart3,
   Building2,
   Package,
   Receipt,
@@ -43,6 +44,7 @@ const NAV = [
   { href: "/stock", label: "Stock", icon: Package },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/activities", label: "Activities", icon: ActivityIcon },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

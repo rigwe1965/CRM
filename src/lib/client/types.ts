@@ -129,6 +129,13 @@ export type Payment = {
 };
 
 export type Tag = { id: string; name: string; createdAt: string };
+export type Reports = {
+  months: number;
+  revenueByMonth: { month: string; revenue: MoneyMap }[];
+  daysToPay: { average: number | null; deals: number };
+  topProducts: { product: string; pieces: number; revenue: MoneyMap }[];
+  leadsBySource: { source: string; contacts: number; customers: number; conversion: number }[];
+};
 export type DuplicateMatch = { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; type: string; reasons: string[] };
 export type SavedFilter = {
   id: string;

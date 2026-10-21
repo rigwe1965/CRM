@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -23,6 +23,14 @@ export function useItem<T>(resource: Resource, id: string) {
     queryFn: async () => (await request<{ data: T }>("GET", `/api/${resource}/${id}`)).data,
     enabled: id.length > 0,
     retry: (count, err) => !(err instanceof ApiClientError && err.status < 500) && count < 2,
+  });
+}
+
+export function useReports(months: number) {
+  return useQuery({
+    queryKey: ["reports", months],
+    queryFn: async () => (await request<{ data: Reports }>("GET", `/api/reports?months=${months}`)).data,
+    placeholderData: keepPreviousData,
   });
 }
 
