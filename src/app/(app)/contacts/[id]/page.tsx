@@ -16,12 +16,13 @@ import { ConfirmDialog, EmptyState, ErrorState } from "@/components/common/page"
 import { useCurrentUser } from "@/components/providers";
 import { ContactDialog, EmailContactDialog } from "@/components/forms/contact-org-dialogs";
 import { MergeContactDialog } from "@/components/forms/merge-contact-dialog";
+import { WhatsappReplyDialog } from "@/components/forms/whatsapp-reply-dialog";
 import { ActivityDialog, DealDialog, TaskDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
 import { ApiClientError } from "@/lib/client/api";
 import { whatsappUrl } from "@/lib/client/whatsapp";
-import { errorMessage, useConvertContact, useItem, useList, useRemove } from "@/lib/client/hooks";
+import { errorMessage, useConvertContact, useItem, useList, useRemove, useWhatsappStatus } from "@/lib/client/hooks";
 import type { Activity, Contact, Deal, Task } from "@/lib/client/types";
 
 function InfoRow({ icon: Icon, children }: { icon: typeof Mail; children: React.ReactNode }) {
@@ -50,6 +51,8 @@ export default function ContactDetailPage() {
   const [emailing, setEmailing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [replying, setReplying] = useState(false);
+  const whatsapp = useWhatsappStatus(id);
   const [activityDialog, setActivityDialog] = useState<{ open: boolean; activity?: Activity; whatsapp?: boolean }>({ open: false });
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; task?: Task }>({ open: false });
   const [dealDialog, setDealDialog] = useState<{ open: boolean; deal?: Deal }>({ open: false });
@@ -150,6 +153,11 @@ export default function ContactDetailPage() {
                 >
                   <MessageCircle /> WhatsApp
                 </a>
+              </Button>
+            )}
+            {whatsapp.data?.canSend && (
+              <Button onClick={() => setReplying(true)}>
+                <MessageCircle /> Reply here
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditing(true)}>
@@ -292,6 +300,7 @@ export default function ContactDetailPage() {
       </div>
 
       {editing && <ContactDialog open onOpenChange={(o) => !o && setEditing(false)} contact={contact} />}
+      {replying && <WhatsappReplyDialog contact={contact} onClose={() => setReplying(false)} />}
       {merging && <MergeContactDialog contact={contact} onClose={() => setMerging(false)} onMerged={(keptId) => router.push(`/contacts/${keptId}`)} />}
       {emailing && contact.email && <EmailContactDialog open onOpenChange={(o) => !o && setEmailing(false)} contact={contact} />}
       {activityDialog.open && <ActivityDialog open onOpenChange={(o) => !o && setActivityDialog({ open: false })} activity={activityDialog.activity} defaults={{ contactId: contact.id, ...(activityDialog.whatsapp && { type: "WHATSAPP", direction: "OUT", subject: "WhatsApp message" }) }} />}

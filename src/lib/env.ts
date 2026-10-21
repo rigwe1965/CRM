@@ -23,6 +23,10 @@ const productionEnv = z
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+    WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+    WHATSAPP_APP_SECRET: z.string().optional(),
+    WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     const add = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
@@ -44,6 +48,12 @@ const productionEnv = z
     if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) add("STRIPE_WEBHOOK_SECRET", "required together with STRIPE_SECRET_KEY");
     if (env.STRIPE_WEBHOOK_SECRET && !env.STRIPE_SECRET_KEY) add("STRIPE_SECRET_KEY", "required together with STRIPE_WEBHOOK_SECRET");
     if (env.STRIPE_SECRET_KEY && !/^(sk|rk)_(test|live)_/.test(env.STRIPE_SECRET_KEY)) add("STRIPE_SECRET_KEY", "must be a Stripe secret or restricted key (sk_… or rk_…)");
+    // Two-way WhatsApp is optional, but a half setup would accept messages it can't verify or answer.
+    const wa = ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN"] as const;
+    if (wa.some((k) => env[k]) && !wa.every((k) => env[k])) {
+      for (const k of wa) if (!env[k]) add(k, "required together with the other WHATSAPP_ settings");
+    }
+    if (env.WHATSAPP_VERIFY_TOKEN && env.WHATSAPP_VERIFY_TOKEN.length < 16) add("WHATSAPP_VERIFY_TOKEN", "must be at least 16 characters");
     if (!env.VERCEL && !env.NEXTAUTH_URL) add("NEXTAUTH_URL", "required outside Vercel (your public https URL)");
     if (!env.VERCEL && !env.AUTH_TRUST_HOST) add("AUTH_TRUST_HOST", "set to true when self-hosting behind your own domain");
   });

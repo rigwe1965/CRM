@@ -72,6 +72,23 @@ export function useConvertContact() {
   });
 }
 
+/** Whether this contact can be answered on WhatsApp from inside the CRM right now (set up, valid number, inside Meta's 24 hours). */
+export function useWhatsappStatus(contactId: string) {
+  return useQuery({
+    queryKey: ["contacts", "whatsapp", contactId],
+    queryFn: async () => (await request<{ data: { configured: boolean; canSend: boolean } }>("GET", `/api/contacts/${contactId}/whatsapp`)).data,
+    enabled: contactId.length > 0,
+  });
+}
+
+export function useSendWhatsapp(contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (message: string) => request("POST", `/api/contacts/${contactId}/whatsapp`, { message }),
+    onSuccess: () => refreshAll(qc),
+  });
+}
+
 export function useSendContactEmail(contactId: string) {
   const qc = useQueryClient();
   return useMutation({

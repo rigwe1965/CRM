@@ -149,6 +149,7 @@ export const webLeadSchema = z
   .superRefine((v, ctx) => {
     if (!v.email && !v.phone) ctx.addIssue({ code: "custom", path: ["email"], message: "Please give an email address or a phone number" });
   });
+export const sendWhatsappSchema = z.object({ message: z.string().trim().min(1, "Write a message").max(1000, "Keep it under 1000 characters") });
 export const leadFormSettingsSchema = z.object({ ownerId: id.nullable() });
 export const createTagSchema = z.object({ name: tagName });
 export const updateTagSchema = z.object({ name: tagName });

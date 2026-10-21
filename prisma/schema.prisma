@@ -297,6 +297,8 @@ model Activity {
   body           String?
   occurredAt     DateTime     @default(now())
   direction      ActivityDirection?
+  // WhatsApp message id (wamid…). Unique, so Meta delivering the same message twice records it once.
+  externalId     String?      @unique
   authorId       String
   contactId      String?
   dealId         String?
