@@ -25,6 +25,7 @@ import { AuditLogCard } from "@/components/settings/audit-log";
 import { AutomationsCard } from "@/components/settings/automations";
 import { DataExportCard } from "@/components/settings/data-export";
 import { EmailTemplatesCard } from "@/components/settings/email-templates";
+import { LeadFormCard } from "@/components/settings/lead-form";
 import { TagsCard } from "@/components/settings/tags";
 import { MfaCard, SessionsCard } from "@/components/settings/security";
 
@@ -381,6 +382,7 @@ export default function SettingsPage() {
           {user.role === "ADMIN" && <TabsTrigger value="tags">Tags</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="templates">Templates</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="automations">Automations</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="leadform">Lead form</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="export">Data export</TabsTrigger>}
         </TabsList>
@@ -412,6 +414,11 @@ export default function SettingsPage() {
         {user.role === "ADMIN" && (
           <TabsContent value="automations">
             <AutomationsCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="leadform">
+            <LeadFormCard />
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

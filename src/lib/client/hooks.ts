@@ -180,6 +180,28 @@ export const useAddPayment = (dealId: string) =>
 export const useDeletePayment = (dealId: string) =>
   usePaymentMutation((paymentId: string) => request("DELETE", `/api/deals/${dealId}/payments/${paymentId}`));
 
+export type LeadFormView = {
+  ownerId: string | null;
+  effectiveOwner: { id: string; name: string; email: string } | null;
+  users: { id: string; name: string; email: string }[];
+  allowedOrigins: string[];
+};
+
+export function useLeadForm() {
+  return useQuery({
+    queryKey: ["lead-form"],
+    queryFn: async () => (await request<{ data: LeadFormView }>("GET", "/api/admin/lead-form")).data,
+  });
+}
+
+export function useSaveLeadForm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ownerId: string | null) => request("PUT", "/api/admin/lead-form", { ownerId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead-form"] }),
+  });
+}
+
 export function useAutomations() {
   return useQuery({
     queryKey: ["automations"],

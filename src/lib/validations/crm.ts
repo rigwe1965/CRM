@@ -137,6 +137,19 @@ export const duplicateQuery = z.object({
 });
 /** Admin merge: the contact in the URL is folded into `intoId` and removed. */
 export const mergeContactSchema = z.object({ intoId: id });
+/** Public website form. `website` is a honeypot: people never see it, bots fill it in. */
+export const webLeadSchema = z
+  .object({
+    name: z.string().trim().min(1, "Please enter your name").max(100),
+    email: z.union([z.literal(""), z.email("Please enter a valid email address").max(200)]).optional(),
+    phone: z.string().trim().max(40).optional(),
+    message: z.string().trim().max(2000).optional(),
+    website: z.string().max(200).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.email && !v.phone) ctx.addIssue({ code: "custom", path: ["email"], message: "Please give an email address or a phone number" });
+  });
+export const leadFormSettingsSchema = z.object({ ownerId: id.nullable() });
 export const createTagSchema = z.object({ name: tagName });
 export const updateTagSchema = z.object({ name: tagName });
 

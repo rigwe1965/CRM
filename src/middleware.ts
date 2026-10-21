@@ -15,7 +15,9 @@ export default auth((req) => {
 
   // CSRF defence in depth (cookies are already SameSite=Lax): state-changing API calls must come
   // from this site. No CORS headers are sent anywhere, so browsers also block cross-origin reads.
-  if (isApi && !path.startsWith("/api/auth/") && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+  // /api/public/ is the website form: it is called from other sites by design, uses no cookies, and checks the
+  // sender's origin itself (LEAD_FORM_ORIGINS), so there is no session to forge a request against.
+  if (isApi && !path.startsWith("/api/auth/") && !path.startsWith("/api/public/") && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     const origin = req.headers.get("origin");
     const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
     if (origin && (!URL.canParse(origin) || new URL(origin).host !== host)) {
