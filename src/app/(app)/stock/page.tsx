@@ -8,6 +8,7 @@ import { StockAdjustmentDialog } from "@/components/forms/stock-adjustment-dialo
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, ErrorState, PageHeader, SearchInput, TableSkeleton } from "@/components/common/page";
+import { ExportMenu } from "@/components/export/export-menu";
 import { useStock } from "@/lib/client/hooks";
 import type { StockRow } from "@/lib/client/types";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,8 @@ export default function StockPage() {
         actions={
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <SearchInput value={search} onChange={setSearch} placeholder="Search product, colour, length…" className="w-full sm:w-64" />
+            {/* The search box filters this screen only; the file is the whole stock list. */}
+            <ExportMenu items={[{ label: "Stock (CSV)", entity: "stock", count: data?.rows.length }]} />
             <Button onClick={() => setAdjusting("new")}>
               <Plus /> Add stock
             </Button>

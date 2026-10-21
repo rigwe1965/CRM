@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, ErrorState, PageHeader, Pagination, SearchInput, TableSkeleton, Tone, useDebounced } from "@/components/common/page";
+import { ExportMenu } from "@/components/export/export-menu";
 import { InvoiceDialog } from "@/components/forms/invoice-dialog";
 import { invoiceStatusInfo } from "@/lib/client/constants";
 import { readTable, tableToItems, type ImportedItem } from "@/lib/client/invoice-import";
@@ -51,6 +52,12 @@ export default function InvoicesPage() {
             <Button variant="outline" onClick={() => fileInput.current?.click()}>
               <Upload /> Import from file
             </Button>
+            <ExportMenu
+              items={[
+                { label: "Invoices (CSV)", entity: "invoices", count: data?.meta.total, params: { q, sort: "invoiceDate", order: "desc" } },
+                { label: "Invoice lines (CSV)", entity: "invoice-items", params: { q } },
+              ]}
+            />
             <Button
               onClick={() => {
                 setImported(undefined);

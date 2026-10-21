@@ -342,3 +342,31 @@ export const updateStockAdjustmentSchema = adjustmentFields
   .pick({ quantity: true, reason: true, note: true })
   .partial()
   .refine(nonEmpty, atLeastOne);
+
+// ─── Export ─────────────────────────────────────────────
+
+// Same filters as the list screens, minus paging (an export is one file). Deleted rows are never
+// exportable here: includeDeleted is dropped, so the filter stays `deletedAt: null`.
+export const exportFormatQuery = z.object({ format: z.enum(["csv"]).default("csv") });
+export const exportOrganizationsQuery = organizationListQuery.omit({ page: true, pageSize: true, includeDeleted: true });
+export const exportDealsQuery = dealListQuery.omit({ page: true, pageSize: true, includeDeleted: true });
+export const exportInvoicesQuery = invoiceListQuery.omit({ page: true, pageSize: true });
+export const exportTasksQuery = taskListQuery.omit({ page: true, pageSize: true });
+export const exportActivitiesQuery = activityListQuery.omit({ page: true, pageSize: true });
+export const exportDealItemsQuery = z.object({ dealId: id.optional() });
+export const exportInstalmentsQuery = z.object({ dealId: id.optional() });
+export const exportPaymentsQuery = z.object({ dealId: id.optional(), from: isoDate.optional(), to: isoDate.optional() });
+export const exportNoFilters = z.object({});
+// Admin-only areas. Deleted rows are never a URL filter: they come only from the POST body below.
+export const exportContactsQuery = contactListQuery.omit({ page: true, pageSize: true, includeDeleted: true });
+export const exportAuditQuery = z.object({
+  q: z.string().trim().max(100).optional(),
+  from: isoDate.optional(),
+  to: isoDate.optional(),
+});
+/** Body of the POST export calls (the ones that need a fresh authenticator code). */
+export const exportPostBody = z.object({
+  code: z.string().trim().max(32).optional(),
+  includeDeleted: z.boolean().optional(),
+});
+export const exportDocumentQuery = z.object({ format: z.enum(["pdf"]).default("pdf") });

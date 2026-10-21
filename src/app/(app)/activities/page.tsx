@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog, EmptyState, ErrorState, FilterSelect, PageHeader, Pagination, SearchInput, useDebounced } from "@/components/common/page";
 import { ActivityItem } from "@/components/common/items";
+import { ExportMenu } from "@/components/export/export-menu";
 import { ActivityDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { ACTIVITY_TYPES } from "@/lib/client/constants";
 import { errorMessage, useList, useRemove } from "@/lib/client/hooks";
@@ -32,9 +33,12 @@ export default function ActivitiesPage() {
         title="Activities"
         description="Calls, emails, meetings and notes."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus /> Log activity
-          </Button>
+          <>
+            <ExportMenu items={[{ label: "Activities (CSV)", entity: "activities", count: data?.meta.total, params: { q, type, sort: "occurredAt", order: "desc" } }]} />
+            <Button onClick={() => setCreating(true)}>
+              <Plus /> Log activity
+            </Button>
+          </>
         }
       />
 

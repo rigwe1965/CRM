@@ -99,6 +99,21 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
 
 *Example:* Collected $100, owed $5,000 across 2 deals, overdue $0.
 
+### 3.8 Export your data (CSV and PDF)
+- **Export button.** Most pages (Companies, Deals, Invoices, Stock, Tasks, Activities, Dashboard) have an **Export** button next to the page title. It downloads a CSV file that opens in Excel or Google Sheets. It exports what your current search and filters show, and you see the number of rows before it downloads. On **Deals**, the menu also has deal items, payments and instalments; on **Invoices**, the invoice lines. The **Stock** file is always the whole stock list, because the search box only filters the screen.
+- **You only get your own data.** Same rule as the screens: everyone exports what they own, admins export everything. **Contacts** can be exported by admins only, because they hold emails, phone numbers and addresses. In everyone else's files a customer appears by name only.
+- **PDF.** Open a deal's **Payments** and click **Download statement (PDF)** for a printable summary of what was bought, what was paid, the schedule and the balance. On an invoice, click **Download PDF**. The invoice PDF leaves out your resale prices.
+- **Limits.** 5 exports per person every 10 minutes, and at most 50,000 rows per file. If a file is too big the CRM tells you to narrow it with search or filters. Every export is recorded in the audit log (who, what, how many rows).
+- **Admins: Settings → Data export.** Download **everything** as a zip (one CSV per area, including deleted records and the audit log), the **audit log** on its own, or the **deleted records** of one area. These ask for a fresh code from your authenticator app (a code works once, so enter a new one each time). The zip is a copy to keep, **not a backup you can restore from**: use the database backup in `TECHNICIAN.md` for that.
+- **Look after the files.** They hold customer details and payment amounts. Keep them private, store the zip encrypted, and delete copies you no longer need.
+- A text cell that starts with `=`, `+`, `-` or `@` (for example a phone number such as `+234 …`) gets a `'` in front of it in the file. That is deliberate: it stops a spreadsheet from running it as a formula.
+
+### 3.9 Starting the CRM: normal or fast
+- **`start-crm.bat`** is the normal start. It is the development server: slower (a page can take half a second, and the first visit to each page a few seconds while it compiles), but it prints emails (invitations, password resets) to its window and needs no setup.
+- **`start-crm-fast.bat`** runs the same CRM as a finished build: pages open about **6 times faster** and there are no compile pauses. The first start, and the first start after any code change, builds for about a minute; after that it starts at once. Close the normal window first, because both use the same address (`localhost:3001`).
+- **Before using fast mode, turn on two-step verification for the admin account** (Settings → Security). In fast mode an admin without it only gets a Sales-level view of their own data until they do.
+- **Fast mode does not send emails.** Inviting a user, password-reset links and reminder emails need an email provider (see section 6). Use the normal start for those, or set a provider.
+
 ## 4. Sample data versus real data
 
 - The seed gave sample contacts, companies, deals, tasks and one sample invoice. They stay as **training material**.

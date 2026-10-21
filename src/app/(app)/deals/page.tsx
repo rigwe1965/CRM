@@ -24,6 +24,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/input";
 import { ConfirmDialog, EmptyState, ErrorState, FormField, PageHeader, SearchInput, useDebounced } from "@/components/common/page";
+import { ExportMenu } from "@/components/export/export-menu";
 import { FormShell } from "@/components/forms/form-kit";
 import { DealDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { PaymentsDialog } from "@/components/forms/payments-dialog";
@@ -259,6 +260,14 @@ export default function DealsPage() {
         actions={
           <>
             <SearchInput value={search} onChange={setSearch} placeholder="Search deals…" className="w-full sm:w-56" />
+            <ExportMenu
+              items={[
+                { label: "Deals (CSV)", entity: "deals", count: data?.meta.total, params: { q, sort: "updatedAt", order: "desc" } },
+                { label: "Deal items (CSV)", entity: "deal-items" },
+                { label: "Payments (CSV)", entity: "payments" },
+                { label: "Instalments (CSV)", entity: "instalments" },
+              ]}
+            />
             <Button onClick={() => setCreating({})}>
               <Plus /> New deal
             </Button>

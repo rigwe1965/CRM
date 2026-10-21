@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog, EmptyState, ErrorState, FilterSelect, PageHeader, Pagination, SearchInput, useDebounced } from "@/components/common/page";
 import { TaskRow } from "@/components/common/items";
+import { ExportMenu } from "@/components/export/export-menu";
 import { TaskDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { TASK_PRIORITIES } from "@/lib/client/constants";
 import { errorMessage, useList, useRemove } from "@/lib/client/hooks";
@@ -58,9 +59,27 @@ export default function TasksPage() {
         title="Tasks"
         description="Follow-ups for you and your deals."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus /> New task
-          </Button>
+          <>
+            <ExportMenu
+              items={[
+                {
+                  label: "Tasks (CSV)",
+                  entity: "tasks",
+                  count: data?.meta.total,
+                  params: {
+                    q,
+                    priority,
+                    sort: view === "done" ? "createdAt" : "dueDate",
+                    order: view === "done" ? "desc" : "asc",
+                    ...VIEW_QUERY[view],
+                  },
+                },
+              ]}
+            />
+            <Button onClick={() => setCreating(true)}>
+              <Plus /> New task
+            </Button>
+          </>
         }
       />
 

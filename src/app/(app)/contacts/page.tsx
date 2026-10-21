@@ -12,6 +12,8 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog, EmptyState, ErrorState, FilterSelect, PageHeader, Pagination, SearchInput, TableSkeleton, useDebounced } from "@/components/common/page";
 import { RowMenu } from "@/components/common/items";
+import { ExportMenu } from "@/components/export/export-menu";
+import { useCurrentUser } from "@/components/providers";
 import { ContactDialog } from "@/components/forms/contact-org-dialogs";
 import { CONTACT_TYPES, LEAD_STATUSES, contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
@@ -22,6 +24,7 @@ type SortKey = "name" | "createdAt";
 
 export default function ContactsPage() {
   const router = useRouter();
+  const user = useCurrentUser();
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
   const [status, setStatus] = useState("");
@@ -68,9 +71,15 @@ export default function ContactsPage() {
         title="Contacts"
         description="Leads, prospects and customers."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus /> New contact
-          </Button>
+          <>
+            {/* Contacts hold personal data (emails, phones, addresses), so only admins can export them. */}
+            {user.role === "ADMIN" && (
+              <ExportMenu items={[{ label: "Contacts (CSV)", entity: "contacts", count: data?.meta.total, params: { q, type, leadStatus: status, sort, order } }]} />
+            )}
+            <Button onClick={() => setCreating(true)}>
+              <Plus /> New contact
+            </Button>
+          </>
         }
       />
 

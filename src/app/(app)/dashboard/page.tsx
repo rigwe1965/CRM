@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/components/providers";
 import { ActivityItem, TaskRow } from "@/components/common/items";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common/page";
+import { ExportMenu } from "@/components/export/export-menu";
 import { CONTACT_TYPES } from "@/lib/client/constants";
 import { moneyMap } from "@/lib/client/format";
 import { useDashboard } from "@/lib/client/hooks";
@@ -106,9 +107,12 @@ export default function DashboardPage() {
         title={`Welcome back, ${firstName}`}
         description={user.role === "ADMIN" ? "Here's everything across the team." : "Here's how your pipeline looks today."}
         actions={
-          <Button asChild>
-            <Link href="/deals">View pipeline</Link>
-          </Button>
+          <>
+            <ExportMenu items={[{ label: "Cash flow (CSV)", entity: "cashflow" }]} />
+            <Button asChild>
+              <Link href="/deals">View pipeline</Link>
+            </Button>
+          </>
         }
       />
 

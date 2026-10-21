@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, FormField } from "@/components/common/page";
+import { PdfButton } from "@/components/export/export-menu";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/client/constants";
 import { dateOnly, money, toDateInput } from "@/lib/client/format";
 import {
@@ -49,6 +50,9 @@ function PaymentsBody({ deal }: { deal: Deal }) {
       <DialogHeader>
         <DialogTitle>Payments · {deal.title}</DialogTitle>
         <DialogDescription>Record money received and, if you like, agree due dates for instalments.</DialogDescription>
+        <div>
+          <PdfButton entity="deals" id={deal.id} label="Download statement (PDF)" />
+        </div>
       </DialogHeader>
       {isLoading ? (
         <div className="space-y-3" aria-busy="true">

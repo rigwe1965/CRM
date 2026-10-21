@@ -13,6 +13,8 @@ export type AuditEntry = { action: string; entity?: string; entityId?: string; s
 const audited = new WeakSet<Request>();
 /** True when `audit()` was already called for this request (so `authed()` skips its generic entry). */
 export const wasAudited = (req: Request) => audited.has(req);
+/** For code that writes its own audit entry directly (exports), so `authed()` doesn't add a second one. */
+export const markAudited = (req: Request) => void audited.add(req);
 
 const toJson = (v: unknown) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 

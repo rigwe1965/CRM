@@ -33,6 +33,16 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
   return count === 1;
 }
 
+/** Same step-up for callers that only have the session user: looks up the MFA fields first. */
+export async function stepUpForUser(userId: string, code: string | undefined) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, mfaSecret: true, mfaLastStep: true, mfaRecoveryCodes: true, mfaEnabledAt: true },
+  });
+  if (!user) throw new ApiError(401, "Unauthorized");
+  await requireMfaStepUp(user, code);
+}
+
 /**
  * Step-up for sensitive actions: accounts with two-step verification must also give a current code.
  * Does nothing for accounts without it.

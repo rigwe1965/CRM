@@ -13,6 +13,9 @@ import {
   createTaskSchema,
   dealListQuery,
   dealStageSchema,
+  exportDocumentQuery,
+  exportFormatQuery,
+  exportPostBody,
   invoiceListQuery,
   organizationListQuery,
   scheduleSchema,
@@ -44,6 +47,8 @@ type Op = {
   body?: ZodType;
   success?: 200 | 201 | 204;
   list?: boolean;
+  /** Media type when the response is a file download instead of JSON. */
+  file?: string;
 };
 
 const OPERATIONS: Op[] = [
@@ -94,17 +99,42 @@ const OPERATIONS: Op[] = [
   { method: "get", path: "/deals/{id}/payments", tag: "Payments", summary: "Payments received on a deal, its instalment schedule and the balance", description: "Payments are applied to the schedule oldest-first. An instalment is overdue when it is not fully covered and its due date is before today (due today is not overdue)." },
   { method: "post", path: "/deals/{id}/payments", tag: "Payments", summary: "Record a payment", description: "Returns the updated payments view. 422 if the amount exceeds the remaining balance.", body: createPaymentSchema, success: 201 },
   { method: "delete", path: "/deals/{id}/payments/{paymentId}", tag: "Payments", summary: "Remove a mistaken payment", description: "Returns the updated payments view (200), not an empty body." },
+  { method: "get", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Online payment links for a deal", description: "Returns `{ configured, links }`. `configured` is false until the Stripe keys are set." },
+  { method: "post", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Create a Stripe payment link", description: "Amount defaults to everything left to collect and cannot exceed it; open links count as collected. USD and EUR deals only (422 CURRENCY_NOT_SUPPORTED). 503 PAYMENTS_NOT_CONFIGURED without Stripe keys, 502 PAYMENT_PROVIDER_FAILED if Stripe rejects it. When the customer pays, Stripe calls the webhook and a DIGITAL payment is recorded automatically.", body: createPaymentLinkSchema, success: 201 },
+  { method: "delete", path: "/deals/{id}/payment-links/{linkId}", tag: "Payments", summary: "Cancel an open payment link", description: "Switches the link off at Stripe. 409 LINK_NOT_OPEN if it was already paid or closed. Returns the updated `{ configured, links }`." },
   { method: "put", path: "/deals/{id}/schedule", tag: "Payments", summary: "Replace the instalment schedule", description: "Send an empty `instalments` list to clear it. Returns the updated payments view. 422 if the instalments total more than the deal amount.", body: scheduleSchema },
   // Stock
   { method: "get", path: "/stock", tag: "Stock", summary: "Stock on hand per product, colour and length", description: "On hand = pieces bought (lines of SENT and PAID invoices) - pieces sold (items on PROPOSAL, NEGOTIATION and CLOSED_WON deals) + manual adjustments, matched case-insensitively on product, colour and length. Each row lists its adjustments and the invoices it came from. `unmatched` lists sold items that matched no invoice line." },
   { method: "post", path: "/stock/adjustments", tag: "Stock", summary: "Record a manual stock adjustment", description: "`quantity` is signed and non-zero: positive adds pieces (found stock, opening stock), negative removes them (damaged, lost). Matched to a stock row on product, colour and length; if no invoice line matches, it creates its own row.", body: createStockAdjustmentSchema, success: 201 },
   { method: "patch", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Change an adjustment's quantity, reason or note", description: "The product, colour and length cannot be changed; delete and re-create the adjustment instead.", body: updateStockAdjustmentSchema },
-  { method: "get", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Online payment links for a deal", description: "Returns `{ configured, links }`. `configured` is false until the Stripe keys are set." },
-  { method: "post", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Create a Stripe payment link", description: "Amount defaults to everything left to collect and cannot exceed it; open links count as collected. USD and EUR deals only (422 CURRENCY_NOT_SUPPORTED). 503 PAYMENTS_NOT_CONFIGURED without Stripe keys, 502 PAYMENT_PROVIDER_FAILED if Stripe rejects it. When the customer pays, Stripe calls the webhook and a DIGITAL payment is recorded automatically.", body: createPaymentLinkSchema, success: 201 },
-  { method: "delete", path: "/deals/{id}/payment-links/{linkId}", tag: "Payments", summary: "Cancel an open payment link", description: "Switches the link off at Stripe. 409 LINK_NOT_OPEN if it was already paid or closed. Returns the updated `{ configured, links }`." },
   { method: "delete", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Delete a stock adjustment (hard delete)", success: 204 },
   // Dashboard
   { method: "get", path: "/dashboard", tag: "Dashboard", summary: "Counts, pipeline value, revenue and recent activity" },
+  // Export
+  {
+    method: "get", path: "/export/{entity}", tag: "Export", file: "text/csv", query: exportFormatQuery,
+    summary: "Download an area as a CSV file",
+    description:
+      "`entity` is one of organizations, deals, deal-items, payments, instalments, invoices, invoice-items, stock, tasks, activities, cashflow, or (admins only) contacts and audit-log. Takes the same filters as the matching list endpoint, without paging. Scoped exactly like the list (your own data; admins everything); deleted records are never included over GET. At most 50,000 rows (422 `EXPORT_TOO_LARGE` otherwise), 5 exports per user per 10 minutes (429), and every export is written to the audit log first. Customers appear by name only. The audit log needs a code, so it answers 422 `STEP_UP_REQUIRED` here: use POST.",
+  },
+  {
+    method: "post", path: "/export/{entity}", tag: "Export", file: "text/csv", body: exportPostBody, admin: true,
+    summary: "Download an area as CSV with an authenticator code",
+    description:
+      "For the audit log, or any area with soft-deleted records (contacts, organizations, deals, deal-items, payments, instalments) with `includeDeleted: true`. `code` is a current authenticator or recovery code, required when the admin has two-step verification on. Filters go in the query string as for GET.",
+  },
+  {
+    method: "get", path: "/export/{entity}/{id}", tag: "Export", file: "application/pdf", query: exportDocumentQuery,
+    summary: "Download a deal statement or a supplier invoice as a PDF",
+    description:
+      "`entity` is `deals` (statement: items, payments, schedule and balance) or `invoices` (supplier invoice without internal resale prices). You must be able to see the record. Limited to 2,000 lines; same rate limit and audit logging as the CSV exports.",
+  },
+  {
+    method: "post", path: "/export/full", tag: "Export", file: "application/zip", body: exportPostBody, admin: true,
+    summary: "Download a zip of every area (a copy to keep, not a backup)",
+    description:
+      "One CSV per area, including soft-deleted records and the audit log, plus a README. Needs a current authenticator code when two-step verification is on. Refused (422) if any file would exceed 500,000 rows. Not a restore tool: use pg_dump for backups.",
+  },
 ];
 
 function jsonSchema(schema: ZodType): Record<string, unknown> {
@@ -140,8 +170,9 @@ export function buildOpenApiDocument() {
       ...pathParamNames(op.path).map((name) => ({ name, in: "path", required: true, schema: { type: "string" } })),
       ...(op.query ? queryParameters(op.query) : []),
     ];
-    const responses: Record<string, unknown> =
-      success === 204
+    const responses: Record<string, unknown> = op.file
+      ? { [success]: { description: "A file download", content: { [op.file]: { schema: { type: "string", format: "binary" } } } } }
+      : success === 204
         ? { 204: { description: "Deleted" } }
         : {
             [success]: {

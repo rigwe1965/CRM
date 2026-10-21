@@ -41,6 +41,10 @@ Payment links are Stripe Payment Links (one payment each, USD and EUR only). The
 | `npm run make-admin -- you@example.com` | Promote an existing user to admin |
 | `npm run db:studio` | Browse the database |
 
+### Fast (production-mode) launcher for local use
+`start-crm-fast.bat` runs `next build` then `next start` on `CRM_PORT` (default 3001; `CRM_NO_BROWSER=1` skips opening the browser). `scripts/needs-build.ps1` decides whether to rebuild: it compares a marker (`.next\fast-build-done`, written after a successful build) with the source files, and with anything else written into `.next` since, because **the dev server and the build share the `.next` folder** (running `npm run dev` replaces the production files, so the next fast start rebuilds). Never run `next build` while the dev server is up: it overwrites its files. The launcher refuses to start if the port is busy.
+It sets `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=http://localhost:<port>` and `SKIP_ENV_VALIDATION=1` (the startup check in `src/lib/env.ts` is for public deployments and wants Redis, a mail provider and `CRON_SECRET`). Consequences of `NODE_ENV=production`: admins without two-step verification get the Sales-level session (`REQUIRE_ADMIN_MFA` defaults on), `sendMail` throws without `RESEND_API_KEY`/`EMAIL_SERVER` (no console fallback, so invitations and resets fail with a warning), rate limits are in memory. Measured on the seed data (local database): pages 340-500 ms in dev vs 53-64 ms built; APIs 77-117 ms vs 17-48 ms; about 210 KB of compressed JS and CSS per page.
+
 Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema.prisma`, add a matching migration folder, then restart the dev server.
 
 ## Deployment (Vercel)
@@ -65,6 +69,17 @@ Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema
 - Backup: `pg_dump "$DIRECT_URL" -Fc -f crm.dump`
 - Restore into an empty database: `pg_restore -d "<url>" --clean crm.dump`
 - Back up before any migration and before deleting sample data. Hosted providers (Neon, Supabase) also offer point-in-time restore.
+
+## Data export (CSV, PDF, zip)
+Not a backup: `pg_dump` (above) is the only way to restore. Exports are for reading, reporting and keeping a readable copy.
+- **Where it lives:** `src/lib/export/` (`entities.ts` and `admin-entities.ts` list each area's fields; `registry.ts` is the URL-name list; `run.ts` has the permission, limit, code and audit order; `csv.ts`, `stream.ts`, `zip.ts`, `pdf.ts`), routes in `src/app/api/export/`, UI in `src/components/export/` and Settings → Data export. API shapes are in `/api/openapi.json` under "Export".
+- **Add a field or area:** add the field to the `select` and to the `columns` of its entity, and nowhere else. Entities select explicit fields only (a test fails on `include:` or on any secret field name). The contacts table and the audit log stay in `admin-entities.ts`; add `adminOnly` (and `stepUp` if it should ask for a code) to any new sensitive area.
+- **Fonts and PDF:** `pdfkit` draws the PDFs and embeds Noto Sans from `node_modules/@expo-google-fonts/noto-sans` (path built from `process.cwd()`), so the app must start from the project folder and `node_modules` must be present at run time. If PDFs fail with "ENOENT" on a font file, that is why. pdfkit is loaded as an external package, not bundled.
+- **Limits (constants in `src/lib/export/limits.ts`):** 50,000 rows per CSV, 2,000 lines per PDF, 500,000 rows per file in the full export, 5 exports per user per 10 minutes. The per-user limit is counted from `AuditLog` rows with action `EXPORT`, so it works without Redis and survives restarts. It is not atomic, so two requests at the same moment can both pass.
+- **Audit:** every export writes an `EXPORT` row (actor, entity, format, row count, filters, IP) before any data is sent. If that write fails, the export fails. Review them in Settings → Audit log (search "EXPORT").
+- **Authenticator code:** the audit-log export, deleted records and the full export need a fresh TOTP or recovery code when the admin has two-step verification on (same helper as password change: `requireMfaStepUp`). An admin without it set up is not asked, so keep `REQUIRE_ADMIN_MFA` on in production.
+- **Self-hosting:** the per-user limit does not depend on the client IP, but the other rate limits do, so set `TRUSTED_PROXY_COUNT` correctly and keep the app reachable only through the proxy. Large exports stream, but a reverse proxy with a short timeout or response buffering (nginx `proxy_buffering`, `proxy_read_timeout`) can cut a big download short: raise the timeout for `/api/export/`.
+- **Troubleshooting:** 422 `EXPORT_TOO_LARGE` means narrow the filters (or use `pg_dump`); 429 means the 5-per-10-minutes limit; 422 `STEP_UP_REQUIRED` means a code is needed and the call must be a POST; 400 "That code is not right" means the code was wrong or already used.
 
 ## Users
 There is no public sign-up: admins create users in Settings → Team (`POST /api/admin/users`), and the invitee sets a password from the emailed link (valid 7 days). Change roles with `PATCH /api/admin/users/:id` (admin), `npm run make-admin`, or Prisma Studio. Role changes, deactivation and password resets take effect immediately on the server that handled the change, and within 30 seconds on any other instance (user lookups are cached for 30 s in `src/lib/user-cache.ts`).

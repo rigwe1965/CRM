@@ -8,6 +8,7 @@ const NEW_OPERATIONS: [string, string][] = [
   ["get", "/invoices"], ["post", "/invoices"], ["get", "/invoices/{id}"], ["patch", "/invoices/{id}"], ["delete", "/invoices/{id}"],
   ["get", "/deals/{id}/payments"], ["post", "/deals/{id}/payments"], ["delete", "/deals/{id}/payments/{paymentId}"], ["put", "/deals/{id}/schedule"],
   ["get", "/stock"], ["post", "/stock/adjustments"], ["patch", "/stock/adjustments/{id}"], ["delete", "/stock/adjustments/{id}"],
+  ["get", "/export/{entity}"], ["post", "/export/{entity}"], ["get", "/export/{entity}/{id}"], ["post", "/export/full"],
 ];
 
 describe("OpenAPI document", () => {
@@ -38,6 +39,14 @@ describe("OpenAPI document", () => {
     expect(Object.keys(doc.paths["/invoices/{id}"].delete.responses)).toContain("204");
     expect(Object.keys(doc.paths["/deals/{id}/payments/{paymentId}"].delete.responses)).toContain("200");
     expect(Object.keys(doc.paths["/stock/adjustments"].post.responses)).toContain("201");
+  });
+
+  it("describes the export endpoints as file downloads", () => {
+    const media = (path: string, method: string) => Object.keys((doc.paths[path][method].responses["200"] as { content: object }).content);
+    expect(media("/export/{entity}", "get")).toEqual(["text/csv"]);
+    expect(media("/export/{entity}/{id}", "get")).toEqual(["application/pdf"]);
+    expect(media("/export/full", "post")).toEqual(["application/zip"]);
+    expect(doc.tags.map((t) => t.name)).toContain("Export");
   });
 
   it("keeps the existing endpoints", () => {
