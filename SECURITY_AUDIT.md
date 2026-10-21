@@ -281,6 +281,35 @@ Re-reading the changes from findings 1 to 13 found two problems the fixes themse
 
 ---
 
+## Data export feature (added 2026-10-20)
+
+New feature, reviewed as it was built. Nothing here was a finding in the original audit; this records the design and the risks it was built against.
+
+**What it adds:** CSV exports of 11 areas, two PDFs (deal statement, supplier invoice), admin-only exports of contacts and the audit log, an admin-only export of soft-deleted records, and an admin-only zip of everything. Routes: `src/app/api/export/**`; code: `src/lib/export/**`.
+
+| Risk | How it is handled |
+| --- | --- |
+| Reading other people's data | Every area uses the same scope helpers as its list screen (`ownerScope`, `authorScope`, `taskScope`, `liveFilter`); the scope is its own `AND` clause, so a URL filter such as `ownerId` can only narrow it. PDFs look the record up with `ownerScope`. Tests assert the `where` for a SALES user and an admin on each scoped area. |
+| Mass leak of personal data | Contacts and the audit log are admin-only (403 for everyone else; unknown names 404, including `constructor`/`__proto__`). In every other file a customer is a name only. Audit-log export, deleted records and the full export need a fresh authenticator code. 5 exports per user per 10 minutes, 50,000 rows per file (full export: 500,000, refused rather than truncated). |
+| Secrets in a file | Entities `select` explicit fields only, so new columns cannot leak; no code path reads `User`, `Account`, `Session` or `VerificationToken`. A test scans `src/lib/export` and `src/app/api/export` for secret field names and for `include:`. |
+| Spreadsheet formula injection | Text cells starting `=`, `+`, `-`, `@`, tab, CR or LF (after optional leading whitespace) get a leading `'`; numbers are written as numbers. |
+| PDF content injection | pdfkit draws plain text only; control characters are stripped; values are cut to the cell width; fonts embedded (no font fallbacks to attacker-chosen names). The file name in `Content-Disposition` is built from a fixed list and the date (CSV) or from a sanitised title/number (PDF). Invoice PDFs omit resale prices. |
+| No trace of who took what | An `EXPORT` row (actor, entity, format, rows, filters, IP) is written before the first byte; a failed write fails the export. The audit table is append-only (triggers). |
+| Code reuse / brute force of the code | Codes are single-use (`mfaLastStep`), attempts use the existing `LIMITS.mfa` bucket, and the code is checked only after the cheap refusals so it is not spent on a doomed request. A code in the POST body, never in a URL. |
+| CSRF | State-changing exports are POST and pass through the existing Origin check; GET exports are read-only and `no-store`. |
+| Resource exhaustion | Rows are counted first and refused over the cap; data streams in batches of 500; zips are compressed as they are produced. |
+
+**New dependencies** (checked with `npm view` and `npm audit --omit=dev`, 0 vulnerabilities): `pdfkit` 0.20.2 (MIT, maintained), `fflate` 0.8.3 (MIT, no dependencies; already present via `read-excel-file`), `@expo-google-fonts/noto-sans` 0.4.2 (MIT and OFL, font files only), `@types/pdfkit` (dev). The 7 high findings in a full `npm audit` are existing dev-only packages (`braces` via Tailwind and ESLint), not from these.
+
+**Residual risks:**
+- Anyone who may export can still copy their own data out; the audit record and the limit deter it but cannot stop it.
+- An admin without two-step verification is not asked for a code. `REQUIRE_ADMIN_MFA` (on by default in production) closes this.
+- Exported files are outside the app's control; documented advice is to store the zip encrypted.
+- The export limit is counted from the audit log and is not atomic; two requests at the same instant can both pass.
+- Filter logic is duplicated from the list routes (`src/lib/export/entities.ts`); a change to a list filter needs the same change there.
+- Free-text notes (activities, tasks, payment references, invoice `billTo`) are exported as written and can contain contact details.
+- PDF layout was checked by building a production bundle and generating sample files, not by viewing them in a PDF reader.
+
 ## Verified as sound (no action)
 
 - **Authentication:** bcrypt cost 12; dummy hash for unknown users (no timing oracle); generic failures; reset tokens are random 256-bit, stored hashed, single use, 1 h TTL; password reset and change set `passwordChangedAt`, which the `jwt` callback uses to kill older sessions; deactivated users rejected on every request; magic link blocked for MFA accounts.
