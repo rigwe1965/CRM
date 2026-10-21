@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, EmailTemplate, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -185,6 +185,27 @@ export function useSaveAutomations() {
     mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails">>) =>
       (await request<{ data: AutomationsView }>("PUT", "/api/admin/automations", body)).data,
     onSuccess: (data) => qc.setQueryData(["automations"], data),
+  });
+}
+
+/** Contacts that look like the one described (same phone or same name). Nothing is asked until there is something to compare. */
+export function useDuplicates(q: { firstName: string; lastName: string; phone: string; email: string; excludeId?: string }) {
+  const hasName = q.firstName.trim().length > 0 && q.lastName.trim().length > 0;
+  const hasPhone = q.phone.replace(/\D/g, "").length >= 7;
+  const hasEmail = q.email.includes("@");
+  return useQuery({
+    queryKey: ["contacts", "duplicates", q],
+    queryFn: async () => (await request<{ data: DuplicateMatch[] }>("GET", `/api/contacts/duplicates${qs(q)}`)).data,
+    enabled: hasName || hasPhone || hasEmail,
+  });
+}
+
+/** Admin: fold one contact into another. */
+export function useMergeContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, intoId }: { id: string; intoId: string }) => request("POST", `/api/contacts/${id}/merge`, { intoId }),
+    onSuccess: () => refreshAll(qc),
   });
 }
 

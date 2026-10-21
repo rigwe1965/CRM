@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, Building2, Mail, MapPin, MessageCircle, Pencil, Phone, Plus, Trash2, UserCheck, Activity as ActivityIcon, CheckSquare, CircleDollarSign, UserX } from "lucide-react";
+import { ArrowLeft, Building2, Mail, MapPin, Merge, MessageCircle, Pencil, Phone, Plus, Trash2, UserCheck, Activity as ActivityIcon, CheckSquare, CircleDollarSign, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ActivityItem, DealMiniRow, TaskRow } from "@/components/common/items";
 import { ConfirmDialog, EmptyState, ErrorState } from "@/components/common/page";
+import { useCurrentUser } from "@/components/providers";
 import { ContactDialog, EmailContactDialog } from "@/components/forms/contact-org-dialogs";
+import { MergeContactDialog } from "@/components/forms/merge-contact-dialog";
 import { ActivityDialog, DealDialog, TaskDialog } from "@/components/forms/deal-task-activity-dialogs";
 import { contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
@@ -34,6 +36,7 @@ function InfoRow({ icon: Icon, children }: { icon: typeof Mail; children: React.
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const user = useCurrentUser();
   const { data: contact, isLoading, error, refetch } = useItem<Contact>("contacts", id);
   const activities = useList<Activity>("activities", { contactId: id, pageSize: 50 });
   const deals = useList<Deal>("deals", { contactId: id, pageSize: 50, sort: "updatedAt" });
@@ -46,6 +49,7 @@ export default function ContactDetailPage() {
   const [editing, setEditing] = useState(false);
   const [emailing, setEmailing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [activityDialog, setActivityDialog] = useState<{ open: boolean; activity?: Activity; whatsapp?: boolean }>({ open: false });
   const [taskDialog, setTaskDialog] = useState<{ open: boolean; task?: Task }>({ open: false });
   const [dealDialog, setDealDialog] = useState<{ open: boolean; deal?: Deal }>({ open: false });
@@ -151,6 +155,11 @@ export default function ContactDetailPage() {
             <Button variant="outline" onClick={() => setEditing(true)}>
               <Pencil /> Edit
             </Button>
+            {user.role === "ADMIN" && (
+              <Button variant="outline" onClick={() => setMerging(true)}>
+                <Merge /> Merge
+              </Button>
+            )}
             <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>
               <Trash2 /> Delete
             </Button>
@@ -283,6 +292,7 @@ export default function ContactDetailPage() {
       </div>
 
       {editing && <ContactDialog open onOpenChange={(o) => !o && setEditing(false)} contact={contact} />}
+      {merging && <MergeContactDialog contact={contact} onClose={() => setMerging(false)} onMerged={(keptId) => router.push(`/contacts/${keptId}`)} />}
       {emailing && contact.email && <EmailContactDialog open onOpenChange={(o) => !o && setEmailing(false)} contact={contact} />}
       {activityDialog.open && <ActivityDialog open onOpenChange={(o) => !o && setActivityDialog({ open: false })} activity={activityDialog.activity} defaults={{ contactId: contact.id, ...(activityDialog.whatsapp && { type: "WHATSAPP", direction: "OUT", subject: "WhatsApp message" }) }} />}
       {taskDialog.open && <TaskDialog open onOpenChange={(o) => !o && setTaskDialog({ open: false })} task={taskDialog.task} defaults={{ contactId: contact.id }} />}

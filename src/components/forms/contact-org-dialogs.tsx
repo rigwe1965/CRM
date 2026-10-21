@@ -7,6 +7,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormField } from "@/components/common/page";
+import { DuplicateWarning } from "@/components/common/duplicate-warning";
 import { OrganizationPicker } from "@/components/common/pickers";
 import { TagPicker } from "@/components/common/tag-picker";
 import { CONTACT_TYPES, LEAD_STATUSES } from "@/lib/client/constants";
@@ -127,6 +128,7 @@ function ContactForm({
           <Input value={v.phone} onChange={(e) => set("phone", e.target.value)} aria-invalid={!!form.err("phone")} />
         </FormField>
       </Grid2>
+      <DuplicateWarning fields={v} excludeId={contact?.id} />
       <Grid2>
         <FormField label="Job title" error={form.err("title")}>
           <Input value={v.title} onChange={(e) => set("title", e.target.value)} />

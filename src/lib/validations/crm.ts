@@ -127,6 +127,16 @@ export const contactListQuery = z.object({
 // ─── Tags and saved filters ─────────────────────────────
 
 const tagName = z.string().trim().min(1, "Required").max(40);
+/** Asks "does a contact like this already exist?": matches on phone number or on first + last name. */
+export const duplicateQuery = z.object({
+  firstName: z.string().trim().max(100).optional(),
+  lastName: z.string().trim().max(100).optional(),
+  phone: z.string().trim().max(40).optional(),
+  email: z.string().trim().max(200).optional(),
+  excludeId: id.optional(),
+});
+/** Admin merge: the contact in the URL is folded into `intoId` and removed. */
+export const mergeContactSchema = z.object({ intoId: id });
 export const createTagSchema = z.object({ name: tagName });
 export const updateTagSchema = z.object({ name: tagName });
 

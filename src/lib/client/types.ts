@@ -129,6 +129,7 @@ export type Payment = {
 };
 
 export type Tag = { id: string; name: string; createdAt: string };
+export type DuplicateMatch = { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; type: string; reasons: string[] };
 export type SavedFilter = {
   id: string;
   name: string;
