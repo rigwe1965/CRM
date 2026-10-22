@@ -47,6 +47,18 @@ It sets `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=http://localhost:<port>` and `SKIP
 
 Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema.prisma`, add a matching migration folder, then restart the dev server.
 
+### Tenants (multi-tenancy Phase 0, see `MULTI_TENANCY_PLAN.md`)
+
+Every business table now has a `tenantId`. It defaults to the original business (`tenant_ivycandy`, from `src/lib/tenant.ts`), so the app behaves as before; Phase 1 makes queries tenant-aware and removes the default.
+
+- **Production / any database that uses migrations:** `npm run db:deploy` applies `20261028000000_tenants`. It adds columns with a constant default, so existing rows (including the append-only audit log) are not rewritten. Back up first.
+- **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the migration SQL once, then push:
+  1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
+  2. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until step 1 has run.
+- **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
+- **Tests:** `tests/tenant-schema.test.ts` always runs (it fails if a business table has no `tenantId`). `tests/tenant-isolation.test.ts` needs a Postgres: set `TEST_DATABASE_URL` (CI does). It creates its own throwaway schema (`tenant_test_…`) and drops it, so it is safe next to real data.
+
 ## Deployment (Vercel)
 1. Set the environment variables above in the Vercel project.
 2. Build runs `npm run vercel-build` (applies migrations, then builds).

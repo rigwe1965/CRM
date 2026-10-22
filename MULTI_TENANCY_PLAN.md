@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. No code has been changed yet. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phase 0 is built (see below); Phases 1 to 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -23,6 +23,16 @@
 ## Phases
 
 ### Phase 0: groundwork (no behaviour change)
+
+**Status: done (code, not yet applied to the owner's dev database).** What was built, and where it differs from the text below:
+
+- Migration `20261028000000_tenants`: a `Tenant` table, the original business `tenant_ivycandy`, and a `tenantId` on all 20 business tables (every table except `Account`, `Session`, `VerificationToken`, which belong to a user). The column is added as `NOT NULL DEFAULT 'tenant_ivycandy'` in one step instead of "nullable, backfill, then required": a constant default fills existing rows without rewriting them, which the append-only audit log needs (it refuses `UPDATE`). The audit log gets the column and an index but no foreign key, by design.
+- The default stays until Phase 1, so no create had to change and the app behaves as before. Phase 1 must remove it (`tests/tenant-schema.test.ts` will then need its default assertion updated).
+- Rehearsed on a copy: the 20 old migrations plus sample rows, then this migration. Existing rows got the original tenant, a row for a missing tenant is refused, the audit log stayed append-only, and `prisma migrate diff` reports no difference between the migrations and the schema.
+- Seed: ensures the original tenant exists, then loads the sample data into it.
+- Harness: `tests/helpers/two-tenants.ts` builds a throwaway schema with tenants A and B, each owning a row in every business table. `tests/tenant-schema.test.ts` (no database) and `tests/tenant-isolation.test.ts` (needs `TEST_DATABASE_URL`, set in CI) guard it. Phase 1's route-level tests are listed in the isolation file as `it.todo`.
+- Not changed: API responses may now include the row's own `tenantId` where whole rows are returned; nothing reads it.
+- Applying it to a `db:push` dev database is a manual step: see TECHNICIAN.md.
 
 - Add a `Tenant` model (name, slug, status, plan, brand name, sender name).
 - Add a nullable `tenantId` to every business table, backfill it with a tenant for Ivycandy, then make it required. Hand-written migration SQL, per CLAUDE.md.

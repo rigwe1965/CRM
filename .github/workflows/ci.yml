@@ -43,6 +43,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
       DIRECT_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
+      # The two-tenant isolation tests build and drop their own throwaway schema inside this database.
+      TEST_DATABASE_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
       NEXTAUTH_SECRET: ci-only-secret-ci-only-secret-0123456789
       NEXTAUTH_URL: http://localhost:3000
     steps:

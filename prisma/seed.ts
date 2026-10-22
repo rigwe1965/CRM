@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { sampleInvoice } from "./sample-invoice";
+import { DEFAULT_TENANT_ID } from "../src/lib/tenant";
 
 // The seed WIPES every table. Refuse unless the database is local (or --force is passed on purpose).
 function assertSafeTarget() {
@@ -32,6 +33,14 @@ async function main() {
   await prisma.session.deleteMany();
   await prisma.account.deleteMany();
   await prisma.user.deleteMany();
+
+  // The sample data below lives in the original business. The migration creates it; a database built with
+  // `db:push` has no migration data, so make sure it exists before anything points at it.
+  await prisma.tenant.upsert({
+    where: { id: DEFAULT_TENANT_ID },
+    update: {},
+    create: { id: DEFAULT_TENANT_ID, name: "Ivycandy Hair", slug: "ivycandy" },
+  });
 
   const passwordHash = await bcrypt.hash(
     process.env.SEED_USER_PASSWORD ?? "ChangeMe123!",

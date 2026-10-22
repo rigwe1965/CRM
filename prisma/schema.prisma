@@ -99,6 +99,8 @@ enum TaskPriority {
 
 model User {
   id                String    @id @default(cuid())
+  tenantId          String    @default("tenant_ivycandy")
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
   email             String    @unique
   name              String
   passwordHash      String?
@@ -131,6 +133,7 @@ model User {
   savedFilters       SavedFilter[]
 
   @@index([role])
+  @@index([tenantId])
 }
 
 model Account {
@@ -172,10 +175,55 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// ─── Tenants ────────────────────────────────────────────
+
+// One business using this CRM. Phase 0 of MULTI_TENANCY_PLAN.md: every business table carries a tenantId.
+// The column defaults to the original business ("tenant_ivycandy", created by the migration) so the app keeps
+// working unchanged until Phase 1 makes every query and every create tenant-aware; Phase 1 then drops the default.
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Tenant {
+  id         String       @id @default(cuid())
+  name       String
+  slug       String       @unique
+  status     TenantStatus @default(ACTIVE)
+  plan       String       @default("internal")
+  // Shown to customers (e.g. in reminder emails) and used as the email sender name.
+  brandName  String?
+  senderName String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  users               User[]
+  organizations       Organization[]
+  contacts            Contact[]
+  deals               Deal[]
+  activities          Activity[]
+  tasks               Task[]
+  tags                Tag[]
+  contactTags         ContactTag[]
+  savedFilters        SavedFilter[]
+  emailTemplates      EmailTemplate[]
+  automationSettings  AutomationSetting[]
+  invoices            Invoice[]
+  invoiceItems        InvoiceItem[]
+  payments            Payment[]
+  paymentLinks        PaymentLink[]
+  instalments         Instalment[]
+  instalmentReminders InstalmentReminder[]
+  dealItems           DealItem[]
+  stockAdjustments    StockAdjustment[]
+}
+
 // ─── CRM core ───────────────────────────────────────────
 
 model Organization {
   id        String    @id @default(cuid())
+  tenantId  String    @default("tenant_ivycandy")
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
   name      String
   domain    String?   @unique
   industry  String?
@@ -201,10 +249,13 @@ model Organization {
   @@index([ownerId])
   @@index([industry])
   @@index([deletedAt])
+  @@index([tenantId])
 }
 
 model Contact {
   id             String      @id @default(cuid())
+  tenantId       String      @default("tenant_ivycandy")
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
   firstName      String
   lastName       String
   email          String?     @unique
@@ -244,10 +295,13 @@ model Contact {
   @@index([ownerId])
   @@index([deletedAt])
   @@index([phoneE164])
+  @@index([tenantId])
 }
 
 model Deal {
   id                String    @id @default(cuid())
+  tenantId          String    @default("tenant_ivycandy")
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
   title             String
   amount            Decimal   @default(0) @db.Decimal(14, 2)
   currency          String    @default("USD")
@@ -288,23 +342,26 @@ model Deal {
   @@index([organizationId])
   @@index([contactId])
   @@index([deletedAt])
+  @@index([tenantId])
 }
 
 model Activity {
-  id             String       @id @default(cuid())
-  type           ActivityType @default(NOTE)
+  id             String             @id @default(cuid())
+  tenantId       String             @default("tenant_ivycandy")
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  type           ActivityType       @default(NOTE)
   subject        String
   body           String?
-  occurredAt     DateTime     @default(now())
+  occurredAt     DateTime           @default(now())
   direction      ActivityDirection?
   // WhatsApp message id (wamid…). Unique, so Meta delivering the same message twice records it once.
-  externalId     String?      @unique
+  externalId     String?            @unique
   authorId       String
   contactId      String?
   dealId         String?
   organizationId String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   author       User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
   contact      Contact?      @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -316,10 +373,13 @@ model Activity {
   @@index([contactId])
   @@index([dealId])
   @@index([organizationId])
+  @@index([tenantId])
 }
 
 model Task {
   id             String       @id @default(cuid())
+  tenantId       String       @default("tenant_ivycandy")
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
   title          String
   description    String?
   status         TaskStatus   @default(TODO)
@@ -348,6 +408,7 @@ model Task {
   @@index([contactId])
   @@index([dealId])
   @@index([automationKey])
+  @@index([tenantId])
 }
 
 // ─── Tags and saved filters ─────────────────────────────
@@ -355,13 +416,19 @@ model Task {
 // A label the team puts on contacts ("wholesale", "VIP", "curly") to find them as a group.
 model Tag {
   id        String       @id @default(cuid())
+  tenantId  String       @default("tenant_ivycandy")
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
   name      String       @unique
   createdAt DateTime     @default(now())
   contacts  ContactTag[]
+
+  @@index([tenantId])
 }
 
 model ContactTag {
   contactId String
+  tenantId  String @default("tenant_ivycandy")
+  tenant    Tenant @relation(fields: [tenantId], references: [id])
   tagId     String
 
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
@@ -369,11 +436,14 @@ model ContactTag {
 
   @@id([contactId, tagId])
   @@index([tagId])
+  @@index([tenantId])
 }
 
 // A person's own named set of list filters (today for the contacts list), shown as one-click chips.
 model SavedFilter {
   id        String   @id @default(cuid())
+  tenantId  String   @default("tenant_ivycandy")
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   userId    String
   entity    String
   name      String
@@ -383,6 +453,7 @@ model SavedFilter {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, entity, name])
+  @@index([tenantId])
 }
 
 // ─── Email templates ────────────────────────────────────
@@ -391,12 +462,16 @@ model SavedFilter {
 // {firstName}, {lastName}, {company} and {senderName} are filled in when a template is chosen.
 model EmailTemplate {
   id          String   @id @default(cuid())
+  tenantId    String   @default("tenant_ivycandy")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   name        String   @unique
   subject     String
   body        String
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
 // ─── Automations ────────────────────────────────────────
@@ -405,15 +480,21 @@ model EmailTemplate {
 // (src/lib/automations/config.ts); a missing row means "defaults", which are all switched off.
 model AutomationSetting {
   key         String   @id
+  tenantId    String   @default("tenant_ivycandy")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
   config      Json
   updatedById String?
   updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
 // ─── Invoices ───────────────────────────────────────────
 
 model Invoice {
   id          String        @id @default(cuid())
+  tenantId    String        @default("tenant_ivycandy")
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
   number      String        @unique
   status      InvoiceStatus @default(DRAFT)
   invoiceDate DateTime
@@ -440,10 +521,13 @@ model Invoice {
 
   @@index([ownerId])
   @@index([invoiceDate])
+  @@index([tenantId])
 }
 
 model InvoiceItem {
   id           String   @id @default(cuid())
+  tenantId     String   @default("tenant_ivycandy")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
   invoiceId    String
   position     Int
   // Line reference on the supplier sheet, e.g. "1-1"
@@ -463,26 +547,29 @@ model InvoiceItem {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId, position])
+  @@index([tenantId])
 }
 
 // ─── Customer payments ──────────────────────────────────
 
 // Money received against a deal. The balance is deal.amount minus the sum of these.
 model Payment {
-  id           String        @id @default(cuid())
-  dealId       String
-  amount       Decimal       @db.Decimal(14, 2)
-  paidAt       DateTime
-  method       PaymentMethod @default(BANK_TRANSFER)
-  reference    String?
-  note         String?
+  id            String        @id @default(cuid())
+  tenantId      String        @default("tenant_ivycandy")
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  dealId        String
+  amount        Decimal       @db.Decimal(14, 2)
+  paidAt        DateTime
+  method        PaymentMethod @default(BANK_TRANSFER)
+  reference     String?
+  note          String?
   // Null for online payments (nobody typed them in): the payment link and audit log show where they came from.
-  recordedById String?
-  source       PaymentSource @default(MANUAL)
+  recordedById  String?
+  source        PaymentSource @default(MANUAL)
   // Stripe PaymentIntent id. Unique, so a repeated webhook can never record the same payment twice.
-  providerRef   String?      @unique
-  paymentLinkId String?      @unique
-  createdAt    DateTime      @default(now())
+  providerRef   String?       @unique
+  paymentLinkId String?       @unique
+  createdAt     DateTime      @default(now())
 
   deal        Deal         @relation(fields: [dealId], references: [id], onDelete: Cascade)
   recordedBy  User?        @relation("PaymentRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
@@ -490,12 +577,15 @@ model Payment {
 
   @@index([dealId, paidAt])
   @@index([recordedById])
+  @@index([tenantId])
 }
 
 // A Stripe-hosted page where a customer pays part of a deal's balance online. Pending links reserve
 // their amount, so links can never add up to more than what is still owed.
 model PaymentLink {
   id             String            @id @default(cuid())
+  tenantId       String            @default("tenant_ivycandy")
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
   dealId         String
   amount         Decimal           @db.Decimal(14, 2)
   currency       String
@@ -514,11 +604,14 @@ model PaymentLink {
 
   @@index([dealId, status])
   @@index([createdById])
+  @@index([tenantId])
 }
 
 // Optional agreed due dates for a deal. Payments are applied to these oldest-first.
 model Instalment {
   id             String    @id @default(cuid())
+  tenantId       String    @default("tenant_ivycandy")
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
   dealId         String
   position       Int
   dueDate        DateTime
@@ -530,6 +623,7 @@ model Instalment {
   reminders InstalmentReminder[]
 
   @@index([dealId, dueDate])
+  @@index([tenantId])
 }
 
 enum InstalmentReminderKind {
@@ -542,6 +636,8 @@ enum InstalmentReminderKind {
 // repeated daily run from sending the same reminder twice.
 model InstalmentReminder {
   id           String                 @id @default(cuid())
+  tenantId     String                 @default("tenant_ivycandy")
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id])
   instalmentId String
   kind         InstalmentReminderKind
   // True for emails sent to the admin in test mode; kept apart so going live still sends the real ones.
@@ -553,6 +649,7 @@ model InstalmentReminder {
 
   @@unique([instalmentId, kind, test])
   @@index([instalmentId])
+  @@index([tenantId])
 }
 
 // ─── Deal line items ────────────────────────────────────
@@ -560,6 +657,8 @@ model InstalmentReminder {
 // What a customer bought on a deal. When a deal has items, deal.amount is their total.
 model DealItem {
   id           String  @id @default(cuid())
+  tenantId     String  @default("tenant_ivycandy")
+  tenant       Tenant  @relation(fields: [tenantId], references: [id])
   dealId       String
   position     Int
   productType  String
@@ -574,6 +673,7 @@ model DealItem {
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId, position])
+  @@index([tenantId])
 }
 
 // ─── Stock adjustments ──────────────────────────────────
@@ -582,6 +682,8 @@ model DealItem {
 // row on product + colour + length, the same way sold items are.
 model StockAdjustment {
   id           String   @id @default(cuid())
+  tenantId     String   @default("tenant_ivycandy")
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
   product      String
   color        String   @default("")
   lengthInches Int?
@@ -596,6 +698,7 @@ model StockAdjustment {
   owner User @relation("StockAdjustmentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([ownerId])
+  @@index([tenantId])
 }
 
 // ─── Audit log ──────────────────────────────────────────
@@ -604,6 +707,7 @@ model StockAdjustment {
 // refer to. Deletes of money records keep a full snapshot in `data`.
 model AuditLog {
   id         String   @id @default(cuid())
+  tenantId   String   @default("tenant_ivycandy")
   createdAt  DateTime @default(now())
   actorId    String?
   actorEmail String?
@@ -617,4 +721,5 @@ model AuditLog {
   @@index([createdAt])
   @@index([actorId, createdAt])
   @@index([entity, entityId])
+  @@index([tenantId, createdAt])
 }

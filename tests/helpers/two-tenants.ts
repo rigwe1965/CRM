@@ -1,0 +1,104 @@
+import { execSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { Prisma, PrismaClient } from "@prisma/client";
+
+/**
+ * Tenant-isolation test harness (MULTI_TENANCY_PLAN.md, Phase 0).
+ *
+ * Builds a throwaway Postgres schema inside TEST_DATABASE_URL, applies every migration to it, and fills it with
+ * two tenants that each own one row of every business table. Phase 1 uses it to prove that tenant A can't see or
+ * touch tenant B's data through any route. It never touches the schema named in DATABASE_URL.
+ *
+ * Without TEST_DATABASE_URL the database tests are skipped; the schema test (tenant-schema.test.ts) still runs.
+ */
+
+/** Tables that deliberately have no tenantId: they belong to a user (who carries it), or are the tenant itself. */
+export const TENANTLESS_MODELS = ["Tenant", "Account", "Session", "VerificationToken"] as const;
+
+/** Business models, in the order the generated Prisma client knows them. */
+export const businessModels = () =>
+  Prisma.dmmf.datamodel.models.map((m) => m.name).filter((n) => !(TENANTLESS_MODELS as readonly string[]).includes(n));
+
+export const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
+
+export const testDatabaseUrl = () => process.env.TEST_DATABASE_URL || undefined;
+
+const withSchema = (url: string, schema: string) => {
+  const u = new URL(url);
+  u.searchParams.set("schema", schema);
+  return u.toString();
+};
+
+export type TenantFixture = { tenantId: string; admin: string; sales: string; contact: string; deal: string; invoice: string; tag: string };
+export type TwoTenants = { db: PrismaClient; a: TenantFixture; b: TenantFixture; dispose: () => Promise<void> };
+
+/** Creates the schema, migrates it and seeds tenants A and B. Call `dispose()` when done. */
+export async function createTwoTenants(): Promise<TwoTenants> {
+  const base = testDatabaseUrl();
+  if (!base) throw new Error("TEST_DATABASE_URL is not set");
+  const schema = `tenant_test_${randomBytes(5).toString("hex")}`;
+  const url = withSchema(base, schema);
+
+  const admin = new PrismaClient({ datasourceUrl: base });
+  await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
+  await admin.$disconnect();
+
+  execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url }, stdio: "pipe" });
+
+  const db = new PrismaClient({ datasourceUrl: url });
+  const a = await seedTenant(db, "a");
+  const b = await seedTenant(db, "b");
+
+  return {
+    db,
+    a,
+    b,
+    dispose: async () => {
+      await db.$disconnect();
+      if (!/^tenant_test_[0-9a-f]{10}$/.test(schema)) return; // never drop anything we did not create
+      const cleaner = new PrismaClient({ datasourceUrl: base });
+      await cleaner.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
+      await cleaner.$disconnect();
+    },
+  };
+}
+
+/**
+ * One tenant with one row in every business table, all carrying its tenantId. Values that are unique across
+ * the whole database today (emails, domains, tag and template names, invoice numbers, the automation key) get a
+ * per-tenant suffix: Phase 1 makes them unique per tenant instead.
+ */
+async function seedTenant(db: PrismaClient, k: string): Promise<TenantFixture> {
+  const tenantId = `tenant_${k}`;
+  const t = { tenantId };
+  await db.tenant.create({ data: { id: tenantId, name: `Tenant ${k.toUpperCase()}`, slug: `tenant-${k}` } });
+
+  const adminUser = await db.user.create({ data: { ...t, email: `admin-${k}@x.test`, name: `Admin ${k}`, role: "ADMIN" } });
+  const sales = await db.user.create({ data: { ...t, email: `sales-${k}@x.test`, name: `Sales ${k}`, role: "SALES" } });
+  const org = await db.organization.create({ data: { ...t, name: `Org ${k}`, domain: `org-${k}.test`, ownerId: sales.id } });
+  const contact = await db.contact.create({
+    data: { ...t, firstName: "Ada", lastName: `Customer ${k}`, email: `ada-${k}@x.test`, phone: "+4915906462275", phoneE164: "+4915906462275", ownerId: sales.id, organizationId: org.id },
+  });
+  const deal = await db.deal.create({ data: { ...t, title: `Order ${k}`, amount: 300, ownerId: sales.id, contactId: contact.id, organizationId: org.id } });
+  await db.dealItem.create({ data: { ...t, dealId: deal.id, position: 0, productType: "Bundle", quantity: 3, unitPrice: 100 } });
+  const link = await db.paymentLink.create({ data: { ...t, dealId: deal.id, amount: 50, currency: "USD", createdById: sales.id } });
+  await db.payment.create({ data: { ...t, dealId: deal.id, amount: 100, paidAt: new Date(), recordedById: sales.id } });
+  const instalment = await db.instalment.create({ data: { ...t, dealId: deal.id, position: 0, dueDate: new Date(), amount: 100 } });
+  await db.instalmentReminder.create({ data: { ...t, instalmentId: instalment.id, kind: "UPCOMING", recipient: `ada-${k}@x.test` } });
+  const invoice = await db.invoice.create({
+    data: { ...t, number: `INV-${k}-001`, invoiceDate: new Date(), vendorName: "Supplier", billTo: `Tenant ${k}`, ownerId: sales.id, deals: { connect: { id: deal.id } } },
+  });
+  await db.invoiceItem.create({ data: { ...t, invoiceId: invoice.id, position: 0, ref: "1-1", style: "Straight", description: "Bundle", quantity: 3, unitPrice: 100, lineTotal: 300 } });
+  await db.activity.create({ data: { ...t, subject: `Note ${k}`, authorId: sales.id, contactId: contact.id } });
+  await db.task.create({ data: { ...t, title: `Task ${k}`, assigneeId: sales.id, createdById: sales.id, contactId: contact.id } });
+  const tag = await db.tag.create({ data: { ...t, name: `vip-${k}` } });
+  await db.contactTag.create({ data: { ...t, contactId: contact.id, tagId: tag.id } });
+  await db.savedFilter.create({ data: { ...t, userId: sales.id, entity: "contacts", name: "Mine", query: {} } });
+  await db.emailTemplate.create({ data: { ...t, name: `Welcome ${k}`, subject: "Hi", body: "Hello {firstName}" } });
+  await db.automationSetting.create({ data: { ...t, key: `lead-form-${k}`, config: {} } });
+  await db.stockAdjustment.create({ data: { ...t, product: "Bundle", quantity: 1, reason: "Found", ownerId: sales.id } });
+  await db.auditLog.create({ data: { ...t, action: `fixture.${k}`, actorId: adminUser.id } });
+  void link;
+
+  return { tenantId, admin: adminUser.id, sales: sales.id, contact: contact.id, deal: deal.id, invoice: invoice.id, tag: tag.id };
+}
