@@ -44,11 +44,31 @@ describe("accessOf", () => {
   });
 });
 
+describe("deletion pending", () => {
+  it("makes even an internal or paid business read-only, but still active so it can export", () => {
+    for (const plan of ["internal", "starter"]) {
+      expect(accessOf(t({ plan, deletionRequestedAt: NOW }), NOW)).toMatchObject({ active: true, writable: false, reason: "deletion_pending" });
+    }
+    expect(accessOf(t({ status: "SUSPENDED", deletionRequestedAt: NOW }), NOW)).toMatchObject({ active: false, reason: "suspended" });
+  });
+});
+
+describe("daily caps", () => {
+  it("grow with the plan, and the internal plan has none", () => {
+    expect(PLANS.trial.daily.emails).toBeLessThan(PLANS.starter.daily.emails);
+    expect(PLANS.starter.daily.emails).toBeLessThan(PLANS.pro.daily.emails);
+    expect(PLANS.internal.daily).toEqual({ emails: Infinity, whatsapp: Infinity });
+  });
+});
+
 describe("read-only mode", () => {
   it("still lets a business pay and manage its own account", () => {
     expect(allowedWhenReadOnly("/api/billing/checkout")).toBe(true);
     expect(allowedWhenReadOnly("/api/billing")).toBe(true);
     expect(allowedWhenReadOnly("/api/me/password")).toBe(true);
+    expect(allowedWhenReadOnly("/api/export/full")).toBe(true);
+    expect(allowedWhenReadOnly("/api/admin/tenant/deletion")).toBe(true);
+    expect(allowedWhenReadOnly("/api/admin/tenant")).toBe(false);
     expect(allowedWhenReadOnly("/api/contacts")).toBe(false);
     expect(allowedWhenReadOnly("/api/billingfoo")).toBe(false);
   });

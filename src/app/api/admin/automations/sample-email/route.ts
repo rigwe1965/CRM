@@ -3,6 +3,7 @@ import { authed } from "@/lib/route";
 import { sampleEmailSchema } from "@/lib/automations/config";
 import { customerInstalmentEmail } from "@/lib/email-templates";
 import { fromWithName, mailIsConsoleOnly, trySendMail } from "@/lib/mail";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export const POST = authed(async ({ req, user }) => {
   const body = await readBody(req, sampleEmailSchema);
   await enforceRateLimit(`sample-email:${user.id}`, LIMITS.sendEmail);
 
+  await assertUnderDailyCap(user.tenantId, "emails");
   const dueDate = new Date(Date.now() + SAMPLE_DUE_IN_DAYS[body.kind] * DAY_MS);
   const mail = customerInstalmentEmail({
     brand: body.brandName,

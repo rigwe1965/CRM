@@ -36,7 +36,7 @@ const finite = (n: number) => (Number.isFinite(n) ? n : null);
 export async function billingView(tenantId: string) {
   const t = await db.tenant.findFirstOrThrow({
     where: { id: tenantId },
-    select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true, stripeCustomerId: true },
+    select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true, deletionRequestedAt: true, stripeCustomerId: true },
   });
   const access = accessOf(t);
   const [users, contacts] = await Promise.all([db.user.count({ where: { tenantId, isActive: true } }), db.contact.count({ where: { tenantId, deletedAt: null } })]);

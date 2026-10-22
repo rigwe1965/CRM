@@ -8,12 +8,14 @@ export const TRIAL_DAYS = Number(process.env.TRIAL_DAYS) > 0 ? Number(process.en
 
 export type PlanKey = "internal" | "trial" | "starter" | "pro";
 export type Limits = { users: number; contacts: number };
+/** Messages a business may send per day through the CRM (Phase 5): contains abuse and what it costs us. */
+export type DailyCaps = { emails: number; whatsapp: number };
 
-export const PLANS: Record<PlanKey, { label: string; limits: Limits; priceEnv?: string }> = {
-  internal: { label: "Internal", limits: { users: Infinity, contacts: Infinity } },
-  trial: { label: "Free trial", limits: { users: 3, contacts: 1000 } },
-  starter: { label: "Starter", limits: { users: 3, contacts: 1000 }, priceEnv: "BILLING_PRICE_STARTER" },
-  pro: { label: "Pro", limits: { users: 15, contacts: 25000 }, priceEnv: "BILLING_PRICE_PRO" },
+export const PLANS: Record<PlanKey, { label: string; limits: Limits; daily: DailyCaps; priceEnv?: string }> = {
+  internal: { label: "Internal", limits: { users: Infinity, contacts: Infinity }, daily: { emails: Infinity, whatsapp: Infinity } },
+  trial: { label: "Free trial", limits: { users: 3, contacts: 1000 }, daily: { emails: 50, whatsapp: 25 } },
+  starter: { label: "Starter", limits: { users: 3, contacts: 1000 }, daily: { emails: 200, whatsapp: 100 }, priceEnv: "BILLING_PRICE_STARTER" },
+  pro: { label: "Pro", limits: { users: 15, contacts: 25000 }, daily: { emails: 1000, whatsapp: 500 }, priceEnv: "BILLING_PRICE_PRO" },
 };
 
 export const planOf = (plan: string): PlanKey => (plan in PLANS ? (plan as PlanKey) : "trial");
@@ -25,6 +27,8 @@ export type TenantBilling = {
   billingStatus: BillingStatus;
   trialEndsAt: Date | null;
   currentPeriodEnd: Date | null;
+  /** Set once an admin has asked to delete the business. */
+  deletionRequestedAt?: Date | null;
 };
 
 export type Access = {
@@ -33,7 +37,7 @@ export type Access = {
   /** May it change data? False in read-only mode: an unpaid, cancelled or expired business can still read and export. */
   writable: boolean;
   /** Why it is read-only, for the banner. */
-  reason: "trial_ended" | "canceled" | "suspended" | null;
+  reason: "trial_ended" | "canceled" | "suspended" | "deletion_pending" | null;
   limits: Limits;
 };
 
@@ -42,6 +46,8 @@ export function accessOf(t: TenantBilling, now = new Date()): Access {
   const key = planOf(t.plan);
   const limits = PLANS[key].limits;
   if (t.status !== "ACTIVE") return { active: false, writable: false, reason: "suspended", limits };
+  // A business waiting to be erased can only read, export, or change its mind.
+  if (t.deletionRequestedAt) return { active: true, writable: false, reason: "deletion_pending", limits };
   if (key === "internal") return { active: true, writable: true, reason: null, limits };
   switch (t.billingStatus) {
     case "ACTIVE":
@@ -55,6 +61,6 @@ export function accessOf(t: TenantBilling, now = new Date()): Access {
   }
 }
 
-/** Paths a read-only business may still write to: paying, and the signed-in user's own account. */
-export const READ_ONLY_ALLOWED = ["/api/billing", "/api/me"] as const;
+/** Paths a read-only business may still write to: paying, exporting its data, cancelling its deletion, and the signed-in user's own account. */
+export const READ_ONLY_ALLOWED = ["/api/billing", "/api/me", "/api/export", "/api/admin/tenant/deletion"] as const;
 export const allowedWhenReadOnly = (pathname: string) => READ_ONLY_ALLOWED.some((p) => pathname === p || pathname.startsWith(`${p}/`));

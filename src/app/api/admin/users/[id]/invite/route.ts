@@ -5,6 +5,7 @@ import { authed } from "@/lib/route";
 import { tenantScope } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { sendInvite } from "@/lib/invite";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ export const POST = authed<{ id: string }>(async ({ req, user: admin, params }) 
   const user = await db.user.findFirst({ where: { id: params.id, ...tenantScope(admin) }, select: { name: true, email: true, isActive: true } });
   if (!user) throw new ApiError(404, "User not found");
   if (!user.isActive) throw new ApiError(400, "Reactivate this user before sending an invite");
+  await assertUnderDailyCap(admin.tenantId, "emails");
   await audit(admin, { action: "user.invite.sent", entity: "user", entityId: params.id, summary: user.email }, req);
   return NextResponse.json(await sendInvite(user.name ?? user.email, user.email));
 }, "ADMIN");

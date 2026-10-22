@@ -73,6 +73,23 @@ If it wasn't you, you can ignore this email.`,
   };
 }
 
+export function deletionScheduledEmail(business: string, erasedOn: Date): Rendered {
+  const date = erasedOn.toISOString().slice(0, 10);
+  return {
+    subject: `${oneLine(business)} will be deleted on ${date}`,
+    text: `You asked to delete ${business}. The workspace is read-only now, and everything in it (contacts, deals, payments, invoices, users) will be erased for good on ${date}.
+
+You can still export your data from Settings → Data export, and cancel the deletion from Settings → Business until that date.
+
+If you did not ask for this, sign in and cancel it now, then change your password.
+${appUrl()}/settings`,
+    html: layout(
+      "Your business will be deleted",
+      `<p style="margin:0 0 14px">You asked to delete <strong>${esc(business)}</strong>. The workspace is read-only now, and everything in it (contacts, deals, payments, invoices, users) will be erased for good on <strong>${date}</strong>.</p><p style="margin:0 0 14px">You can still export your data and cancel the deletion until that date.</p>${button(`${appUrl()}/settings`, "Open settings")}<p style="margin:0;color:#71717a">If you did not ask for this, sign in and cancel it now, then change your password.</p>`,
+    ),
+  };
+}
+
 export function passwordResetEmail(url: string): Rendered {
   return {
     subject: "Reset your CRM password",

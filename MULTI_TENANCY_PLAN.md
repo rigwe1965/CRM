@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 4 are built (see below); Phase 5 is not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 4 are built (see below); Phase 5 is built except the parts that need a lawyer or an outside tester. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -115,6 +115,8 @@
 - **Check:** the sign-up, trial, upgrade and cancel flows work end to end in Stripe test mode.
 
 ### Phase 5: launch readiness
+
+**Status: partly done in code (not yet applied to the owner's dev database).** Built: business deletion with a 30-day grace period and a daily erasure job (Settings, Business; the business is read-only meanwhile, export and cancelling still work; the Stripe customer and its invoices and one name-only platform audit line are kept; backups keep older copies until they expire), the audit log's one controlled delete exception, daily email and WhatsApp caps per plan, and a fix to Phase 4: read-only mode had been blocking the export routes, which are now on its allow list. **Still open and not mine to do:** terms of service, privacy policy and data-processing agreement (a lawyer), and the independent isolation review or penetration test. Details are in `TECHNICIAN.md`, "Deleting a business and message caps".
 
 - Tenant-wide export and deletion: a hard-delete job after a retention period, and a data export on request.
 - Terms, a privacy policy and a data-processing agreement (these need a lawyer).

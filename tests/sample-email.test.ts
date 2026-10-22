@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { send, consoleOnly, limit } = vi.hoisted(() => ({ send: vi.fn(), consoleOnly: vi.fn(), limit: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: {} })); // the route must not touch the database
+vi.mock("@/lib/usage-limits", () => ({ assertUnderDailyCap: vi.fn() })); // the daily cap needs the database; tests/tenant-deletion.test.ts covers it
 vi.mock("@/lib/route", () => ({
   authed: (handler: (ctx: unknown) => Promise<Response>) => async (req: Request) => {
     try {

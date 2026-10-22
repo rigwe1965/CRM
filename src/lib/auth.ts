@@ -104,7 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const current = await getCachedUser(id, () =>
         platformDb.user.findUnique({
           where: { id },
-          select: { name: true, tenantId: true, tenant: { select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true } }, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
+          select: { name: true, tenantId: true, tenant: { select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true, deletionRequestedAt: true } }, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
         }).then((u) => u && { name: u.name, tenantId: u.tenantId, tenantActive: u.tenant.status === "ACTIVE", tenantWritable: accessOf({ ...u.tenant }).writable, role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
       );
       // A suspended business is signed out everywhere, like a deactivated user.

@@ -5,7 +5,7 @@ import { authed } from "@/lib/route";
 
 export const dynamic = "force-dynamic";
 
-const select = { id: true, name: true, brandName: true, senderName: true } as const;
+const select = { id: true, name: true, brandName: true, senderName: true, plan: true } as const;
 
 // One line, no control characters: these end up in email headers and subjects.
 const line = z.string().trim().max(80).regex(/^[^\u0000-\u001f\u007f<>"]*$/, "No line breaks, quotes or angle brackets");

@@ -10,8 +10,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, FormField } from "@/components/common/page";
 import { request } from "@/lib/client/api";
 import { errorMessage } from "@/lib/client/hooks";
+import { DeleteBusinessCard } from "@/components/settings/delete-business";
 
-type Business = { id: string; name: string; brandName: string | null; senderName: string | null };
+type Business = { id: string; name: string; brandName: string | null; senderName: string | null; plan: string };
 
 /** Admin: how the business presents itself to its customers. */
 export function BusinessCard() {
@@ -33,6 +34,7 @@ export function BusinessCard() {
   });
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle>Business</CardTitle>
@@ -67,5 +69,7 @@ export function BusinessCard() {
         )}
       </CardContent>
     </Card>
+    {data && <DeleteBusinessCard businessName={data.name} internal={data.plan === "internal"} />}
+    </div>
   );
 }

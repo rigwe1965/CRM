@@ -48,6 +48,16 @@ Each business keeps its own Stripe keys, WhatsApp number and website-form origin
 - **Settings screens** (admin): Business (name, brand and sender name; the brand name is the default for instalment emails), Billing, Integrations (Stripe, WhatsApp, allowed websites). Email still goes out from the one `EMAIL_FROM` address; a sender address per business needs domain verification and is not built.
 - **Tests:** `tests/plans.test.ts` (the rules), `tests/tenant-signup-billing.test.ts` (signup, confirmation, events, read-only, limits on a real database; Stripe is stubbed, so the real Stripe test-mode flow still needs one manual run: sign up, subscribe with a test card, cancel).
 
+#### Deleting a business and message caps (Phase 5)
+
+- **Export.** Admins already have the full export (Settings, Data export): one CSV per area in a zip, with a fresh authenticator code when two-step verification is on. It stays allowed in read-only mode (`/api/export*` is on the read-only allow list).
+- **Deleting a business.** Settings, Business, "Delete this business": the admin retypes the business name (and gives an authenticator code if two-step is on). That sets `Tenant.deletionRequestedAt`, emails the admin, and makes the business read-only (reason `deletion_pending`; export and cancelling the deletion still work). The admin can cancel with `DELETE /api/admin/tenant/deletion` any time within 30 days (`DELETION_GRACE_DAYS` in `src/lib/tenant-deletion.ts`).
+- **The erasure** runs in the daily cron (`erasedBusinesses` in its response): once 30 days have passed it cancels the business's Stripe subscription (if that fails the erasure is retried the next day), then in one transaction deletes every row in every business table, its users and the business. A test fails if a new business table is missing from `ERASE_ORDER`. What stays: the Stripe customer and its invoices (our tax records live in Stripe) and one `tenant.erased` line in the platform audit trail (name and slug, no personal data). The original (`internal`) business can't be deleted from the app or by the job.
+- **Audit log.** It stays append-only. The one exception is the erasure: the migration lets the trigger allow a `DELETE` of a row whose `tenantId` equals the transaction-local setting `app.erasing_tenant`. The app role has no `DELETE` privilege on the table at all, so only the owner role (the platform client) can use it. Backups taken before the erasure still contain the data: set their retention (30 days is a sensible match) and say so in the privacy policy.
+- **Daily message caps** (`src/lib/usage-limits.ts`, numbers in `PLANS[...].daily` in `src/lib/plans.ts`, the owner's to change): trial 50 emails and 25 WhatsApp messages a day, Starter 200 and 100, Pro 1000 and 500, the internal business unlimited. They apply to emails and WhatsApp messages a person sends from the CRM (contact email, WhatsApp reply, team invite, sample email) and answer `USAGE_LIMIT` (429). With Upstash Redis configured the count is exact across servers; without it, it is per server instance. The daily reminder digests and customer instalment emails are not capped (they are bounded by the business's own data).
+- **Not built (needs a person):** terms of service, privacy policy and data-processing agreement (a lawyer), and an independent isolation review or penetration test. A sign-up checkbox and legal pages can be added once the texts exist.
+- **Tests:** `tests/tenant-deletion.test.ts` (request, cancel, grace period, erasure of every table with the other business untouched, the audit-log guard, the caps).
+
 ## Environment variables (names only; see `.env.example`)
 `DATABASE_URL`, `DIRECT_URL`, optional `PLATFORM_DATABASE_URL` (owner role; production), optional `SIGNUP_ENABLED`, `TRIAL_DAYS`, `BILLING_STRIPE_SECRET_KEY`, `BILLING_STRIPE_WEBHOOK_SECRET`, `BILLING_PRICE_STARTER`, `BILLING_PRICE_PRO` (see "Sign-up and billing"), `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
 
@@ -83,7 +93,7 @@ Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema
 
 ### Tenants (multi-tenancy Phases 0 to 4, see `MULTI_TENANCY_PLAN.md`)
 
-Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Six migrations, in this order:
+Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Seven migrations, in this order:
 
 1. `20261028000000_tenants`: the `Tenant` table, the original business, and `tenantId` on every business table (with a default, so nothing is rewritten).
 2. `20261029000000_tenant_uniques`: contact email, organization domain, tag name, template name, invoice number and the automation setting key are unique **per business** instead of across the database. `User.email` stays unique across the database.
@@ -91,10 +101,11 @@ Every business table has a `tenantId` (the business a row belongs to). The origi
 4. `20261031000000_row_level_security`: the database refuses cross-business rows itself (see "Row-level security" below).
 5. `20261101000000_tenant_integrations`: the encrypted per-business settings table (see "Per-business integrations" below).
 6. `20261102000000_billing`: trial and subscription fields on the business, and the `PENDING` status for unconfirmed signups (see "Sign-up and billing" below).
+7. `20261103000000_tenant_deletion`: `Tenant.deletionRequestedAt`, and lets the audit log's append-only trigger allow a delete only inside a business's own erasure (see "Deleting a business" below).
 
 In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts`) names the caller's business and `ownerScope`/`authorScope`/`taskScope` already include it. Every query on a business table must use one of them. The public entry points (website form, WhatsApp webhook) file leads under `DEFAULT_TENANT_ID` until Phase 3 gives each business its own address.
 
-- **Production / any database that uses migrations:** `npm run db:deploy` applies all six. Back up first.
+- **Production / any database that uses migrations:** `npm run db:deploy` applies all seven. Back up first.
 - **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the SQL of each migration you haven't applied, in order, then push:
   1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
   2. `npx prisma db execute --file prisma/migrations/20261029000000_tenant_uniques/migration.sql`
@@ -102,7 +113,8 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
   4. `npx prisma db execute --file prisma/migrations/20261031000000_row_level_security/migration.sql` (on a plain local database it adds the policies but, lacking CREATEROLE, skips the `crm_app` role with a notice; that is fine for development, see below)
   5. `npx prisma db execute --file prisma/migrations/20261101000000_tenant_integrations/migration.sql`
   6. `npx prisma db execute --file prisma/migrations/20261102000000_billing/migration.sql`
-  7. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  7. `npx prisma db execute --file prisma/migrations/20261103000000_tenant_deletion/migration.sql`
+  8. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
   After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until these have run.
 - **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
 - **New admin in a given business:** `npm run make-admin -- you@example.com --create "Name" --tenant <tenantId>` (default: the original business).

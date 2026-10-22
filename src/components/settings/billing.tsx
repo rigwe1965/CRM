@@ -17,7 +17,7 @@ type Billing = {
   planLabel: string;
   status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED";
   writable: boolean;
-  readOnlyReason: "trial_ended" | "canceled" | "suspended" | null;
+  readOnlyReason: "trial_ended" | "canceled" | "suspended" | "deletion_pending" | null;
   trialDaysLeft: number | null;
   currentPeriodEnd: string | null;
   hasSubscription: boolean;

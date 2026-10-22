@@ -5,6 +5,7 @@ import { displayName, notFound, ownerScope, tenantScope } from "@/lib/access";
 import { contactEmail } from "@/lib/email-templates";
 import { FROM, sendMail } from "@/lib/mail";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { sendContactEmailSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
     throw new ApiError(422, "This contact has no email address", "NO_EMAIL");
   }
 
+  await assertUnderDailyCap(user.tenantId, "emails");
   const senderName = displayName(user);
   try {
     await sendMail({

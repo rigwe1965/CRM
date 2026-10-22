@@ -2,6 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { runDailyAutomations } from "@/lib/automations";
 import { purgeUnconfirmedSignups } from "@/lib/signup";
+import { purgeDeletedTenants } from "@/lib/tenant-deletion";
 import { sendInstalmentReminders, sendTaskReminders } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export async function GET(req: Request) {
   const instalments = await sendInstalmentReminders();
   // Signups nobody confirmed within a week are removed.
   const unconfirmedSignups = await purgeUnconfirmedSignups().catch((e) => (console.error("[signup] purge failed", e), -1));
+  // Businesses whose 30-day deletion grace period is over are erased.
+  const erasedBusinesses = await purgeDeletedTenants().catch((e) => (console.error("[tenant] purge failed", e), null));
   // `tasks` fields stay at the top level for existing callers.
-  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups });
+  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups, erasedBusinesses });
 }

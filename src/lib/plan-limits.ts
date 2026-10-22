@@ -7,7 +7,7 @@ import { accessOf, PLANS, planOf } from "@/lib/plans";
  * users, and contacts that are not deleted. Must run inside the business's context (`authed()` provides it).
  */
 export async function assertWithinPlan(tenantId: string, what: "users" | "contacts") {
-  const tenant = await db.tenant.findFirst({ where: { id: tenantId }, select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true } });
+  const tenant = await db.tenant.findFirst({ where: { id: tenantId }, select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true, deletionRequestedAt: true } });
   if (!tenant) return;
   const limit = accessOf(tenant).limits[what];
   if (limit === Infinity) return;

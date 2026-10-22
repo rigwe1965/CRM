@@ -3,6 +3,7 @@ import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { notFound, ownerScope, tenantScope } from "@/lib/access";
 import { canReplyFreely, sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { sendWhatsappSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +35,7 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   if (!(await canReplyFreely(user.tenantId, contact.id))) {
     throw new ApiError(409, "WhatsApp only allows free-text replies within 24 hours of the customer's last message. Wait for them to write, or use an approved template.", "OUTSIDE_WINDOW");
   }
+  await assertUnderDailyCap(user.tenantId, "whatsapp");
   let id: string;
   try {
     id = await sendWhatsAppText(user.tenantId, contact.phoneE164, message);

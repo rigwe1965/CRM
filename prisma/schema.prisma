@@ -211,6 +211,8 @@ model Tenant {
   currentPeriodEnd     DateTime?
   // When the last billing event was applied, so a late-arriving older event can't undo a newer one.
   billingEventAt       DateTime?
+  // Set when an admin asked to delete the business: read-only from then on, erased for good after the grace period (Phase 5).
+  deletionRequestedAt  DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
