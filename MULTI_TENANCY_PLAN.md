@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 4 are built (see below); Phase 5 is built except the parts that need a lawyer or an outside tester. All migrations are applied to the owner's local dev database, and the full test suite (511 tests, including the row-level security tests) passed against a real Postgres on 2026-10-22. Still unverified: Stripe test mode and the real hosting provider's connection pooling. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 4 are built (see below); Phase 5 is built except the parts that need a lawyer or an outside tester. All migrations are applied to the owner's local dev database, and the full test suite (511 tests, including the row-level security tests) passed against a real Postgres on 2026-10-22. The billing flow was also run once end to end in Stripe test mode (see Phase 4). Still unverified: the real hosting provider's connection pooling. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -98,7 +98,7 @@
 
 ### Phase 4: onboarding and billing
 
-**Status: done (applied to the owner's dev database, checked 2026-10-22; never run against real Stripe test mode).** What was built, and where it differs from the text below:
+**Status: done (applied to the owner's dev database, checked 2026-10-22). Run end to end in Stripe test mode on 2026-10-22: sign-up and email confirmation, Checkout with the test card, the subscription webhook moving the business to Starter, a cancel at period end (access kept), an immediate cancel (access kept until the paid period ends) and, with the period end moved into the past, read-only mode refusing a write with `READ_ONLY` while reading and export still worked. The portal's own cancel button was not clicked (the cancel was made through Stripe's API, which sends the same events). The sign-up ran without the CAPTCHA, since no Turnstile keys were set.** What was built, and where it differs from the text below:
 
 - Migration `20261102000000_billing`: trial and subscription fields on `Tenant`, a `PENDING` status for unconfirmed signups, and a column-limited grant so a business's admin can edit its name, brand and sender name but never its billing.
 - Sign-up (`/sign-up`, `POST /api/signup`): off unless `SIGNUP_ENABLED=1`; creates a `PENDING` business on a 14-day trial plus its first admin and emails a 24-hour confirmation link; nobody signs in until it is used; unconfirmed signups are deleted after 7 days. Rate limited, and answers the same for an existing email. A Cloudflare Turnstile CAPTCHA was added afterwards (`TURNSTILE_*`, required in production while sign-up is open).
