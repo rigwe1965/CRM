@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { Turnstile } from "./turnstile";
 import { Alert, Field, SubmitButton, sendJson, type FieldErrors } from "./form-ui";
 
-export function SignUpForm() {
+export function SignUpForm({ captchaSiteKey }: { captchaSiteKey: string | null }) {
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaRound, setCaptchaRound] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -26,12 +29,16 @@ export function SignUpForm() {
       name: String(form.get("name") ?? ""),
       email: String(form.get("email") ?? ""),
       password,
+      captchaToken: captcha ?? undefined,
     });
     setPending(false);
     if (res.ok) {
       setDone({ devLink: (res.data as { devLink?: string } | undefined)?.devLink });
       return;
     }
+    // A CAPTCHA token works once, so ask for a new one after any refusal.
+    setCaptcha(null);
+    setCaptchaRound((n) => n + 1);
     setError(res.error);
     setFieldErrors(res.fieldErrors);
   }
@@ -57,7 +64,8 @@ export function SignUpForm() {
       <Field label="Email" name="email" type="email" autoComplete="email" required disabled={pending} error={fieldErrors.email?.[0]} />
       <Field label="Password" name="password" type="password" autoComplete="new-password" required disabled={pending} hint="At least 10 characters, with a letter and a number." error={fieldErrors.password?.[0]} />
       <Field label="Confirm password" name="confirm" type="password" autoComplete="new-password" required disabled={pending} error={fieldErrors.confirm?.[0]} />
-      <SubmitButton pending={pending} pendingText="Creating…">
+      {captchaSiteKey && <Turnstile siteKey={captchaSiteKey} onToken={setCaptcha} resetKey={captchaRound} />}
+      <SubmitButton pending={pending || (!!captchaSiteKey && !captcha)} pendingText={pending ? "Creating…" : "Complete the check above"}>
         Start free trial
       </SubmitButton>
     </form>

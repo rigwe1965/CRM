@@ -17,6 +17,8 @@ export function buildCsp(nonce: string, isDev = process.env.NODE_ENV !== "produc
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
+    // The sign-up CAPTCHA (Cloudflare Turnstile) draws itself in an iframe.
+    "frame-src https://challenges.cloudflare.com",
     "connect-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",

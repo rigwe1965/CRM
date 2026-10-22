@@ -23,6 +23,8 @@ const productionEnv = z
     UPSTASH_REDIS_REST_URL: z.string().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
     SIGNUP_ENABLED: z.string().optional(),
+    TURNSTILE_SITE_KEY: z.string().optional(),
+    TURNSTILE_SECRET_KEY: z.string().optional(),
     BILLING_STRIPE_SECRET_KEY: z.string().optional(),
     BILLING_STRIPE_WEBHOOK_SECRET: z.string().optional(),
     BILLING_PRICE_STARTER: z.string().optional(),
@@ -55,6 +57,10 @@ const productionEnv = z
     if (env.BILLING_STRIPE_WEBHOOK_SECRET && !env.BILLING_STRIPE_SECRET_KEY) add("BILLING_STRIPE_SECRET_KEY", "required together with BILLING_STRIPE_WEBHOOK_SECRET");
     if (env.BILLING_STRIPE_SECRET_KEY && !/^(sk|rk)_(test|live)_/.test(env.BILLING_STRIPE_SECRET_KEY)) add("BILLING_STRIPE_SECRET_KEY", "must be a Stripe secret or restricted key (sk_… or rk_…)");
     if ((env.SIGNUP_ENABLED === "1" || env.SIGNUP_ENABLED === "true") && !env.BILLING_STRIPE_SECRET_KEY) add("BILLING_STRIPE_SECRET_KEY", "required when SIGNUP_ENABLED is on, or trials end with no way to pay");
+    // The CAPTCHA keys come as a pair, and public sign-up without one invites bots.
+    if (env.TURNSTILE_SITE_KEY && !env.TURNSTILE_SECRET_KEY) add("TURNSTILE_SECRET_KEY", "required together with TURNSTILE_SITE_KEY");
+    if (env.TURNSTILE_SECRET_KEY && !env.TURNSTILE_SITE_KEY) add("TURNSTILE_SITE_KEY", "required together with TURNSTILE_SECRET_KEY");
+    if ((env.SIGNUP_ENABLED === "1" || env.SIGNUP_ENABLED === "true") && !env.TURNSTILE_SECRET_KEY) add("TURNSTILE_SECRET_KEY", "required when SIGNUP_ENABLED is on, so bots can't mass-create businesses (Cloudflare Turnstile)");
     // Online payments are optional, but half a setup would take payments the CRM can't record.
     if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) add("STRIPE_WEBHOOK_SECRET", "required together with STRIPE_SECRET_KEY");
     if (env.STRIPE_WEBHOOK_SECRET && !env.STRIPE_SECRET_KEY) add("STRIPE_SECRET_KEY", "required together with STRIPE_WEBHOOK_SECRET");

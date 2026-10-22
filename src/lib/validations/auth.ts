@@ -39,6 +39,8 @@ export const signupSchema = z.object({
   name: z.string().trim().min(1, "Enter your name").max(100),
   email,
   password: passwordSchema,
+  // Cloudflare Turnstile's one-time token; required by the route whenever the CAPTCHA is configured.
+  captchaToken: z.string().max(4096).optional(),
 });
 
 export const verifySignupSchema = z.object({ token: z.string().min(1).max(200) });
