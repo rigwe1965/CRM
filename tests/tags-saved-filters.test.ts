@@ -10,6 +10,7 @@ const { db, audit } = vi.hoisted(() => {
   return { db, audit: vi.fn() };
 });
 vi.mock("@/lib/db", () => ({ db }));
+vi.mock("@/lib/plan-limits", () => ({ assertWithinPlan: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ audit }));
 vi.mock("@/lib/access", async (orig) => ({
   ...(await orig<typeof import("@/lib/access")>()),

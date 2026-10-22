@@ -2,6 +2,7 @@
 
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
+import { useCurrentUser } from "@/components/providers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -41,7 +42,8 @@ document.getElementById("ivy-lead-form").addEventListener("submit", async functi
 export function LeadFormCard() {
   const { data, isLoading, error, refetch } = useLeadForm();
   const save = useSaveLeadForm();
-  const endpoint = typeof window === "undefined" ? "" : `${window.location.origin}/api/public/lead`;
+  const user = useCurrentUser();
+  const endpoint = typeof window === "undefined" ? "" : `${window.location.origin}/api/public/lead/${user.tenantId}`;
 
   return (
     <Card>
@@ -83,7 +85,7 @@ export function LeadFormCard() {
               <p className="font-medium">Websites allowed to send enquiries</p>
               {data.allowedOrigins.length === 0 ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-                  None yet, so browsers on other websites are blocked. Save your website address (for example <code>https://www.ivycandyhair.com</code>) with <code>PUT /api/admin/integrations/lead-form</code>, or for the original business set <code>LEAD_FORM_ORIGINS</code> in <code>.env</code> (separate several with commas) and restart the CRM.
+                  None yet, so browsers on other websites are blocked. Add your website address (for example <code>https://www.ivycandyhair.com</code>) under Settings → Integrations.
                 </p>
               ) : (
                 <ul className="list-inside list-disc text-muted-foreground">

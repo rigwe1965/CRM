@@ -15,7 +15,8 @@ const INSTALMENT_EMAILS = "instalment-emails";
 
 export async function loadInstalmentEmails(tenantId: string): Promise<InstalmentEmailsConfig> {
   const row = await db.automationSetting.findUnique({ where: { tenantId_key: { tenantId, key: INSTALMENT_EMAILS } } });
-  return resolveInstalmentEmails(row?.config);
+  const tenant = await db.tenant.findFirst({ where: { id: tenantId }, select: { name: true, brandName: true } });
+  return resolveInstalmentEmails(row?.config, tenant?.brandName || tenant?.name);
 }
 
 export async function loadStageTasks(tenantId: string): Promise<StageTasksConfig> {

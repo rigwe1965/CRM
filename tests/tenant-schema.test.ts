@@ -85,4 +85,9 @@ describe("row-level security (Phase 2)", () => {
   it("the policy is not forced on the table owner, so the platform client keeps working", () => {
     expect(sql()).not.toMatch(/FORCE ROW LEVEL SECURITY/);
   });
+
+  it("the app role may edit only a business's presentation columns (and updatedAt, which Prisma writes), never its billing", () => {
+    const grant = readFileSync("prisma/migrations/20261102000000_billing/migration.sql", "utf8").match(/GRANT UPDATE \(([^)]*)\) ON "Tenant"/)?.[1] ?? "";
+    expect(grant.split(",").map((c) => c.trim().replaceAll('"', "")).sort()).toEqual(["brandName", "name", "senderName", "updatedAt"]);
+  });
 });

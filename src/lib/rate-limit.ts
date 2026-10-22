@@ -122,6 +122,10 @@ export const LIMITS = {
   signInAccount: { max: 40, windowMs: 60 * 60_000, failClosed: true },
   passwordForgot: { max: 5, windowMs: 60 * 60_000, failClosed: true },
   passwordReset: { max: 10, windowMs: 60 * 60_000, failClosed: true },
+  // Self-service signup creates a business and sends an email, so it is capped per address, per email and overall.
+  signup: { max: 5, windowMs: 60 * 60_000, failClosed: true },
+  signupEmail: { max: 3, windowMs: 60 * 60_000, failClosed: true },
+  signupAll: { max: 200, windowMs: 60 * 60_000, failClosed: true },
   magicLink: { max: 5, windowMs: 15 * 60_000, failClosed: true },
   sendEmail: { max: 30, windowMs: 60 * 60_000 },
   /** Public website form: per visitor address, and an overall cap so a botnet can't flood the inbox. */

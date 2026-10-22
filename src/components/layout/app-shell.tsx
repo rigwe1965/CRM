@@ -155,6 +155,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link href="/settings" className="font-medium underline">Set it up in Settings → Security</Link>, then reload.
           </div>
         )}
+        {currentUser.tenantWritable === false && (
+          <div role="status" className="border-b bg-red-50 px-4 py-2 text-sm text-red-900 dark:bg-red-950 dark:text-red-100 sm:px-6 print:hidden">
+            This workspace is read-only: you can view and export your data, but not change it.{" "}
+            {currentUser.role === "ADMIN" ? (
+              <Link href="/settings" className="font-medium underline">Renew in Settings → Billing</Link>
+            ) : (
+              "Ask an admin to renew the subscription."
+            )}
+          </div>
+        )}
         <main className={cn("w-full p-4 sm:p-6 print:p-0", !wide && "mx-auto max-w-7xl print:max-w-none")}>{children}</main>
       </div>
     </div>

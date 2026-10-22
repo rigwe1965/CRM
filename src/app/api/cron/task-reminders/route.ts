@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { runDailyAutomations } from "@/lib/automations";
+import { purgeUnconfirmedSignups } from "@/lib/signup";
 import { sendInstalmentReminders, sendTaskReminders } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export async function GET(req: Request) {
   const automations = await runDailyAutomations();
   const tasks = await sendTaskReminders();
   const instalments = await sendInstalmentReminders();
+  // Signups nobody confirmed within a week are removed.
+  const unconfirmedSignups = await purgeUnconfirmedSignups().catch((e) => (console.error("[signup] purge failed", e), -1));
   // `tasks` fields stay at the top level for existing callers.
-  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments, automations });
+  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups });
 }

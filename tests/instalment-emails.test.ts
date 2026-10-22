@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { db, audit, send } = vi.hoisted(() => ({
   db: {
+    tenant: { findFirst: vi.fn(async () => ({ name: "Test Co", brandName: null })) },
     automationSetting: { findUnique: vi.fn() },
     instalment: { findMany: vi.fn() },
     instalmentReminder: { create: vi.fn() },

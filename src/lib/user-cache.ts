@@ -8,7 +8,7 @@ import type { Role } from "@prisma/client";
  */
 export const USER_CACHE_TTL_MS = 30_000;
 
-export type CachedUser = { name: string; tenantId: string; tenantActive: boolean; role: Role; isActive: boolean; passwordChangedAt: Date | null; mfaEnabled: boolean };
+export type CachedUser = { name: string; tenantId: string; tenantActive: boolean; tenantWritable: boolean; role: Role; isActive: boolean; passwordChangedAt: Date | null; mfaEnabled: boolean };
 
 // Held on globalThis so every route bundle in the process shares one cache.
 const g = globalThis as unknown as { __userCache?: Map<string, { value: CachedUser; expiresAt: number }> };

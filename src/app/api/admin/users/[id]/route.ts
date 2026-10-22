@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ApiError, readBody } from "@/lib/api";
 import { tenantScope, wouldLeaveNoAdmin } from "@/lib/access";
 import { authed } from "@/lib/route";
+import { assertWithinPlan } from "@/lib/plan-limits";
 import { audit } from "@/lib/audit";
 import { invalidateUserCache } from "@/lib/user-cache";
 import { adminUpdateUserSchema } from "@/lib/validations/auth";
@@ -19,6 +20,8 @@ export const PATCH = authed<{ id: string }>(async ({ req, user: admin, params })
   if (params.id === admin.id && (demoting || deactivating)) {
     throw new ApiError(400, "You can't demote or deactivate your own account");
   }
+
+  if (data.isActive === true) await assertWithinPlan(admin.tenantId, "users"); // reactivating counts as adding
 
   try {
     const user = await db.$transaction(async (tx) => {

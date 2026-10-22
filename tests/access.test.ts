@@ -68,8 +68,9 @@ describe("rbac", () => {
     expect(hasRole(undefined, [])).toBe(false);
   });
   it("protects /api/admin", () => expect(requiredRolesFor("/api/admin/users")).toEqual(["ADMIN"]));
-  it("public sign-up is closed", () => {
-    expect(isPublicPath("/sign-up")).toBe(false);
+  it("public sign-up pages and endpoint are reachable, but each refuses unless SIGNUP_ENABLED is on", () => {
+    expect(isPublicPath("/sign-up")).toBe(true);
+    expect(isPublicPath("/api/signup")).toBe(true);
     expect(isPublicPath("/api/register")).toBe(false);
     expect(isPublicPath("/sign-in")).toBe(true);
     expect(isPublicPath("/api/cron/task-reminders")).toBe(true);

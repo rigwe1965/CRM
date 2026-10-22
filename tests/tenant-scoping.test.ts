@@ -50,6 +50,8 @@ const PLATFORM_USERS: Record<string, string> = {
   "src/app/api/health/route.ts": "a connectivity check that reads no business data",
   "src/lib/automations/index.ts": "lists the active businesses, then runs each one as itself",
   "src/lib/notifications.ts": "the daily reminder digests read across businesses on purpose",
+  "src/lib/signup.ts": "a signup creates the business and its first admin, and confirms or deletes it, before any business is signed in",
+  "src/lib/billing.ts": "Stripe Billing events name a Stripe customer, which is matched to its business; checkout stores that customer on the business",
   "src/lib/payment-links.ts": "a Stripe event names no business; the payment link says which, and the rest runs as that business",
 };
 

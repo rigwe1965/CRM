@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth-helpers";
 import { safeRedirect } from "@/lib/rbac";
+import { signupEnabled } from "@/lib/signup";
 import { SignInForm } from "@/components/auth/sign-in-form";
 
 export const metadata = { title: "Sign in · CRM" };
@@ -24,7 +26,13 @@ export default async function SignInPage(
         <SignInForm />
       </Suspense>
       <p className="text-center text-sm text-muted-foreground">
-        No account? Ask an administrator to invite you.
+        {signupEnabled() ? (
+          <>
+            New here? <Link href="/sign-up" className="text-primary hover:underline">Start a free trial</Link>
+          </>
+        ) : (
+          "No account? Ask an administrator to invite you."
+        )}
       </p>
     </>
   );

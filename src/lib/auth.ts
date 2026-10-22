@@ -18,6 +18,7 @@ import { getCachedUser } from "@/lib/user-cache";
 import { signInSchema } from "@/lib/validations/auth";
 import type { Role } from "@prisma/client";
 import { mfaPending } from "@/lib/rbac";
+import { accessOf } from "@/lib/plans";
 
 const prismaAdapter = PrismaAdapter(platformDb);
 
@@ -45,9 +46,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const ip = clientIp(await headers());
         if (!(await signInAllowed(ip, email)).allowed) return null;
 
-        const user = await platformDb.user.findUnique({ where: { email } });
+        const user = await platformDb.user.findUnique({ where: { email }, include: { tenant: { select: { status: true } } } });
         const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
-        if (!user || !user.passwordHash || !valid || !user.isActive) {
+        // A business that is suspended, or whose signup is not confirmed yet, is refused like a wrong password.
+        if (!user || !user.passwordHash || !valid || !user.isActive || user.tenant.status !== "ACTIVE") {
           await audit(user ? { tenantId: user.tenantId } : null, { action: "auth.signin.failed", summary: email, entity: "user", entityId: user?.id });
           return null;
         }
@@ -73,8 +75,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const limit = await rateLimit(`magic:${identifier}`, LIMITS.magicLink);
         if (!limit.allowed) throw new Error("Too many sign-in link requests");
         // Unknown or deactivated address: send nothing, but look the same as success (no enumeration).
-        const known = await platformDb.user.findUnique({ where: { email: identifier }, select: { isActive: true } });
-        if (!known?.isActive) return;
+        const known = await platformDb.user.findUnique({ where: { email: identifier }, select: { isActive: true, tenant: { select: { status: true } } } });
+        if (!known?.isActive || known.tenant.status !== "ACTIVE") return;
         // Sent after the response so a known address isn't slower to answer than an unknown one.
         after(() => sendMail({ to: identifier, ...magicLinkEmail(url) }).catch((e) => console.error("magic link email failed", e instanceof Error ? e.message : e)));
       },
@@ -102,8 +104,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const current = await getCachedUser(id, () =>
         platformDb.user.findUnique({
           where: { id },
-          select: { name: true, tenantId: true, tenant: { select: { status: true } }, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
-        }).then((u) => u && { name: u.name, tenantId: u.tenantId, tenantActive: u.tenant.status === "ACTIVE", role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
+          select: { name: true, tenantId: true, tenant: { select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true } }, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
+        }).then((u) => u && { name: u.name, tenantId: u.tenantId, tenantActive: u.tenant.status === "ACTIVE", tenantWritable: accessOf({ ...u.tenant }).writable, role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
       );
       // A suspended business is signed out everywhere, like a deactivated user.
       if (!current || !current.isActive || !current.tenantActive) return null;
@@ -116,6 +118,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       token.role = current.role;
       token.tenantId = current.tenantId;
+      // Re-read from the same 30 s cache: an expired trial turns the business read-only within half a minute.
+      token.tenantWritable = current.tenantWritable;
       token.mfaPending = mfaPending(current.role, current.mfaEnabled);
       token.name = current.name; // keeps the displayed name fresh after profile edits
       return token;
@@ -126,6 +130,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
       if (token.tenantId) session.user.tenantId = token.tenantId as string;
+      session.user.tenantWritable = token.tenantWritable !== false;
       if (token.role) session.user.role = token.mfaPending ? "SALES" : (token.role as Role);
       session.user.mfaPending = !!token.mfaPending;
       return session;

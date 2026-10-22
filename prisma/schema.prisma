@@ -183,6 +183,15 @@ model VerificationToken {
 enum TenantStatus {
   ACTIVE
   SUSPENDED
+  // Signed up but the admin has not confirmed their email yet: nobody can sign in, and the signup is deleted after a week.
+  PENDING
+}
+
+enum BillingStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
 }
 
 model Tenant {
@@ -194,6 +203,14 @@ model Tenant {
   // Shown to customers (e.g. in reminder emails) and used as the email sender name.
   brandName  String?
   senderName String?
+  // Subscription (Phase 4). The original business is plan "internal": never limited, never read-only.
+  billingStatus        BillingStatus @default(ACTIVE)
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?       @unique
+  stripeSubscriptionId String?       @unique
+  currentPeriodEnd     DateTime?
+  // When the last billing event was applied, so a late-arriving older event can't undo a newer one.
+  billingEventAt       DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 

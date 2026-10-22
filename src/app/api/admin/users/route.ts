@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { ApiError, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { assertWithinPlan } from "@/lib/plan-limits";
 import { tenantScope } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { sendInvite } from "@/lib/invite";
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 export const POST = authed(async ({ req, user: admin }) => {
   const { name, email, role } = await readBody(req, adminCreateUserSchema);
   await enforceRateLimit(`invite:${admin.id}`, LIMITS.sendEmail);
+  await assertWithinPlan(admin.tenantId, "users");
 
   let user;
   try {

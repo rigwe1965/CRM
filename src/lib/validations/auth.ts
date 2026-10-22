@@ -34,6 +34,15 @@ export const adminCreateUserSchema = z.object({
   role: z.enum(["ADMIN", "SALES", "SUPPORT"]).default("SALES"),
 });
 
+export const signupSchema = z.object({
+  businessName: z.string().trim().min(2, "Enter your business name").max(100),
+  name: z.string().trim().min(1, "Enter your name").max(100),
+  email,
+  password: passwordSchema,
+});
+
+export const verifySignupSchema = z.object({ token: z.string().min(1).max(200) });
+
 export const forgotPasswordSchema = z.object({ email });
 
 export const resetPasswordSchema = z.object({

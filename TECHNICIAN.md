@@ -37,8 +37,19 @@ Each business keeps its own Stripe keys, WhatsApp number and website-form origin
 - **Rate limits** for the website form include the business (`weblead:<id>:<ip>`, `weblead:<id>:all`). The daily cron already runs each business on its own settings.
 - **Not moved yet:** the email sender (`EMAIL_FROM`) stays one address for the whole deployment; a sender per business needs domain verification, which belongs with onboarding (Phase 4). `Tenant.brandName` and `senderName` exist for it.
 
+#### Sign-up and billing (Phase 4)
+
+- **Sign-up is off by default.** Set `SIGNUP_ENABLED=1` to open `/sign-up` (and `POST /api/signup`) to the public. A signup creates a business in status `PENDING` on plan `trial` (`TRIAL_DAYS`, default 14) with its first admin, and emails a 24-hour confirmation link. Nobody can sign in until it is used. Unconfirmed signups are deleted after 7 days by the daily cron. The endpoint is rate limited per address, per email and overall, and answers the same for an email that already has an account (that person gets a notice instead). There is no CAPTCHA; add one before opening to the public if bots become a problem. Turning signup on requires billing to be configured (the production env check enforces it).
+- **Billing is Stripe Billing on the platform's own Stripe account**, separate from each business's own Stripe (which is how its customers pay it). Set `BILLING_STRIPE_SECRET_KEY`, `BILLING_STRIPE_WEBHOOK_SECRET` and a price id per plan: `BILLING_PRICE_STARTER`, `BILLING_PRICE_PRO`. In that Stripe account add the endpoint `https://<domain>/api/webhooks/billing` for `customer.subscription.created`, `.updated` and `.deleted`. A business subscribes from Settings, Billing (Stripe Checkout) and manages the card or cancels in Stripe's customer portal. A running trial is honoured: Stripe starts charging when it would have ended.
+- **Plans and limits** live in `src/lib/plans.ts` (the owner's to change): `trial` and `starter` allow 3 users and 1,000 contacts, `pro` 15 and 25,000, and the original business is `internal` (unlimited, never read-only). Creating a user (or reactivating one) or a contact past the limit is refused with `PLAN_LIMIT`. Contacts that arrive from the website form or WhatsApp are not refused, so no customer enquiry is lost.
+- **Read-only mode.** An expired trial, or a cancelled subscription whose paid period is over, makes the business read-only: every write through `authed()` returns `READ_ONLY` (403), except `/api/billing*` and `/api/me*`; reading and exporting keep working, and a banner explains it. A failed payment (`PAST_DUE`) keeps working while Stripe retries; cancelling is Stripe's decision. The state is computed from the business row (`accessOf`) and reaches the session within 30 seconds. Customer payments by Stripe link and inbound WhatsApp messages are still recorded for a read-only business (money already taken, messages already sent); the website form is closed (404) for a suspended one.
+- **Subscription events** are matched to a business by the Stripe customer id we stored when it first checked out, never by event metadata, and an older event can't undo a newer one (`billingEventAt`).
+- **The platform owner's controls** are a script, not a screen: `npm run tenant-admin -- list | suspend <id> | resume <id> | extend-trial <id> <days>`. A suspended business is signed out within 30 seconds and can't sign in.
+- **Settings screens** (admin): Business (name, brand and sender name; the brand name is the default for instalment emails), Billing, Integrations (Stripe, WhatsApp, allowed websites). Email still goes out from the one `EMAIL_FROM` address; a sender address per business needs domain verification and is not built.
+- **Tests:** `tests/plans.test.ts` (the rules), `tests/tenant-signup-billing.test.ts` (signup, confirmation, events, read-only, limits on a real database; Stripe is stubbed, so the real Stripe test-mode flow still needs one manual run: sign up, subscribe with a test card, cancel).
+
 ## Environment variables (names only; see `.env.example`)
-`DATABASE_URL`, `DIRECT_URL`, optional `PLATFORM_DATABASE_URL` (owner role; production), `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
+`DATABASE_URL`, `DIRECT_URL`, optional `PLATFORM_DATABASE_URL` (owner role; production), optional `SIGNUP_ENABLED`, `TRIAL_DAYS`, `BILLING_STRIPE_SECRET_KEY`, `BILLING_STRIPE_WEBHOOK_SECRET`, `BILLING_PRICE_STARTER`, `BILLING_PRICE_PRO` (see "Sign-up and billing"), `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
 
 ## Online payments (Stripe)
 Payment links are Stripe Payment Links (one payment each, USD and EUR only). The CRM never sees card details.
@@ -70,26 +81,28 @@ It sets `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=http://localhost:<port>` and `SKIP
 
 Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema.prisma`, add a matching migration folder, then restart the dev server.
 
-### Tenants (multi-tenancy Phases 0 to 3, see `MULTI_TENANCY_PLAN.md`)
+### Tenants (multi-tenancy Phases 0 to 4, see `MULTI_TENANCY_PLAN.md`)
 
-Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Five migrations, in this order:
+Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Six migrations, in this order:
 
 1. `20261028000000_tenants`: the `Tenant` table, the original business, and `tenantId` on every business table (with a default, so nothing is rewritten).
 2. `20261029000000_tenant_uniques`: contact email, organization domain, tag name, template name, invoice number and the automation setting key are unique **per business** instead of across the database. `User.email` stays unique across the database.
 3. `20261030000000_tenant_required`: drops the default, so every create must name its business.
 4. `20261031000000_row_level_security`: the database refuses cross-business rows itself (see "Row-level security" below).
 5. `20261101000000_tenant_integrations`: the encrypted per-business settings table (see "Per-business integrations" below).
+6. `20261102000000_billing`: trial and subscription fields on the business, and the `PENDING` status for unconfirmed signups (see "Sign-up and billing" below).
 
 In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts`) names the caller's business and `ownerScope`/`authorScope`/`taskScope` already include it. Every query on a business table must use one of them. The public entry points (website form, WhatsApp webhook) file leads under `DEFAULT_TENANT_ID` until Phase 3 gives each business its own address.
 
-- **Production / any database that uses migrations:** `npm run db:deploy` applies all five. Back up first.
+- **Production / any database that uses migrations:** `npm run db:deploy` applies all six. Back up first.
 - **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the SQL of each migration you haven't applied, in order, then push:
   1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
   2. `npx prisma db execute --file prisma/migrations/20261029000000_tenant_uniques/migration.sql`
   3. `npx prisma db execute --file prisma/migrations/20261030000000_tenant_required/migration.sql`
   4. `npx prisma db execute --file prisma/migrations/20261031000000_row_level_security/migration.sql` (on a plain local database it adds the policies but, lacking CREATEROLE, skips the `crm_app` role with a notice; that is fine for development, see below)
   5. `npx prisma db execute --file prisma/migrations/20261101000000_tenant_integrations/migration.sql`
-  6. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  6. `npx prisma db execute --file prisma/migrations/20261102000000_billing/migration.sql`
+  7. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
   After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until these have run.
 - **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
 - **New admin in a given business:** `npm run make-admin -- you@example.com --create "Name" --tenant <tenantId>` (default: the original business).

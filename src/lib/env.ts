@@ -22,6 +22,11 @@ const productionEnv = z
     REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),
     UPSTASH_REDIS_REST_URL: z.string().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+    SIGNUP_ENABLED: z.string().optional(),
+    BILLING_STRIPE_SECRET_KEY: z.string().optional(),
+    BILLING_STRIPE_WEBHOOK_SECRET: z.string().optional(),
+    BILLING_PRICE_STARTER: z.string().optional(),
+    BILLING_PRICE_PRO: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     WHATSAPP_ACCESS_TOKEN: z.string().optional(),
@@ -45,6 +50,11 @@ const productionEnv = z
     }
     if (!env.UPSTASH_REDIS_REST_URL) add("UPSTASH_REDIS_REST_URL", "required so rate limits are shared across instances");
     if (!env.UPSTASH_REDIS_REST_TOKEN) add("UPSTASH_REDIS_REST_TOKEN", "required together with UPSTASH_REDIS_REST_URL");
+    // Billing is optional, but a half setup would let businesses subscribe without us hearing about it.
+    if (env.BILLING_STRIPE_SECRET_KEY && !env.BILLING_STRIPE_WEBHOOK_SECRET) add("BILLING_STRIPE_WEBHOOK_SECRET", "required together with BILLING_STRIPE_SECRET_KEY");
+    if (env.BILLING_STRIPE_WEBHOOK_SECRET && !env.BILLING_STRIPE_SECRET_KEY) add("BILLING_STRIPE_SECRET_KEY", "required together with BILLING_STRIPE_WEBHOOK_SECRET");
+    if (env.BILLING_STRIPE_SECRET_KEY && !/^(sk|rk)_(test|live)_/.test(env.BILLING_STRIPE_SECRET_KEY)) add("BILLING_STRIPE_SECRET_KEY", "must be a Stripe secret or restricted key (sk_… or rk_…)");
+    if ((env.SIGNUP_ENABLED === "1" || env.SIGNUP_ENABLED === "true") && !env.BILLING_STRIPE_SECRET_KEY) add("BILLING_STRIPE_SECRET_KEY", "required when SIGNUP_ENABLED is on, or trials end with no way to pay");
     // Online payments are optional, but half a setup would take payments the CRM can't record.
     if (env.STRIPE_SECRET_KEY && !env.STRIPE_WEBHOOK_SECRET) add("STRIPE_WEBHOOK_SECRET", "required together with STRIPE_SECRET_KEY");
     if (env.STRIPE_WEBHOOK_SECRET && !env.STRIPE_SECRET_KEY) add("STRIPE_SECRET_KEY", "required together with STRIPE_WEBHOOK_SECRET");

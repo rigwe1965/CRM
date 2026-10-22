@@ -10,9 +10,9 @@ const sha256 = (value: string) => createHash("sha256").update(value).digest("hex
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export async function createPasswordResetToken(email: string, ttlMs = TTL_MS): Promise<string> {
+async function issue(prefix: string, email: string, ttlMs: number): Promise<string> {
   const raw = randomBytes(32).toString("hex");
-  const identifier = PREFIX + email;
+  const identifier = prefix + email;
   await platformDb.$transaction([
     platformDb.verificationToken.deleteMany({ where: { identifier } }),
     platformDb.verificationToken.create({
@@ -22,15 +22,23 @@ export async function createPasswordResetToken(email: string, ttlMs = TTL_MS): P
   return raw;
 }
 
-/** Atomically consumes the token (single use). Returns the email, or null if invalid/expired. */
-export async function consumePasswordResetToken(raw: string): Promise<string | null> {
+/** Atomically consumes a token (single use). Returns the email, or null if invalid/expired/of another kind. */
+async function consume(prefix: string, raw: string): Promise<string | null> {
   const token = sha256(raw);
   const record = await platformDb.verificationToken.findUnique({ where: { token } });
-  if (!record || !record.identifier.startsWith(PREFIX)) return null;
+  if (!record || !record.identifier.startsWith(prefix)) return null;
   const { count } = await platformDb.verificationToken.deleteMany({
     where: { token, expires: { gt: new Date() } },
   });
   if (count === 0) return null;
   await platformDb.verificationToken.deleteMany({ where: { identifier: record.identifier } });
-  return record.identifier.slice(PREFIX.length);
+  return record.identifier.slice(prefix.length);
 }
+
+export const createPasswordResetToken = (email: string, ttlMs = TTL_MS) => issue(PREFIX, email, ttlMs);
+export const consumePasswordResetToken = (raw: string) => consume(PREFIX, raw);
+
+// Email confirmation for a self-service signup (Phase 4). Its own prefix, so a reset link can't confirm a signup or the reverse.
+export const SIGNUP_TTL_MS = 24 * 60 * 60 * 1000;
+export const createSignupToken = (email: string) => issue("signup:", email, SIGNUP_TTL_MS);
+export const consumeSignupToken = (raw: string) => consume("signup:", raw);

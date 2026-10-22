@@ -20,6 +20,7 @@ export const authConfig = {
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
       if (token.tenantId) session.user.tenantId = token.tenantId as string;
+      session.user.tenantWritable = token.tenantWritable !== false;
       if (token.role) session.user.role = token.role as Role;
       session.user.mfaPending = !!token.mfaPending;
       return session;

@@ -4,6 +4,8 @@ import { toErrorResponse } from "@/lib/api";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { audit, wasAudited } from "@/lib/audit";
 import { withTenant } from "@/lib/tenant-context";
+import { ApiError } from "@/lib/api";
+import { allowedWhenReadOnly } from "@/lib/plans";
 
 type Ctx<P> = { req: Request; user: SessionUser; params: P };
 
@@ -25,6 +27,10 @@ export function authed<P = Record<string, string>>(
       if (!guard.ok) return guard.response;
       const write = !["GET", "HEAD", "OPTIONS"].includes(req.method);
       await enforceRateLimit(`api:${write ? "w" : "r"}:${guard.user.id}`, write ? LIMITS.apiWrite : LIMITS.apiRead);
+      // An expired trial, a cancelled subscription: the business can still read and export, but not change anything.
+      if (write && guard.user.tenantWritable === false && !allowedWhenReadOnly(new URL(req.url).pathname)) {
+        throw new ApiError(403, "This workspace is read-only until its subscription is renewed. You can still view and export your data.", "READ_ONLY");
+      }
       // Routes without a URL segment get no params object at all in Next 15.
       const params = (await context?.params) ?? ({} as P);
       // Everything below runs as the caller's business: the database refuses the rows of any other (src/lib/db.ts).

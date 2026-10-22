@@ -23,6 +23,9 @@ import type { Role, TeamUser } from "@/lib/client/types";
 import { useRouter } from "next/navigation";
 import { AuditLogCard } from "@/components/settings/audit-log";
 import { AutomationsCard } from "@/components/settings/automations";
+import { BillingCard } from "@/components/settings/billing";
+import { BusinessCard } from "@/components/settings/business";
+import { IntegrationsCard } from "@/components/settings/integrations";
 import { DataExportCard } from "@/components/settings/data-export";
 import { EmailTemplatesCard } from "@/components/settings/email-templates";
 import { LeadFormCard } from "@/components/settings/lead-form";
@@ -378,6 +381,9 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          {user.role === "ADMIN" && <TabsTrigger value="business">Business</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="billing">Billing</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="integrations">Integrations</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="team">Team</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="tags">Tags</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="templates">Templates</TabsTrigger>}
@@ -396,6 +402,21 @@ export default function SettingsPage() {
             <SessionsCard />
           </div>
         </TabsContent>
+        {user.role === "ADMIN" && (
+          <TabsContent value="business">
+            <BusinessCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="billing">
+            <BillingCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="integrations">
+            <IntegrationsCard />
+          </TabsContent>
+        )}
         {user.role === "ADMIN" && (
           <TabsContent value="team">
             <TeamCard />

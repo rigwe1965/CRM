@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 3 are built (see below); Phases 4 and 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 4 are built (see below); Phase 5 is not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -97,6 +97,16 @@
 - **Check:** a payment or message for tenant A can never be recorded against tenant B.
 
 ### Phase 4: onboarding and billing
+
+**Status: done in code (not yet applied to the owner's dev database; never run against real Stripe test mode).** What was built, and where it differs from the text below:
+
+- Migration `20261102000000_billing`: trial and subscription fields on `Tenant`, a `PENDING` status for unconfirmed signups, and a column-limited grant so a business's admin can edit its name, brand and sender name but never its billing.
+- Sign-up (`/sign-up`, `POST /api/signup`): off unless `SIGNUP_ENABLED=1`; creates a `PENDING` business on a 14-day trial plus its first admin and emails a 24-hour confirmation link; nobody signs in until it is used; unconfirmed signups are deleted after 7 days. Rate limited, and answers the same for an existing email. No CAPTCHA.
+- Billing on the platform's own Stripe account: Checkout to subscribe, the customer portal to manage or cancel, and a signed webhook (`/api/webhooks/billing`) that applies subscription events by the stored customer id, ignoring stale ones. Two paid plans (Starter, Pro) with user and contact limits in `src/lib/plans.ts`; prices and limits are placeholders for the owner to set.
+- Read-only mode for an expired trial or a lapsed subscription: writes return `READ_ONLY` except billing and the user's own account; reading and export keep working. Plan limits refuse extra users and contacts (`PLAN_LIMIT`).
+- Admin screens in Settings: Business, Billing, Integrations. The platform owner's controls are `npm run tenant-admin` (list, suspend, resume, extend a trial), by design not a screen.
+- A leak found on the way: a new business's instalment emails would have defaulted to the brand name "Ivycandy Hair"; they now default to the business's own name.
+- Differs from the plan: a sender address per business is not built (it needs domain verification); only the display name is per business. Export on cancellation is the existing export, which stays allowed.
 
 - Self-signup that creates a tenant and its first admin, with email verification.
 - Subscription billing with Stripe Billing (plan, trial, status), kept separate from the customers' payment links.

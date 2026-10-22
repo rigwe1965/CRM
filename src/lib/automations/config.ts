@@ -124,10 +124,12 @@ export function resolveQuietLeads(stored: unknown): QuietLeadsConfig {
   return parsed.success ? parsed.data : DEFAULT_QUIET_LEADS;
 }
 
-export function resolveInstalmentEmails(stored: unknown): InstalmentEmailsConfig {
+export function resolveInstalmentEmails(stored: unknown, businessBrand?: string): InstalmentEmailsConfig {
   const s = (stored && typeof stored === "object" ? stored : {}) as Partial<InstalmentEmailsConfig>;
-  const parsed = instalmentEmailsSchema.safeParse({ ...DEFAULT_INSTALMENT_EMAILS, ...s });
-  return parsed.success ? parsed.data : DEFAULT_INSTALMENT_EMAILS;
+  // A business that never chose a brand name is named after itself, never after the original business.
+  const defaults = { ...DEFAULT_INSTALMENT_EMAILS, ...(businessBrand && { brandName: businessBrand.slice(0, 60) }) };
+  const parsed = instalmentEmailsSchema.safeParse({ ...defaults, ...s });
+  return parsed.success ? parsed.data : defaults;
 }
 
 /** Fills {deal}, {customer} and {stage}; unknown {words} are left as written. Capped to the task title limit. */

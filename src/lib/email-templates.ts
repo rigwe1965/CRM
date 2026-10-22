@@ -43,6 +43,36 @@ export function welcomeEmail(name: string): Rendered {
   };
 }
 
+export function verifySignupEmail(name: string, businessName: string, url: string): Rendered {
+  return {
+    subject: "Confirm your email to start your CRM",
+    text: `Hi ${name},
+
+Confirm your email to open ${businessName}'s CRM:
+${url}
+
+The link expires in 24 hours. If you didn't sign up, ignore this email and nothing will be created.`,
+    html: layout(
+      `Welcome, ${name}`,
+      `<p style="margin:0">Confirm your email to open the CRM for <strong>${esc(businessName)}</strong>. The link expires in 24 hours.</p>${button(url, "Confirm my email")}<p style="margin:0;color:#71717a">If you didn't sign up, you can ignore this email.</p>`,
+    ),
+  };
+}
+
+export function signupExistsEmail(): Rendered {
+  return {
+    subject: "You already have a CRM account",
+    text: `Someone tried to sign up with this email address, but it already has an account. If it was you, sign in or reset your password:
+${appUrl()}/sign-in
+
+If it wasn't you, you can ignore this email.`,
+    html: layout(
+      "You already have an account",
+      `<p style="margin:0">Someone tried to sign up with this email address, but it already has an account. If it was you, sign in or reset your password.</p>${button(`${appUrl()}/sign-in`, "Sign in")}<p style="margin:0;color:#71717a">If it wasn't you, you can ignore this email.</p>`,
+    ),
+  };
+}
+
 export function passwordResetEmail(url: string): Rendered {
   return {
     subject: "Reset your CRM password",
