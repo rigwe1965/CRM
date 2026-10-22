@@ -1,4 +1,4 @@
-# Extend gitleaks' default rules; only the two test files below are exempt.
+# Extend gitleaks' default rules; only the test files below are exempt.
 [extend]
 useDefault = true
 
@@ -7,4 +7,5 @@ description = "Made-up Stripe keys and app secrets used as test values (never re
 paths = [
   '''tests/integrations\.test\.ts''',
   '''tests/tenant-integrations\.test\.ts''',
+  '''tests/tenant-signup-billing\.test\.ts''',
 ]

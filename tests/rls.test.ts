@@ -136,10 +136,13 @@ run("row-level security", () => {
     await expect(db.$transaction(async (tx) => tx.contact.findMany())).rejects.toBeInstanceOf(NoTenantContextError);
   });
 
-  it("the app role can't edit the audit log, change a business, or read the sign-in tables", async (ctx) => {
+  it("the app role can't edit the audit log, change a business's status or billing, or read the sign-in tables", async (ctx) => {
     needsRls(ctx);
     await expect(asA(() => db.auditLog.updateMany({ data: { summary: "x" } }))).rejects.toThrow();
-    await expect(asA(() => db.tenant.updateMany({ data: { name: "x" } }))).rejects.toThrow();
+    await expect(asA(() => db.tenant.updateMany({ data: { status: "SUSPENDED" } }))).rejects.toThrow();
+    await expect(asA(() => db.tenant.updateMany({ data: { billingStatus: "ACTIVE", plan: "pro" } }))).rejects.toThrow();
+    // Its presentation columns are editable (Settings → Business), and row-level security limits that to its own business.
+    await expect(asA(() => db.tenant.updateMany({ data: { name: "Renamed" } }))).resolves.toMatchObject({ count: 1 });
     await expect(asA(() => db.session.findMany())).rejects.toThrow();
     await expect(asA(() => db.account.findMany())).rejects.toThrow();
   });
