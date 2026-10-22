@@ -23,6 +23,7 @@
 ## Phases
 
 ### Phase 0: groundwork (no behaviour change)
+
 - Add a `Tenant` model (name, slug, status, plan, brand name, sender name).
 - Add a nullable `tenantId` to every business table, backfill it with a tenant for Ivycandy, then make it required. Hand-written migration SQL, per CLAUDE.md.
 - Update the seed so the newcomer sample sits inside a sample tenant (seed data stays a newcomer sample).
@@ -30,6 +31,7 @@
 - **Check:** the app behaves exactly as before for Ivycandy.
 
 ### Phase 1: scope every query
+
 - Add `tenantId` to the session and JWT, and to `requireApiUser` and `authed()`, so every handler receives it.
 - Add one `tenantScope(user)` helper and combine it with the existing `ownerScope`, so the owner rules still apply inside a tenant.
 - Make the unique constraints per tenant, for example `@@unique([tenantId, email])` on contacts and `[tenantId, number]` on invoices. `User.email` stays global.
@@ -38,12 +40,14 @@
 - **Check:** the two-tenant tests prove tenant A cannot read, edit, delete, export or link to tenant B's records through any route, including by guessing IDs.
 
 ### Phase 2: database backstop (RLS)
+
 - Enable RLS on every business table with a policy of `tenantId = current_setting('app.tenant_id')`.
 - Wrap each request's queries in a transaction that sets that value with `SET LOCAL`, through a Prisma client extension.
 - Use a separate database role for the app that cannot bypass RLS, and a different role for migrations and platform scripts.
 - **Check:** with the app-code filters deliberately removed in a test, cross-tenant access still fails. Highest technical risk, because it interacts with connection pooling.
 
 ### Phase 3: per-tenant integrations
+
 - Move Stripe keys, WhatsApp credentials, allowed website origins and sender settings out of environment variables into an encrypted per-tenant settings table, reusing the MFA secret encryption approach.
 - Give each tenant its own webhook URLs (`/api/webhooks/stripe/<tenant>` and `/api/webhooks/whatsapp/<tenant>`), each verified against that tenant's secret.
 - Give the public lead form a tenant key, with allowed origins stored per tenant.
@@ -51,6 +55,7 @@
 - **Check:** a payment or message for tenant A can never be recorded against tenant B.
 
 ### Phase 4: onboarding and billing
+
 - Self-signup that creates a tenant and its first admin, with email verification.
 - Subscription billing with Stripe Billing (plan, trial, status), kept separate from the customers' payment links.
 - Plan limits; an unpaid or cancelled tenant becomes read-only, and exporting its data stays allowed.
@@ -58,6 +63,7 @@
 - **Check:** the sign-up, trial, upgrade and cancel flows work end to end in Stripe test mode.
 
 ### Phase 5: launch readiness
+
 - Tenant-wide export and deletion: a hard-delete job after a retention period, and a data export on request.
 - Terms, a privacy policy and a data-processing agreement (these need a lawyer).
 - Per-tenant limits on email, WhatsApp and API usage to contain abuse and cost.
