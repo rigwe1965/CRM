@@ -3,6 +3,7 @@ import { ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { notFound, ownerScope } from "@/lib/access";
+import { appUrl } from "@/lib/mail";
 import { createPaymentLink, paymentLinksView } from "@/lib/payment-links";
 import { stripe, stripeConfigured } from "@/lib/stripe";
 import { createPaymentLinkSchema } from "@/lib/validations/crm";
@@ -31,8 +32,8 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   const deal = await visibleDeal(params.id, user);
   if (!deal) throw notFound("Deal");
   stripe(); // fail fast with a clear 503 before reserving any amount
-  const base = (process.env.NEXTAUTH_URL ?? new URL(req.url).origin).replace(/\/$/, "");
-  const link = await createPaymentLink(user, deal, body, base);
+  // Configured URL only: the request's Host header is client-controlled and must not decide where Stripe redirects.
+  const link = await createPaymentLink(user, deal, body, appUrl());
   await audit(user, { action: "payment_link.created", entity: "deal", entityId: deal.id, summary: `${link.amount} ${link.currency}`, data: { linkId: link.id, amount: Number(link.amount) } }, req);
   return ok({ configured: true, links: await paymentLinksView(deal.id) }, 201);
 });

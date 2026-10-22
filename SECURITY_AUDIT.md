@@ -281,6 +281,17 @@ Re-reading the changes from findings 1 to 13 found two problems the fixes themse
 
 ---
 
+## Review of newer features (2026-10-22): findings 16 and 17
+
+Second pass over the features added after the first audit (website form, Stripe payment links and webhook, two-way WhatsApp, email templates, tags and saved views, exports). No Critical or High findings; `npm audit --omit=dev` reports 0 vulnerabilities. Two Low/Info items were fixed after the owner approved a plan; three more were noted without code changes (below).
+
+- **16. Anyone can add text to an existing contact through the public website form (Low).** `src/lib/web-lead.ts`: a known email address adds a note to that contact and emails the owner the submitted text. The form answers the same "thanks" for everyone, so an attacker only needs a customer's email address to put their own text in front of staff. **Fix status: fixed.** Notes added to an existing contact start with `[Unverified website form submission]`. The owner's email names the stored contact (not the typed name), leaves out the typed phone and email, and shows only the first 100 characters of the message, on one line and marked unverified. New enquiries are unchanged. Tests in `tests/web-lead.test.ts`.
+- **17. Payment-link redirect base could come from the Host header (Info).** `src/app/api/deals/[id]/payment-links/route.ts` fell back to `new URL(req.url).origin` when `NEXTAUTH_URL` was unset (production requires it, so this affected misconfigured self-hosting only). **Fix status: fixed.** The route now uses `appUrl()`. In development without `NEXTAUTH_URL` the redirect points to port 3000. Test in `tests/payment-link-route.test.ts`.
+
+Noted, no code change: the website form's overall hourly limit (200) can be used up by one rotating-address bot, which would block real visitors (consider a CAPTCHA); requests without an `Origin` header skip the form's origin allowlist by design and are held only by the address limit; the Stripe and WhatsApp webhooks check signatures first but have no request-rate cap (limit them at the proxy or WAF).
+
+---
+
 ## Data export feature (added 2026-10-20)
 
 New feature, reviewed as it was built. Nothing here was a finding in the original audit; this records the design and the risks it was built against.

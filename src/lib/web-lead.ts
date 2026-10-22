@@ -34,6 +34,9 @@ export const allowedOrigins = () =>
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 
+const UNVERIFIED = "[Unverified website form submission]";
+const PREVIEW_CHARS = 100;
+
 /**
  * Turns a form submission into a lead. Quietly does nothing visible to the sender in every case (the caller
  * answers "thanks" regardless), so the form can't be used to find out who is already a contact.
@@ -50,7 +53,7 @@ export async function captureWebLead(input: z.infer<typeof webLeadSchema>) {
   const phone = input.phone?.trim() || null;
   const message = input.message?.trim() || null;
 
-  const existing = email ? await db.contact.findFirst({ where: { email: { equals: email, mode: "insensitive" }, deletedAt: null }, select: { id: true, ownerId: true } }) : null;
+  const existing = email ? await db.contact.findFirst({ where: { email: { equals: email, mode: "insensitive" }, deletedAt: null }, select: { id: true, ownerId: true, firstName: true, lastName: true } }) : null;
   const authorId = existing?.ownerId ?? owner.id;
   const contactId =
     existing?.id ??
@@ -65,7 +68,8 @@ export async function captureWebLead(input: z.infer<typeof webLeadSchema>) {
     data: {
       type: "NOTE",
       subject: existing ? "Sent the website form again" : "Website enquiry",
-      body: message ?? "Submitted the website form without a message.",
+      // Anyone can type a known email into the public form, so text added to an existing contact is marked unverified.
+      body: existing ? `${UNVERIFIED}\n${message ?? "Submitted the website form without a message."}` : (message ?? "Submitted the website form without a message."),
       authorId,
       contactId,
     },
@@ -87,10 +91,26 @@ export async function captureWebLead(input: z.infer<typeof webLeadSchema>) {
 
   // Tell the owner. A failed email must not lose the lead, which is already saved.
   const to = existing?.ownerId ? (await db.user.findFirst({ where: { id: existing.ownerId, isActive: true }, select: { email: true } }))?.email ?? owner.email : owner.email;
+  const open = `Open: ${appUrl()}/contacts/${contactId}`;
+  if (existing) {
+    // Typed details are not trusted: the email names the stored contact and shows only a short, marked preview.
+    const known = `${existing.firstName} ${existing.lastName === "-" ? "" : existing.lastName}`.trim();
+    const preview = message ? oneLine(message).slice(0, PREVIEW_CHARS) : null;
+    await trySendMail({
+      to,
+      subject: `Website form again: ${oneLine(known)}`.slice(0, 150),
+      text: [
+        `Someone used the website form with ${known}'s email address. We can't confirm it was them.`,
+        preview && `\nPreview (unverified, first ${PREVIEW_CHARS} characters):\n${preview}${message && oneLine(message).length > PREVIEW_CHARS ? "…" : ""}`,
+        `\n${open}`,
+      ].filter(Boolean).join("\n"),
+    });
+    return { contactId, created: false };
+  }
   await trySendMail({
     to,
-    subject: `${existing ? "Website form again" : "New website lead"}: ${name}`.slice(0, 150),
-    text: [`${name}`, email && `Email: ${email}`, phone && `Phone: ${phone}`, message && `\n${message}`, `\nOpen: ${appUrl()}/contacts/${contactId}`].filter(Boolean).join("\n"),
+    subject: `New website lead: ${name}`.slice(0, 150),
+    text: [`${name}`, email && `Email: ${email}`, phone && `Phone: ${phone}`, message && `\n${message}`, `\n${open}`].filter(Boolean).join("\n"),
   });
   return { contactId, created: !existing };
 }

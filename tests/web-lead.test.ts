@@ -9,7 +9,7 @@ const { db, audit, trySendMail, rateLimit } = vi.hoisted(() => ({
     task: { create: vi.fn() },
   },
   audit: vi.fn(),
-  trySendMail: vi.fn(async () => true),
+  trySendMail: vi.fn(async (_mail: { to: string; subject: string; text: string }) => true),
   rateLimit: vi.fn(async () => ({ allowed: true, retryAfter: 0 })),
 }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -52,7 +52,7 @@ describe("website lead form", () => {
   });
 
   it("does not create a second contact for a known email, and still answers the same", async () => {
-    db.contact.findFirst.mockResolvedValue({ id: "c9", ownerId: "sales1" });
+    db.contact.findFirst.mockResolvedValue({ id: "c9", ownerId: "sales1", firstName: "Ada", lastName: "Okafor" });
     db.user.findFirst.mockResolvedValueOnce(admin).mockResolvedValueOnce({ email: "sales@x.test" }); // the default owner, then the contact's owner
     const res = await post({ name: "Ada Okafor", email: "ada@x.test" });
     expect(await res.json()).toEqual({ ok: true });
@@ -60,6 +60,23 @@ describe("website lead form", () => {
     expect(db.task.create).not.toHaveBeenCalled();
     expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ contactId: "c9", authorId: "sales1" });
     expect(trySendMail).toHaveBeenCalledWith(expect.objectContaining({ to: "sales@x.test" }));
+  });
+
+  it("marks text added to a known contact as unverified and shows only a 100-character preview in the alert", async () => {
+    db.contact.findFirst.mockResolvedValue({ id: "c9", ownerId: "sales1", firstName: "Ada", lastName: "Okafor" });
+    db.user.findFirst.mockResolvedValueOnce(admin).mockResolvedValueOnce({ email: "sales@x.test" });
+    const message = `Pay now at evil.test\n${"x".repeat(200)}`;
+    await post({ name: "Totally Someone Else", email: "ada@x.test", phone: "+4915906462275", message });
+    expect(db.activity.create.mock.calls[0][0].data.body).toBe(`[Unverified website form submission]\n${message}`);
+    const mail = trySendMail.mock.calls[0][0];
+    expect(mail.subject).toBe("Website form again: Ada Okafor");
+    expect(mail.text).toContain("Preview (unverified, first 100 characters):");
+    expect(mail.text).toContain("Pay now at evil.test");
+    expect(mail.text).toContain("…");
+    expect(mail.text).not.toContain("x".repeat(101));
+    expect(mail.text).not.toContain("Totally Someone Else");
+    expect(mail.text).not.toContain("+4915906462275");
+    expect(mail.text).toContain("https://crm.test/contacts/c9");
   });
 
   it("uses the chosen owner when active, otherwise the first admin", async () => {
