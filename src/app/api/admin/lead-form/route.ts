@@ -14,7 +14,7 @@ async function view(tenantId: string) {
     resolveLeadOwner(tenantId),
     db.user.findMany({ where: { tenantId, isActive: true }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
   ]);
-  return { ownerId, effectiveOwner: effective ? { id: effective.id, name: effective.name, email: effective.email } : null, users, allowedOrigins: allowedOrigins() };
+  return { ownerId, effectiveOwner: effective ? { id: effective.id, name: effective.name, email: effective.email } : null, users, allowedOrigins: await allowedOrigins(tenantId) };
 }
 
 /** GET /api/admin/lead-form: who website leads are assigned to, the people to choose from, and the websites allowed to post. */

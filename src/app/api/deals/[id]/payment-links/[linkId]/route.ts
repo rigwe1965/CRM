@@ -14,5 +14,5 @@ export const DELETE = authed<{ id: string; linkId: string }>(async ({ req, user,
   if (!deal) throw notFound("Deal");
   await cancelPaymentLink(user.tenantId, deal.id, params.linkId);
   await audit(user, { action: "payment_link.cancelled", entity: "deal", entityId: deal.id, data: { linkId: params.linkId } }, req);
-  return ok({ configured: stripeConfigured(), links: await paymentLinksView(user.tenantId, deal.id) });
+  return ok({ configured: await stripeConfigured(user.tenantId), links: await paymentLinksView(user.tenantId, deal.id) });
 });

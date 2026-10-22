@@ -123,6 +123,7 @@ async function seedTenant(db: PrismaClient, k: string): Promise<TenantFixture> {
   await db.emailTemplate.create({ data: { ...t, name: `Welcome ${k}`, subject: "Hi", body: "Hello {firstName}" } });
   await db.automationSetting.create({ data: { ...t, key: `lead-form-${k}`, config: {} } });
   await db.stockAdjustment.create({ data: { ...t, product: "Bundle", quantity: 1, reason: "Found", ownerId: sales.id } });
+  await db.tenantIntegration.create({ data: { ...t, kind: "LEAD_FORM", config: "placeholder-not-real-ciphertext" } });
   await db.auditLog.create({ data: { ...t, action: `fixture.${k}`, actorId: adminUser.id } });
   void link;
 

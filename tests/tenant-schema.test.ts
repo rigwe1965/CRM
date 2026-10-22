@@ -7,6 +7,9 @@ import { TENANTLESS_MODELS, businessModels } from "./helpers/two-tenants";
 // Phase 0 of MULTI_TENANCY_PLAN.md: no database needed. Fails the moment someone adds a business table
 // without a tenantId, so a table can never silently escape tenant scoping.
 
+/** Business tables created after Phase 0, each with its tenantId from the start. */
+const ADDED_LATER = ["TenantIntegration"];
+
 const models = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
 
 describe("tenant columns", () => {
@@ -32,7 +35,7 @@ describe("tenant columns", () => {
     const schema = readFileSync("prisma/schema.prisma", "utf8");
     for (const name of businessModels()) {
       const block = schema.match(new RegExp(`\\nmodel ${name} \\{[\\s\\S]*?\\n\\}`))?.[0] ?? "";
-      expect(/@@index\(\[tenantId[,\]]/.test(block), `${name} needs @@index([tenantId, …])`).toBe(true);
+      expect(/@@(index|unique)\(\[tenantId[,\]]/.test(block), `${name} needs @@index([tenantId, …]) or a unique that starts with it`).toBe(true);
     }
   });
 
@@ -49,14 +52,17 @@ describe("tenant columns", () => {
     const seedAt = sql.indexOf(`VALUES ('${DEFAULT_TENANT_ID}'`);
     expect(seedAt).toBeGreaterThan(-1);
     expect(sql.indexOf('ADD COLUMN "tenantId"')).toBeGreaterThan(seedAt);
-    // Each business table gets exactly one column; the audit log has no foreign key.
-    expect(sql.match(/ADD COLUMN "tenantId"/g)).toHaveLength(businessModels().length);
-    expect(sql.match(/_tenantId_fkey/g)).toHaveLength(businessModels().length - 1);
+    // Each business table that existed then gets exactly one column; the audit log has no foreign key. Tables added
+    // later declare their tenantId in their own migration.
+    const older = businessModels().filter((m) => !ADDED_LATER.includes(m));
+    expect(sql.match(/ADD COLUMN "tenantId"/g)).toHaveLength(older.length);
+    expect(sql.match(/_tenantId_fkey/g)).toHaveLength(older.length - 1);
   });
 });
 
 describe("row-level security (Phase 2)", () => {
-  const sql = () => readFileSync("prisma/migrations/20261031000000_row_level_security/migration.sql", "utf8");
+  // The migration that switched it on, plus the later ones that add a table with its own policy.
+  const sql = () => ["20261031000000_row_level_security", "20261101000000_tenant_integrations"].map((d) => readFileSync(`prisma/migrations/${d}/migration.sql`, "utf8")).join("\n");
 
   it("every business table has RLS switched on and a policy that names its tenantId", () => {
     const migration = sql();

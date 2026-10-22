@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. Phases 0, 1 and 2 are built (see below); Phases 3 to 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phases 0 to 3 are built (see below); Phases 4 and 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -80,6 +80,15 @@
 - **Check:** with the app-code filters deliberately removed in a test, cross-tenant access still fails. Highest technical risk, because it interacts with connection pooling.
 
 ### Phase 3: per-tenant integrations
+
+**Status: done in code (not yet applied to the owner's dev database).** What was built, and where it differs from the text below:
+
+- Migration `20261101000000_tenant_integrations`: `TenantIntegration` (business, service, encrypted settings), with row-level security like every business table. Settings are sealed with the two-step-secret key and also name their business and service inside the encryption.
+- Stripe keys, the four WhatsApp values and the website form's allowed origins come from that table (`src/lib/integrations.ts`). Admin API `/api/admin/integrations` to read what is set up (never the secrets), save and remove; the screens are Phase 4.
+- Per-business addresses: `/api/webhooks/stripe/<id>`, `/api/webhooks/whatsapp/<id>`, `/api/public/lead/<id>`, each verified against that business's own secret or origins. The original addresses stay for the original business, which also keeps falling back to its environment variables until it saves settings, so nothing changes for Ivycandy.
+- A Stripe event that names another business's payment link is refused (a business controls its own Stripe account, so this is the check that matters). Rate-limit keys for the website form include the business. The daily cron already ran per business (Phase 1).
+- Differs from the plan: the email sender stays one address per deployment; a sender per business needs domain verification and moves to Phase 4.
+- `tests/tenant-integrations.test.ts` proves, on a real database with two businesses, that a payment or message for one can't be recorded against the other, that settings and webhooks answer only for their own business, and that secrets never leave the server.
 
 - Move Stripe keys, WhatsApp credentials, allowed website origins and sender settings out of environment variables into an encrypted per-tenant settings table, reusing the MFA secret encryption approach.
 - Give each tenant its own webhook URLs (`/api/webhooks/stripe/<tenant>` and `/api/webhooks/whatsapp/<tenant>`), each verified against that tenant's secret.

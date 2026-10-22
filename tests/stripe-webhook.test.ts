@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { constructEvent, record } = vi.hoisted(() => ({ constructEvent: vi.fn(), record: vi.fn() }));
-vi.mock("@/lib/stripe", () => ({ stripe: () => ({ webhooks: { constructEvent } }) }));
+// No saved settings in the database, so the original business falls back to the environment variables; any other
+// business has nothing.
+vi.mock("@/lib/db", () => ({ db: { tenantIntegration: { findFirst: vi.fn(async () => null) } } }));
+vi.mock("@/lib/stripe", () => ({ stripe: async () => ({ webhooks: { constructEvent } }) }));
 vi.mock("@/lib/payment-links", () => ({ recordOnlinePayment: record, auditOnline: vi.fn() }));
 
 import { POST } from "@/app/api/webhooks/stripe/route";
+import { POST as postFor } from "@/app/api/webhooks/stripe/[tenant]/route";
 import { isPublicPath } from "@/lib/rbac";
 
 const call = (headers: Record<string, string> = { "stripe-signature": "t=1,v1=x" }) =>
@@ -13,6 +17,7 @@ const call = (headers: Record<string, string> = { "stripe-signature": "t=1,v1=x"
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+  process.env.STRIPE_SECRET_KEY = "sk_test_abc123";
 });
 
 describe("stripe webhook", () => {
@@ -40,7 +45,7 @@ describe("stripe webhook", () => {
     record.mockResolvedValue({ outcome: "recorded", dealId: "d1", summary: "100.00 USD" });
     const res = await call();
     expect(res.status).toBe(200);
-    expect(record).toHaveBeenCalledWith({ id: "cs_1" });
+    expect(record).toHaveBeenCalledWith({ id: "cs_1" }, "tenant_ivycandy");
   });
 
   it("acknowledges and ignores other events", async () => {
@@ -53,5 +58,15 @@ describe("stripe webhook", () => {
     constructEvent.mockReturnValue({ id: "evt_3", type: "checkout.session.completed", data: { object: {} } });
     record.mockRejectedValue(new Error("db down"));
     expect((await call()).status).toBe(500);
+  });
+
+  it("takes the business from the address, and only the original business falls back to the environment", async () => {
+    const other = () =>
+      postFor(new Request("http://x.test/api/webhooks/stripe/tenant_b", { method: "POST", headers: { "stripe-signature": "t=1,v1=x" }, body: "{}" }), { params: Promise.resolve({ tenant: "tenant_b" }) });
+    // tenant_b has saved nothing: the environment keys are the original business's and are never used for it.
+    expect((await other()).status).toBe(503);
+    expect(constructEvent).not.toHaveBeenCalled();
+    const original = await postFor(new Request("http://x.test", { method: "POST", headers: { "stripe-signature": "t=1,v1=x" }, body: "{}" }), { params: Promise.resolve({ tenant: "tenant_ivycandy" }) });
+    expect(original.status).not.toBe(503);
   });
 });

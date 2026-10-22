@@ -7,6 +7,8 @@ const { db, audit, trySendMail, rateLimit } = vi.hoisted(() => ({
     contact: { findFirst: vi.fn(), create: vi.fn() },
     activity: { create: vi.fn() },
     task: { create: vi.fn() },
+    tenant: { findFirst: vi.fn() },
+    tenantIntegration: { findFirst: vi.fn() },
   },
   audit: vi.fn(),
   trySendMail: vi.fn(async (_mail: { to: string; subject: string; text: string }) => true),
@@ -31,6 +33,8 @@ beforeEach(() => {
   process.env.LEAD_FORM_ORIGINS = "https://shop.test";
   rateLimit.mockResolvedValue({ allowed: true, retryAfter: 0 });
   db.automationSetting.findUnique.mockResolvedValue(null);
+  db.tenant.findFirst.mockResolvedValue({ id: "tenant_ivycandy" });
+  db.tenantIntegration.findFirst.mockResolvedValue(null); // no saved settings: the original business uses LEAD_FORM_ORIGINS
   db.user.findFirst.mockResolvedValue(admin);
   db.contact.findFirst.mockResolvedValue(null);
   db.contact.create.mockResolvedValue({ id: "c1" });

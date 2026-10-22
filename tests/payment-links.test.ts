@@ -21,7 +21,7 @@ const { tx, db, platformDb, stripeApi } = vi.hoisted(() => {
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/platform-db", () => ({ platformDb }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
-vi.mock("@/lib/stripe", async (orig) => ({ ...(await orig<typeof import("@/lib/stripe")>()), stripe: () => stripeApi }));
+vi.mock("@/lib/stripe", async (orig) => ({ ...(await orig<typeof import("@/lib/stripe")>()), stripe: async () => stripeApi }));
 
 import { cancelPaymentLink, createPaymentLink, recordOnlinePayment } from "@/lib/payment-links";
 
@@ -118,7 +118,7 @@ describe("recordOnlinePayment", () => {
   });
 
   it("records a paid session as a DIGITAL payment and closes the link", async () => {
-    const r = await recordOnlinePayment(session());
+    const r = await recordOnlinePayment(session(), "t1");
     expect(r.outcome).toBe("recorded");
     expect(tx.payment.create.mock.calls[0][0].data).toMatchObject({
       tenantId: "t1", dealId: "d1", amount: 100, method: "DIGITAL", source: "ONLINE", providerRef: "pi_1", paymentLinkId: "l1",
@@ -130,7 +130,7 @@ describe("recordOnlinePayment", () => {
 
   it("looks the deal up inside the link's own business, so another business's deal is never credited", async () => {
     tx.deal.findFirst.mockResolvedValue(null); // the deal id exists, but not in the link's business
-    const r = await recordOnlinePayment(session());
+    const r = await recordOnlinePayment(session(), "t1");
     expect(r.outcome).toBe("refund_needed");
     expect(tx.deal.findFirst.mock.calls[0][0].where).toMatchObject({ id: "d1", tenantId: "t1" });
     expect(tx.payment.create).not.toHaveBeenCalled();
@@ -138,23 +138,23 @@ describe("recordOnlinePayment", () => {
 
   it("ignores a repeated delivery of the same payment", async () => {
     tx.payment.findFirst.mockResolvedValue({ id: "p1" });
-    expect((await recordOnlinePayment(session())).outcome).toBe("duplicate");
+    expect((await recordOnlinePayment(session(), "t1")).outcome).toBe("duplicate");
     tx.payment.findFirst.mockResolvedValue(null);
     tx.paymentLink.findFirstOrThrow.mockResolvedValue(link({ status: "PAID" }));
-    expect((await recordOnlinePayment(session())).outcome).toBe("duplicate");
+    expect((await recordOnlinePayment(session(), "t1")).outcome).toBe("duplicate");
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
 
   it("does not record unpaid sessions or links we don't know", async () => {
-    expect((await recordOnlinePayment(session({ payment_status: "unpaid" }))).outcome).toBe("not_paid");
+    expect((await recordOnlinePayment(session({ payment_status: "unpaid" }), "t1")).outcome).toBe("not_paid");
     platformDb.paymentLink.findUnique.mockResolvedValue(null);
-    expect((await recordOnlinePayment(session())).outcome).toBe("unknown_link");
+    expect((await recordOnlinePayment(session(), "t1")).outcome).toBe("unknown_link");
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
 
   it("flags a refund instead of breaking the balance rule when the balance dropped", async () => {
     tx.payment.aggregate.mockResolvedValue({ _sum: { amount: 250 } }); // only 50 left, customer paid 100
-    const r = await recordOnlinePayment(session());
+    const r = await recordOnlinePayment(session(), "t1");
     expect(r.outcome).toBe("refund_needed");
     expect(tx.payment.create).not.toHaveBeenCalled();
     expect(tx.paymentLink.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "REFUND_NEEDED" }) }));
@@ -163,13 +163,13 @@ describe("recordOnlinePayment", () => {
 
   it("flags a refund when the link was cancelled, the deal deleted, or the amount differs", async () => {
     tx.paymentLink.findFirstOrThrow.mockResolvedValue(link({ status: "CANCELLED" }));
-    expect((await recordOnlinePayment(session())).outcome).toBe("refund_needed");
+    expect((await recordOnlinePayment(session(), "t1")).outcome).toBe("refund_needed");
     tx.paymentLink.findFirstOrThrow.mockResolvedValue(link());
     tx.deal.findFirst.mockResolvedValue(dealRow({ deletedAt: new Date() }));
-    expect((await recordOnlinePayment(session())).outcome).toBe("refund_needed");
+    expect((await recordOnlinePayment(session(), "t1")).outcome).toBe("refund_needed");
     tx.deal.findFirst.mockResolvedValue(dealRow());
-    expect((await recordOnlinePayment(session({ amount_total: 9000 }))).outcome).toBe("refund_needed");
-    expect((await recordOnlinePayment(session({ currency: "eur" }))).outcome).toBe("refund_needed");
+    expect((await recordOnlinePayment(session({ amount_total: 9000 }), "t1")).outcome).toBe("refund_needed");
+    expect((await recordOnlinePayment(session({ currency: "eur" }), "t1")).outcome).toBe("refund_needed");
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
 });

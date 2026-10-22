@@ -84,7 +84,7 @@ export async function createPaymentLink(
 
   try {
     const metadata = { paymentLinkId: link.id, dealId: deal.id };
-    const created = await stripe().paymentLinks.create({
+    const created = await (await stripe(user.tenantId)).paymentLinks.create({
       line_items: [
         {
           quantity: 1,
@@ -117,7 +117,7 @@ export async function cancelPaymentLink(tenantId: string, dealId: string, linkId
   if (link.status !== "PENDING") throw new ApiError(409, "Only an open payment link can be cancelled.", "LINK_NOT_OPEN");
   if (link.providerLinkId) {
     try {
-      await stripe().paymentLinks.update(link.providerLinkId, { active: false });
+      await (await stripe(tenantId)).paymentLinks.update(link.providerLinkId, { active: false });
     } catch (e) {
       console.error("stripe payment link deactivate failed", e instanceof Error ? e.message : e);
       throw new ApiError(502, "The link could not be switched off at Stripe. It is still open; please try again.", "PAYMENT_PROVIDER_FAILED");
@@ -136,7 +136,7 @@ export type OnlinePaymentOutcome = "recorded" | "duplicate" | "refund_needed" | 
  * (the balance dropped, the link was cancelled, the deal was deleted) it is never silently dropped:
  * the link is marked REFUND_NEEDED and the deal owner gets an urgent task.
  */
-export async function recordOnlinePayment(session: Stripe.Checkout.Session): Promise<{ outcome: OnlinePaymentOutcome; tenantId?: string; dealId?: string; summary?: string }> {
+export async function recordOnlinePayment(session: Stripe.Checkout.Session, webhookTenantId: string): Promise<{ outcome: OnlinePaymentOutcome; tenantId?: string; dealId?: string; summary?: string }> {
   if (session.payment_status !== "paid") return { outcome: "not_paid" };
   const providerLinkId = typeof session.payment_link === "string" ? session.payment_link : session.payment_link?.id;
   const intent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
@@ -145,6 +145,12 @@ export async function recordOnlinePayment(session: Stripe.Checkout.Session): Pro
   // Stripe names no business, so the link is found as the platform; from here on everything runs as the link's own.
   const found = await platformDb.paymentLink.findUnique({ where: { providerLinkId }, select: { id: true, tenantId: true, dealId: true } });
   if (!found) return { outcome: "unknown_link" };
+  // The event arrived on one business's webhook, signed with that business's secret. A business controls its own
+  // Stripe account, so it could name any payment link id: a link of another business is never credited.
+  if (found.tenantId !== webhookTenantId) {
+    console.warn("[stripe] event for a payment link of another business refused", webhookTenantId);
+    return { outcome: "unknown_link" };
+  }
 
   const paid = round2((session.amount_total ?? 0) / 100);
   const currency = (session.currency ?? "").toUpperCase();

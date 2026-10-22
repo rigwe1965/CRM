@@ -26,6 +26,17 @@ Application filters (`tenantScope`) are the first wall between businesses; Postg
 - **What it does not cover.** A foreign key is checked by the database itself, so a row could still point at another business's row; the application refuses that (`assertLinks`, `assertTags`) and reading through the link returns nothing. The platform client, a superuser and the migration role cross businesses by design. A SQL injection would run as `crm_app`, so it would be held to one business.
 - **Tests.** `tests/rls.test.ts` runs unfiltered queries as a restricted login and checks reads, updates, deletes, cross-business writes, transactions, row locks, overlapping requests on the pool, and the audit log. It needs a test user that can create roles (CI's is a superuser); on a plain local database it skips itself, and CI refuses to skip. `tests/tenant-routes.test.ts` runs every route under the same restricted login.
 
+#### Per-business integrations (Phase 3)
+
+Each business keeps its own Stripe keys, WhatsApp number and website-form origins in `TenantIntegration`: one row per business and service, the settings as JSON **encrypted** with the same key as the two-step secrets (`MFA_ENCRYPTION_KEY`; rotating it works the same way). The sealed JSON also names its business and service, so a row copied to another business is refused. Code: `src/lib/integrations.ts`.
+
+- **Settings API (admin of the business):** `GET /api/admin/integrations` says what is set up, where each setting comes from (`settings` or `env`) and the addresses to give the outside service; secrets are never returned. `PUT /api/admin/integrations/stripe|whatsapp|lead-form` saves a whole set (validated); `DELETE` removes it. There is no screen yet; Phase 4 adds the admin screens.
+- **The original business keeps working unchanged.** Until it saves settings of its own, `tenant_ivycandy` falls back to the old environment variables (`STRIPE_*`, `WHATSAPP_*`, `LEAD_FORM_ORIGINS`) and the old addresses (`/api/webhooks/stripe`, `/api/webhooks/whatsapp`, `/api/public/lead`). No other business ever reads the environment variables.
+- **One address per business.** Give Stripe `https://<domain>/api/webhooks/stripe/<businessId>` (events `checkout.session.completed` and `checkout.session.async_payment_succeeded`), Meta `https://<domain>/api/webhooks/whatsapp/<businessId>` with the business's verify token, and the website form `https://<domain>/api/public/lead/<businessId>`. The business comes from the address, never from the payload; each request is verified with that business's own secret. An unknown business and one without settings answer the same (503 for webhooks, 404 for the form).
+- **Why a payment can't land in another business.** A business controls its own Stripe account, so it could sign an event that names another business's payment link. `recordOnlinePayment` therefore refuses any link that does not belong to the business whose webhook received the event, and WhatsApp messages are filed under the business whose app secret signed them.
+- **Rate limits** for the website form include the business (`weblead:<id>:<ip>`, `weblead:<id>:all`). The daily cron already runs each business on its own settings.
+- **Not moved yet:** the email sender (`EMAIL_FROM`) stays one address for the whole deployment; a sender per business needs domain verification, which belongs with onboarding (Phase 4). `Tenant.brandName` and `senderName` exist for it.
+
 ## Environment variables (names only; see `.env.example`)
 `DATABASE_URL`, `DIRECT_URL`, optional `PLATFORM_DATABASE_URL` (owner role; production), `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
 
@@ -33,7 +44,7 @@ Application filters (`tenantScope`) are the first wall between businesses; Postg
 Payment links are Stripe Payment Links (one payment each, USD and EUR only). The CRM never sees card details.
 1. Use **test mode** first. Create a restricted key (`rk_test_…`) that can write *Payment Links*, or a `sk_test_…` key, and put it in `.env` as `STRIPE_SECRET_KEY`.
 2. Locally: `stripe listen --forward-to localhost:3001/api/webhooks/stripe` prints a `whsec_…` secret; put it in `.env` as `STRIPE_WEBHOOK_SECRET` and restart the dev server.
-3. In production: in the Stripe dashboard add the endpoint `https://<your-domain>/api/webhooks/stripe` for the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and use its signing secret. Switch to live keys only after one real small payment works.
+3. In production: in the Stripe dashboard add the endpoint `https://<your-domain>/api/webhooks/stripe` (another business: `/api/webhooks/stripe/<businessId>`, see "Per-business integrations") for the events `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and use its signing secret. Switch to live keys only after one real small payment works.
 4. `NEXTAUTH_URL` is used for the "thank you" page address (`/pay/result`); outside Vercel it must be your public https URL.
 - The webhook (`/api/webhooks/stripe`) is public and protected only by Stripe's signature. A bad signature gets 400; a processing failure gets 500 so Stripe retries. Recording is idempotent (unique `Payment.providerRef`).
 - Every online event is in the audit log (`payment.recorded_online`, `payment.online_refund_needed`, `payment_link.created`, `payment_link.cancelled`).
@@ -59,24 +70,26 @@ It sets `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=http://localhost:<port>` and `SKIP
 
 Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema.prisma`, add a matching migration folder, then restart the dev server.
 
-### Tenants (multi-tenancy Phases 0 to 2, see `MULTI_TENANCY_PLAN.md`)
+### Tenants (multi-tenancy Phases 0 to 3, see `MULTI_TENANCY_PLAN.md`)
 
-Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Four migrations, in this order:
+Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Five migrations, in this order:
 
 1. `20261028000000_tenants`: the `Tenant` table, the original business, and `tenantId` on every business table (with a default, so nothing is rewritten).
 2. `20261029000000_tenant_uniques`: contact email, organization domain, tag name, template name, invoice number and the automation setting key are unique **per business** instead of across the database. `User.email` stays unique across the database.
 3. `20261030000000_tenant_required`: drops the default, so every create must name its business.
 4. `20261031000000_row_level_security`: the database refuses cross-business rows itself (see "Row-level security" below).
+5. `20261101000000_tenant_integrations`: the encrypted per-business settings table (see "Per-business integrations" below).
 
 In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts`) names the caller's business and `ownerScope`/`authorScope`/`taskScope` already include it. Every query on a business table must use one of them. The public entry points (website form, WhatsApp webhook) file leads under `DEFAULT_TENANT_ID` until Phase 3 gives each business its own address.
 
-- **Production / any database that uses migrations:** `npm run db:deploy` applies all four. Back up first.
+- **Production / any database that uses migrations:** `npm run db:deploy` applies all five. Back up first.
 - **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the SQL of each migration you haven't applied, in order, then push:
   1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
   2. `npx prisma db execute --file prisma/migrations/20261029000000_tenant_uniques/migration.sql`
   3. `npx prisma db execute --file prisma/migrations/20261030000000_tenant_required/migration.sql`
   4. `npx prisma db execute --file prisma/migrations/20261031000000_row_level_security/migration.sql` (on a plain local database it adds the policies but, lacking CREATEROLE, skips the `crm_app` role with a notice; that is fine for development, see below)
-  5. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  5. `npx prisma db execute --file prisma/migrations/20261101000000_tenant_integrations/migration.sql`
+  6. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
   After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until these have run.
 - **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
 - **New admin in a given business:** `npm run make-admin -- you@example.com --create "Name" --tenant <tenantId>` (default: the original business).

@@ -208,6 +208,7 @@ model Tenant {
   savedFilters        SavedFilter[]
   emailTemplates      EmailTemplate[]
   automationSettings  AutomationSetting[]
+  integrations        TenantIntegration[]
   invoices            Invoice[]
   invoiceItems        InvoiceItem[]
   payments            Payment[]
@@ -492,6 +493,27 @@ model AutomationSetting {
 
   @@id([tenantId, key])
   @@index([tenantId])
+}
+
+// A business's own connections to outside services (Phase 3 of MULTI_TENANCY_PLAN.md). `config` is the settings as
+// JSON, encrypted at rest (src/lib/integrations.ts); it never leaves the server in a response.
+enum IntegrationKind {
+  STRIPE
+  WHATSAPP
+  LEAD_FORM
+}
+
+model TenantIntegration {
+  id          String          @id @default(cuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  kind        IntegrationKind
+  config      String
+  updatedById String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([tenantId, kind])
 }
 
 // ─── Invoices ───────────────────────────────────────────

@@ -8,6 +8,7 @@ const { db, audit, trySendMail, sendFetch } = vi.hoisted(() => ({
     contact: { findFirst: vi.fn(), create: vi.fn() },
     activity: { findFirst: vi.fn(), create: vi.fn() },
     task: { findFirst: vi.fn(), create: vi.fn() },
+    tenantIntegration: { findFirst: vi.fn(async () => null) }, // no saved settings: the original business uses the environment
   },
   audit: vi.fn(),
   trySendMail: vi.fn(async () => true),
@@ -19,7 +20,7 @@ vi.mock("@/lib/mail", () => ({ trySendMail, appUrl: () => "https://crm.test" }))
 vi.mock("@/lib/route", () => ({
   authed: (handler: (ctx: unknown) => Promise<Response>) => async (req: Request, context?: { params: Promise<unknown> }) => {
     try {
-      return await handler({ req, user: { id: "u1", tenantId: "t1", role: "ADMIN", name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
+      return await handler({ req, user: { id: "u1", tenantId: "tenant_ivycandy", role: "ADMIN", name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
     } catch (e) {
       const err = e as { status?: number; code?: string };
       return new Response(JSON.stringify({ code: err.code }), { status: err.status ?? 500 });

@@ -16,7 +16,7 @@ const find = (id: string, user: Parameters<typeof ownerScope>[0]) =>
 export const GET = authed<P>(async ({ user, params }) => {
   const contact = await find(params.id, user);
   if (!contact) throw notFound("Contact");
-  const configured = whatsappConfigured();
+  const configured = await whatsappConfigured(user.tenantId);
   return ok({ configured, canSend: configured && !!contact.phoneE164 && (await canReplyFreely(user.tenantId, contact.id)) });
 });
 
@@ -29,14 +29,14 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   const { message } = await readBody(req, sendWhatsappSchema);
   const contact = await find(params.id, user);
   if (!contact) throw notFound("Contact");
-  if (!whatsappConfigured()) throw new ApiError(409, "WhatsApp is not set up on this CRM yet", "NOT_CONFIGURED");
+  if (!(await whatsappConfigured(user.tenantId))) throw new ApiError(409, "WhatsApp is not set up on this CRM yet", "NOT_CONFIGURED");
   if (!contact.phoneE164) throw new ApiError(422, "This contact has no WhatsApp-ready phone number (use the international form, +49…)", "VALIDATION_ERROR", { message: ["No valid phone number"] });
   if (!(await canReplyFreely(user.tenantId, contact.id))) {
     throw new ApiError(409, "WhatsApp only allows free-text replies within 24 hours of the customer's last message. Wait for them to write, or use an approved template.", "OUTSIDE_WINDOW");
   }
   let id: string;
   try {
-    id = await sendWhatsAppText(contact.phoneE164, message);
+    id = await sendWhatsAppText(user.tenantId, contact.phoneE164, message);
   } catch (e) {
     throw new ApiError(502, e instanceof Error ? e.message : "WhatsApp did not accept the message", "WHATSAPP_ERROR");
   }

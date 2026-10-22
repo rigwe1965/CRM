@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { getIntegration } from "@/lib/integrations";
 import { appUrl, trySendMail } from "@/lib/mail";
 import { normalizePhone } from "@/lib/phone";
 import type { z } from "zod";
@@ -28,9 +29,8 @@ export async function saveLeadFormOwnerId(tenantId: string, ownerId: string | nu
   await db.automationSetting.upsert({ where: { tenantId_key: { tenantId, key: KEY } }, create: { tenantId, key: KEY, config, updatedById }, update: { config, updatedById } });
 }
 
-/** Websites allowed to post the form from a visitor's browser: LEAD_FORM_ORIGINS, comma separated (https://shop.example.com). */
-export const allowedOrigins = () =>
-  (process.env.LEAD_FORM_ORIGINS ?? "").split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean);
+/** Websites allowed to post a business's form from a visitor's browser (https://shop.example.com), from its saved settings. */
+export const allowedOrigins = async (tenantId: string) => (await getIntegration(tenantId, "LEAD_FORM"))?.settings.origins ?? [];
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim();
 

@@ -1,12 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
+import { getIntegration } from "@/lib/integrations";
 import { audit } from "@/lib/audit";
 import { trySendMail, appUrl } from "@/lib/mail";
 import { resolveLeadOwner } from "@/lib/web-lead";
 
-/** Two-way WhatsApp through Meta's WhatsApp Business Cloud API. All four settings must be present. */
-export const whatsappConfigured = () =>
-  !!(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_APP_SECRET && process.env.WHATSAPP_VERIFY_TOKEN);
+/** Two-way WhatsApp through Meta's WhatsApp Business Cloud API. A business has it when all four settings are saved. */
+export const whatsappConfigured = async (tenantId: string) => !!(await getIntegration(tenantId, "WHATSAPP"));
 
 /** Meta only lets a business answer with free text within 24 hours of the customer's last message. */
 export const REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -129,11 +129,14 @@ export async function canReplyFreely(tenantId: string, contactId: string, now = 
 }
 
 /** Sends a free-text WhatsApp message. Returns Meta's message id. Throws with Meta's reason when it refuses. */
-export async function sendWhatsAppText(toE164: string, body: string): Promise<string> {
+export async function sendWhatsAppText(tenantId: string, toE164: string, body: string): Promise<string> {
+  const found = await getIntegration(tenantId, "WHATSAPP");
+  if (!found) throw new Error("WhatsApp is not set up for this business");
+  const { accessToken, phoneNumberId } = found.settings;
   const version = process.env.WHATSAPP_API_VERSION || "v23.0";
-  const res = await fetch(`https://graph.facebook.com/${version}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+  const res = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: toE164.replace(/\D/g, ""), type: "text", text: { body, preview_url: false } }),
     cache: "no-store",
   });

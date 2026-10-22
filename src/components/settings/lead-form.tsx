@@ -83,7 +83,7 @@ export function LeadFormCard() {
               <p className="font-medium">Websites allowed to send enquiries</p>
               {data.allowedOrigins.length === 0 ? (
                 <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-                  None yet, so browsers on other websites are blocked. Add your website address to <code>LEAD_FORM_ORIGINS</code> in <code>.env</code> (for example <code>https://www.ivycandyhair.com</code>; separate several with commas) and restart the CRM.
+                  None yet, so browsers on other websites are blocked. Save your website address (for example <code>https://www.ivycandyhair.com</code>) with <code>PUT /api/admin/integrations/lead-form</code>, or for the original business set <code>LEAD_FORM_ORIGINS</code> in <code>.env</code> (separate several with commas) and restart the CRM.
                 </p>
               ) : (
                 <ul className="list-inside list-disc text-muted-foreground">
