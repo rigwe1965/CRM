@@ -3,19 +3,13 @@ import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { displayName, notFound, ownerScope, tenantScope } from "@/lib/access";
 import { contactEmail } from "@/lib/email-templates";
-import { FROM, sendMail } from "@/lib/mail";
+import { sendMail } from "@/lib/mail";
+import { senderFor } from "@/lib/sender";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { sendContactEmailSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
-
-/** `Ada Lovelace <noreply@x.com>` + display name → `"Ada Lovelace via CRM" <noreply@x.com>` (sanitised). */
-function senderFrom(name: string) {
-  const address = FROM.match(/<([^>]+)>/)?.[1] ?? FROM;
-  const display = `${name.replace(/["<>\r\n\\]/g, "").trim() || "CRM"} via CRM`;
-  return `"${display}" <${address}>`;
-}
 
 /**
  * POST /api/contacts/:id/email: send an email to a contact and log it as an EMAIL activity.
@@ -41,7 +35,7 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
       to: contact.email,
       subject: body.subject,
       replyTo: user.email ?? undefined,
-      from: senderFrom(senderName),
+      from: await senderFor(user.tenantId, `${senderName} via CRM`),
       ...contactEmail(body.message, senderName),
     });
   } catch (e) {

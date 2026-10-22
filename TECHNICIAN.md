@@ -35,7 +35,7 @@ Each business keeps its own Stripe keys, WhatsApp number and website-form origin
 - **One address per business.** Give Stripe `https://<domain>/api/webhooks/stripe/<businessId>` (events `checkout.session.completed` and `checkout.session.async_payment_succeeded`), Meta `https://<domain>/api/webhooks/whatsapp/<businessId>` with the business's verify token, and the website form `https://<domain>/api/public/lead/<businessId>`. The business comes from the address, never from the payload; each request is verified with that business's own secret. An unknown business and one without settings answer the same (503 for webhooks, 404 for the form).
 - **Why a payment can't land in another business.** A business controls its own Stripe account, so it could sign an event that names another business's payment link. `recordOnlinePayment` therefore refuses any link that does not belong to the business whose webhook received the event, and WhatsApp messages are filed under the business whose app secret signed them.
 - **Rate limits** for the website form include the business (`weblead:<id>:<ip>`, `weblead:<id>:all`). The daily cron already runs each business on its own settings.
-- **Not moved yet:** the email sender (`EMAIL_FROM`) stays one address for the whole deployment; a sender per business needs domain verification, which belongs with onboarding (Phase 4). `Tenant.brandName` and `senderName` exist for it.
+- **Email sender:** system mail uses the one `EMAIL_FROM`; a business can send its customer mail from its own verified domain (see "Sender address per business").
 
 #### Sign-up and billing (Phase 4)
 
@@ -45,7 +45,7 @@ Each business keeps its own Stripe keys, WhatsApp number and website-form origin
 - **Read-only mode.** An expired trial, or a cancelled subscription whose paid period is over, makes the business read-only: every write through `authed()` returns `READ_ONLY` (403), except `/api/billing*` and `/api/me*`; reading and exporting keep working, and a banner explains it. A failed payment (`PAST_DUE`) keeps working while Stripe retries; cancelling is Stripe's decision. The state is computed from the business row (`accessOf`) and reaches the session within 30 seconds. Customer payments by Stripe link and inbound WhatsApp messages are still recorded for a read-only business (money already taken, messages already sent); the website form is closed (404) for a suspended one.
 - **Subscription events** are matched to a business by the Stripe customer id we stored when it first checked out, never by event metadata, and an older event can't undo a newer one (`billingEventAt`).
 - **The platform owner's controls** are a script, not a screen: `npm run tenant-admin -- list | suspend <id> | resume <id> | extend-trial <id> <days>`. A suspended business is signed out within 30 seconds and can't sign in.
-- **Settings screens** (admin): Business (name, brand and sender name; the brand name is the default for instalment emails), Billing, Integrations (Stripe, WhatsApp, allowed websites). Email still goes out from the one `EMAIL_FROM` address; a sender address per business needs domain verification and is not built.
+- **Settings screens** (admin): Business (name, brand and sender name; the brand name is the default for instalment emails), Billing, Integrations (Stripe, WhatsApp, allowed websites). Customer emails can come from the business's own verified domain (Sender address card); everything else uses `EMAIL_FROM`.
 - **Tests:** `tests/plans.test.ts` (the rules), `tests/tenant-signup-billing.test.ts` (signup, confirmation, events, read-only, limits on a real database; Stripe is stubbed, so the real Stripe test-mode flow still needs one manual run: sign up, subscribe with a test card, cancel).
 
 #### Deleting a business and message caps (Phase 5)
@@ -57,6 +57,15 @@ Each business keeps its own Stripe keys, WhatsApp number and website-form origin
 - **Daily message caps** (`src/lib/usage-limits.ts`, numbers in `PLANS[...].daily` in `src/lib/plans.ts`, the owner's to change): trial 50 emails and 25 WhatsApp messages a day, Starter 200 and 100, Pro 1000 and 500, the internal business unlimited. They apply to emails and WhatsApp messages a person sends from the CRM (contact email, WhatsApp reply, team invite, sample email) and answer `USAGE_LIMIT` (429). With Upstash Redis configured the count is exact across servers; without it, it is per server instance. The daily reminder digests and customer instalment emails are not capped (they are bounded by the business's own data).
 - **Not built (needs a person):** terms of service, privacy policy and data-processing agreement (a lawyer), and an independent isolation review or penetration test. A sign-up checkbox and legal pages can be added once the texts exist.
 - **Tests:** `tests/tenant-deletion.test.ts` (request, cancel, grace period, erasure of every table with the other business untouched, the audit-log guard, the caps).
+
+#### Sender address per business
+
+- **What it does.** Settings, Business, "Sender address": an admin enters a domain they own (for example `mail.yourshop.com`) and a name before the @ (`hello`). The CRM registers the domain with Resend, shows the DNS records (SPF and DKIM) to publish at the company that runs the domain's DNS, and the admin presses Verify. Only once Resend reports the domain verified (`Tenant.senderVerifiedAt`) are the business's customer emails sent from `"Display name" <hello@mail.yourshop.com>`: contact emails from the contact page, instalment reminders and the sample email. Until then, and when the address is removed, they use `EMAIL_FROM` as before with the business's display name.
+- **Never from the business's domain:** mail about the account itself (invites, sign-in and confirmation links, password resets, billing) always goes from `EMAIL_FROM`.
+- **Needs Resend** (`RESEND_API_KEY`); with SMTP only, the card says it is not available. Your Resend plan limits how many domains the account may hold.
+- **Protections.** Ownership is proved by the DNS records, not by what the business types. A domain belongs to one business (`Tenant.senderDomain` is unique; the second claim is refused and the stray Resend domain is removed again). Mailbox providers' domains (gmail.com, outlook.com, …), the CRM's own sending domain and its parent are refused, and the name before the @ allows only letters, digits, dot, dash and underscore. The verified state and domain id are written only by the server as the platform: the business's database role has no grant on those columns, so a business can't mark itself verified. Changing the domain starts verification over and removes the old one from Resend; changing only the name before the @ keeps it.
+- **Not handled:** a domain that was verified and later has its DNS records removed is not noticed until Resend refuses to send (the email then fails like any provider failure). Reply-To stays the signed-in user's own address.
+- **Tests:** `tests/sender.test.ts` (validation, the verify flow, one domain per business, removal, admin only; Resend is faked, so a real domain verification still needs one manual run).
 
 ## Environment variables (names only; see `.env.example`)
 `DATABASE_URL`, `DIRECT_URL`, optional `PLATFORM_DATABASE_URL` (owner role; production), optional `SIGNUP_ENABLED`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `TRIAL_DAYS`, `BILLING_STRIPE_SECRET_KEY`, `BILLING_STRIPE_WEBHOOK_SECRET`, `BILLING_PRICE_STARTER`, `BILLING_PRICE_PRO` (see "Sign-up and billing"), `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
@@ -93,7 +102,7 @@ Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema
 
 ### Tenants (multi-tenancy Phases 0 to 4, see `MULTI_TENANCY_PLAN.md`)
 
-Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Seven migrations, in this order:
+Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Eight migrations, in this order:
 
 1. `20261028000000_tenants`: the `Tenant` table, the original business, and `tenantId` on every business table (with a default, so nothing is rewritten).
 2. `20261029000000_tenant_uniques`: contact email, organization domain, tag name, template name, invoice number and the automation setting key are unique **per business** instead of across the database. `User.email` stays unique across the database.
@@ -102,10 +111,11 @@ Every business table has a `tenantId` (the business a row belongs to). The origi
 5. `20261101000000_tenant_integrations`: the encrypted per-business settings table (see "Per-business integrations" below).
 6. `20261102000000_billing`: trial and subscription fields on the business, and the `PENDING` status for unconfirmed signups (see "Sign-up and billing" below).
 7. `20261103000000_tenant_deletion`: `Tenant.deletionRequestedAt`, and lets the audit log's append-only trigger allow a delete only inside a business's own erasure (see "Deleting a business" below).
+8. `20261104000000_sender_domain`: a business's own sending domain and address (see "Sender address per business" below).
 
 In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts`) names the caller's business and `ownerScope`/`authorScope`/`taskScope` already include it. Every query on a business table must use one of them. The public entry points (website form, WhatsApp webhook) file leads under `DEFAULT_TENANT_ID` until Phase 3 gives each business its own address.
 
-- **Production / any database that uses migrations:** `npm run db:deploy` applies all seven. Back up first.
+- **Production / any database that uses migrations:** `npm run db:deploy` applies all eight. Back up first.
 - **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the SQL of each migration you haven't applied, in order, then push:
   1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
   2. `npx prisma db execute --file prisma/migrations/20261029000000_tenant_uniques/migration.sql`
@@ -114,7 +124,8 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
   5. `npx prisma db execute --file prisma/migrations/20261101000000_tenant_integrations/migration.sql`
   6. `npx prisma db execute --file prisma/migrations/20261102000000_billing/migration.sql`
   7. `npx prisma db execute --file prisma/migrations/20261103000000_tenant_deletion/migration.sql`
-  8. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  8. `npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20261104000000_sender_domain/migration.sql`
+  9. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
   After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until these have run.
 - **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
 - **New admin in a given business:** `npm run make-admin -- you@example.com --create "Name" --tenant <tenantId>` (default: the original business).

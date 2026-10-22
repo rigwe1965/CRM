@@ -2,7 +2,8 @@ import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { sampleEmailSchema } from "@/lib/automations/config";
 import { customerInstalmentEmail } from "@/lib/email-templates";
-import { fromWithName, mailIsConsoleOnly, trySendMail } from "@/lib/mail";
+import { mailIsConsoleOnly, trySendMail } from "@/lib/mail";
+import { senderFor } from "@/lib/sender";
 import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 
@@ -44,7 +45,7 @@ export const POST = authed(async ({ req, user }) => {
     text: mail.text,
     html: mail.html,
     replyTo: user.email ?? undefined,
-    from: fromWithName(body.brandName),
+    from: await senderFor(user.tenantId, body.brandName),
   });
   if (!sent) throw new ApiError(502, "The email could not be sent. Check the email settings and try again.", "EMAIL_FAILED");
   return ok({ to: body.to, consoleOnly: mailIsConsoleOnly() });

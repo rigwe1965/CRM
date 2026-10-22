@@ -213,6 +213,12 @@ model Tenant {
   billingEventAt       DateTime?
   // Set when an admin asked to delete the business: read-only from then on, erased for good after the grace period (Phase 5).
   deletionRequestedAt  DateTime?
+  // The business's own sending address for mail to its customers (Phase 5 follow-up). Usable only once the domain is
+  // verified with the email provider; senderDomain is unique so two businesses can't claim the same one.
+  senderDomain         String?       @unique
+  senderLocalPart      String?
+  senderDomainId       String?
+  senderVerifiedAt     DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 

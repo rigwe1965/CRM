@@ -52,6 +52,7 @@ const PLATFORM_USERS: Record<string, string> = {
   "src/lib/notifications.ts": "the daily reminder digests read across businesses on purpose",
   "src/lib/signup.ts": "a signup creates the business and its first admin, and confirms or deletes it, before any business is signed in",
   "src/lib/tenant-deletion.ts": "erases a whole business after its grace period (a daily job with no signed-in business), and starts or cancels that countdown",
+  "src/lib/sender.ts": "registers, verifies and removes the business's sending domain with the email provider; only the server may write the verified state, so the app role gets no grant",
   "src/lib/billing.ts": "Stripe Billing events name a Stripe customer, which is matched to its business; checkout stores that customer on the business",
   "src/lib/payment-links.ts": "a Stripe event names no business; the payment link says which, and the rest runs as that business",
 };

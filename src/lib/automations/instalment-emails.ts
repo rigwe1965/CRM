@@ -4,7 +4,8 @@ import { audit } from "@/lib/audit";
 import type { InstalmentEmailsConfig } from "@/lib/automations/config";
 import { loadInstalmentEmails } from "@/lib/automations/settings";
 import { customerInstalmentEmail } from "@/lib/email-templates";
-import { fromWithName, trySendMail } from "@/lib/mail";
+import { trySendMail } from "@/lib/mail";
+import { senderFor } from "@/lib/sender";
 import { summarize } from "@/lib/payments";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -171,7 +172,7 @@ export async function runInstalmentEmails(tenantId: string, now = new Date()) {
       text: mail.text,
       html: mail.html,
       replyTo: p.ownerEmail,
-      from: fromWithName(config.brandName),
+      from: await senderFor(tenantId, config.brandName),
     });
     if (!sent) {
       result.failed++;

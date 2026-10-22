@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, FormField } from "@/components/common/page";
 import { request } from "@/lib/client/api";
 import { errorMessage } from "@/lib/client/hooks";
+import { SenderCard } from "@/components/settings/sender";
 import { DeleteBusinessCard } from "@/components/settings/delete-business";
 
 type Business = { id: string; name: string; brandName: string | null; senderName: string | null; plan: string };
@@ -59,7 +60,7 @@ export function BusinessCard() {
             <FormField label="Brand name" hint="Shown to customers, for example in payment reminders. Defaults to the business name.">
               <Input value={values.brandName} onChange={(e) => setDraft({ ...values, brandName: e.target.value })} maxLength={80} />
             </FormField>
-            <FormField label="Sender name" hint="The name your emails come from. Emails are sent from the CRM's own address.">
+            <FormField label="Sender name" hint="The name your emails come from. Customer emails come from the CRM's address unless you set your own below.">
               <Input value={values.senderName} onChange={(e) => setDraft({ ...values, senderName: e.target.value })} maxLength={80} />
             </FormField>
             <Button type="submit" disabled={save.isPending || !draft || !values.name.trim()}>
@@ -69,6 +70,7 @@ export function BusinessCard() {
         )}
       </CardContent>
     </Card>
+    <SenderCard />
     {data && <DeleteBusinessCard businessName={data.name} internal={data.plan === "internal"} />}
     </div>
   );

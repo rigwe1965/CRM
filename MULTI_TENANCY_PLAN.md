@@ -106,7 +106,7 @@
 - Read-only mode for an expired trial or a lapsed subscription: writes return `READ_ONLY` except billing and the user's own account; reading and export keep working. Plan limits refuse extra users and contacts (`PLAN_LIMIT`).
 - Admin screens in Settings: Business, Billing, Integrations. The platform owner's controls are `npm run tenant-admin` (list, suspend, resume, extend a trial), by design not a screen.
 - A leak found on the way: a new business's instalment emails would have defaulted to the brand name "Ivycandy Hair"; they now default to the business's own name.
-- Differs from the plan: a sender address per business is not built (it needs domain verification); only the display name is per business. Export on cancellation is the existing export, which stays allowed.
+- Differs from the plan: a sender address per business was not built in Phase 4 (it needs domain verification; only the display name was per business). It was added afterwards through Resend domains (see `TECHNICIAN.md`, "Sender address per business"). Export on cancellation is the existing export, which stays allowed.
 
 - Self-signup that creates a tenant and its first admin, with email verification.
 - Subscription billing with Stripe Billing (plan, trial, status), kept separate from the customers' payment links.
