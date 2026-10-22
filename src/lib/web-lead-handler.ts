@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captchaConfigured, verifyCaptcha } from "@/lib/captcha";
 import { db } from "@/lib/db";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
 import { withTenant } from "@/lib/tenant-context";
@@ -62,8 +63,14 @@ export async function leadPost(req: Request, tenantId: string): Promise<Response
   }
   if (parsed.data.website) return reply({ ok: true }); // a bot: pretend it worked, save nothing
 
+  // Enforced only when the form sent a token, so forms pasted before the CAPTCHA existed keep working until re-pasted.
+  const { captchaToken, ...lead } = parsed.data;
+  if (captchaToken !== undefined && captchaConfigured() && !(await verifyCaptcha(captchaToken, clientIp(req.headers)))) {
+    return reply({ error: "Please confirm you are not a robot and try again.", code: "CAPTCHA_FAILED" }, 400);
+  }
+
   try {
-    await withTenant(tenantId, () => captureWebLead(tenantId, parsed.data));
+    await withTenant(tenantId, () => captureWebLead(tenantId, lead));
   } catch (e) {
     console.error("[web-lead] failed", e instanceof Error ? e.message : e);
     return reply({ error: "Sorry, something went wrong. Please try again." }, 500);

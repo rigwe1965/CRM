@@ -203,6 +203,8 @@ export type LeadFormView = {
   effectiveOwner: { id: string; name: string; email: string } | null;
   users: { id: string; name: string; email: string }[];
   allowedOrigins: string[];
+  /** Cloudflare Turnstile site key (public), or null when the CAPTCHA is not set up. */
+  captchaSiteKey: string | null;
 };
 
 export function useLeadForm() {

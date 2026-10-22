@@ -145,6 +145,7 @@ export const webLeadSchema = z
     phone: z.string().trim().max(40).optional(),
     message: z.string().trim().max(2000).optional(),
     website: z.string().max(200).optional(),
+    captchaToken: z.string().max(4096).optional(),
   })
   .superRefine((v, ctx) => {
     if (!v.email && !v.phone) ctx.addIssue({ code: "custom", path: ["email"], message: "Please give an email address or a phone number" });
