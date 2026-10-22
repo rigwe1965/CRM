@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { clientIp } from "@/lib/rate-limit";
+import { withTenant } from "@/lib/tenant-context";
 import { PLATFORM_TENANT_ID } from "@/lib/tenant";
 
 /**
@@ -28,10 +29,11 @@ export async function audit(actor: Actor, entry: AuditEntry, req?: Request) {
     } catch {
       // Outside a request scope (scripts): no IP.
     }
-    await db.auditLog.create({
+    // Events that belong to no business (an unknown email signing in) are filed under the platform.
+    const tenantId = actor?.tenantId ?? PLATFORM_TENANT_ID;
+    await withTenant(tenantId, () => db.auditLog.create({
       data: {
-        // Events that belong to no business (an unknown email signing in) are filed under the platform.
-        tenantId: actor?.tenantId ?? PLATFORM_TENANT_ID,
+        tenantId,
         actorId: actor?.id ?? null,
         actorEmail: actor?.email ?? null,
         action: entry.action,
@@ -41,7 +43,7 @@ export async function audit(actor: Actor, entry: AuditEntry, req?: Request) {
         data: toJson(entry.data),
         ip,
       },
-    });
+    }));
   } catch (e) {
     console.error("[audit] failed to write", entry.action, e instanceof Error ? e.message : e);
   }

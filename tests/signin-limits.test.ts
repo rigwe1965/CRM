@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUnique = vi.fn();
-vi.mock("@/lib/db", () => ({ db: { user: { findUnique: (...a: unknown[]) => findUnique(...a) } } }));
+vi.mock("@/lib/platform-db", () => ({ platformDb: { user: { findUnique: (...a: unknown[]) => findUnique(...a) } } }));
 import { isKnownIp, markKnownIp } from "@/lib/rate-limit";
 import { signInAllowed } from "@/lib/signin-limits";
 

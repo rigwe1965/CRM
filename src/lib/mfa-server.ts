@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { ApiError } from "@/lib/api";
 import { decryptSecretInfo, encryptSecret, hashRecoveryCode, verifyTotp } from "@/lib/mfa";
 
@@ -16,7 +16,7 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
     const { plain, current } = decryptSecretInfo(user.mfaSecret);
     const step = verifyTotp(plain, code, user.mfaLastStep);
     if (step === null) return false;
-    const { count } = await db.user.updateMany({
+    const { count } = await platformDb.user.updateMany({
       where: { id: user.id, OR: [{ mfaLastStep: null }, { mfaLastStep: { lt: step } }] },
       // A secret still stored under an old key is re-encrypted with the current one.
       data: { mfaLastStep: step, ...(current ? {} : { mfaSecret: encryptSecret(plain) }) },
@@ -26,7 +26,7 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
 
   const hash = hashRecoveryCode(code);
   if (!user.mfaRecoveryCodes.includes(hash)) return false;
-  const { count } = await db.user.updateMany({
+  const { count } = await platformDb.user.updateMany({
     where: { id: user.id, mfaRecoveryCodes: { has: hash } },
     data: { mfaRecoveryCodes: user.mfaRecoveryCodes.filter((h) => h !== hash) },
   });
@@ -35,7 +35,7 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
 
 /** Same step-up for callers that only have the session user: looks up the MFA fields first. */
 export async function stepUpForUser(userId: string, code: string | undefined) {
-  const user = await db.user.findUnique({
+  const user = await platformDb.user.findUnique({
     where: { id: userId },
     select: { id: true, mfaSecret: true, mfaLastStep: true, mfaRecoveryCodes: true, mfaEnabledAt: true },
   });

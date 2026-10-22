@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { apiError, parseBody } from "@/lib/api";
 import { appUrl, sendMail } from "@/lib/mail";
 import { passwordResetEmail } from "@/lib/email-templates";
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   // registered emails: the lookup, token and email all run after the response is sent.
   after(async () => {
     try {
-      const user = await db.user.findUnique({ where: { email }, select: { isActive: true } });
+      const user = await platformDb.user.findUnique({ where: { email }, select: { isActive: true } });
       if (user?.isActive) {
         const token = await createPasswordResetToken(email);
         await sendMail({ to: email, ...passwordResetEmail(`${appUrl()}/reset-password?token=${token}`) });

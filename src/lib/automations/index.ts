@@ -1,4 +1,5 @@
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
+import { withTenant } from "@/lib/tenant-context";
 import { runInstalmentEmails } from "@/lib/automations/instalment-emails";
 import { runQuietLeadNudges } from "@/lib/automations/quiet-leads";
 
@@ -10,9 +11,9 @@ export { runStageAutomations } from "@/lib/automations/stage-tasks";
  */
 export async function runDailyAutomations(now = new Date()) {
   // Each active business runs on its own settings and only ever touches its own rows.
-  const tenants = await db.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true }, orderBy: { createdAt: "asc" } });
+  const tenants = await platformDb.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true }, orderBy: { createdAt: "asc" } });
   const perTenant: Awaited<ReturnType<typeof runTenantAutomations>>[] = [];
-  for (const { id } of tenants) perTenant.push(await runTenantAutomations(id, now));
+  for (const { id } of tenants) perTenant.push(await withTenant(id, () => runTenantAutomations(id, now)));
   const sum = (pick: (r: (typeof perTenant)[number]) => number) => perTenant.reduce((s, r) => s + pick(r), 0);
   return {
     ok: perTenant.every((r) => r.ok),

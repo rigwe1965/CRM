@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 
-const { tx, db, stripeApi } = vi.hoisted(() => {
+const { tx, db, platformDb, stripeApi } = vi.hoisted(() => {
   const tx = {
     $queryRaw: vi.fn(),
     deal: { findFirst: vi.fn() },
@@ -10,13 +10,16 @@ const { tx, db, stripeApi } = vi.hoisted(() => {
     task: { create: vi.fn() },
   };
   const db = {
-    paymentLink: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    paymentLink: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     $transaction: vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   };
   const stripeApi = { paymentLinks: { create: vi.fn(), update: vi.fn() } };
-  return { tx, db, stripeApi };
+  // Stripe names no business, so the payment link is found as the platform.
+  const platformDb = { paymentLink: { findUnique: vi.fn() } };
+  return { tx, db, platformDb, stripeApi };
 });
 vi.mock("@/lib/db", () => ({ db }));
+vi.mock("@/lib/platform-db", () => ({ platformDb }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
 vi.mock("@/lib/stripe", async (orig) => ({ ...(await orig<typeof import("@/lib/stripe")>()), stripe: () => stripeApi }));
 
@@ -107,7 +110,7 @@ describe("recordOnlinePayment", () => {
   });
 
   beforeEach(() => {
-    db.paymentLink.findUnique.mockResolvedValue({ id: "l1", tenantId: "t1", dealId: "d1" });
+    platformDb.paymentLink.findUnique.mockResolvedValue({ id: "l1", tenantId: "t1", dealId: "d1" });
     tx.paymentLink.findFirstOrThrow.mockResolvedValue(link());
     tx.payment.findFirst.mockResolvedValue(null);
     tx.deal.findFirst.mockResolvedValue(dealRow());
@@ -144,7 +147,7 @@ describe("recordOnlinePayment", () => {
 
   it("does not record unpaid sessions or links we don't know", async () => {
     expect((await recordOnlinePayment(session({ payment_status: "unpaid" }))).outcome).toBe("not_paid");
-    db.paymentLink.findUnique.mockResolvedValue(null);
+    platformDb.paymentLink.findUnique.mockResolvedValue(null);
     expect((await recordOnlinePayment(session())).outcome).toBe("unknown_link");
     expect(tx.payment.create).not.toHaveBeenCalled();
   });

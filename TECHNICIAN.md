@@ -14,8 +14,20 @@ Next.js 14 (App Router) + TypeScript, Tailwind + shadcn/ui, TanStack Query, Pris
 | `prisma/` | `schema.prisma`, `migrations/`, `seed.ts`, `sample-invoice.ts` |
 | `scripts/make-admin.ts` | Promote a user to admin |
 
+#### Row-level security (Phase 2)
+
+Application filters (`tenantScope`) are the first wall between businesses; Postgres row-level security is the second. Every business table has a policy `"tenantId" = current_setting('app.tenant_id')`, so a query that forgets its filter returns no rows of another business and a write that names another business is refused.
+
+- **How the business reaches Postgres.** `src/lib/db.ts` is a Prisma client extension (`src/lib/tenant-db.ts`): each query runs in a transaction that starts with `set_config('app.tenant_id', <business>, true)`. The setting lasts for that transaction only, so it is safe through a pooled connection (Neon, Supabase, pgBouncer in transaction mode): nothing carries over to the next request. The business comes from `withTenant()` (`src/lib/tenant-context.ts`); `authed()` sets it from the session. A query with no business set is refused by the client (`NoTenantContextError`) and, if it got through, would see no rows.
+- **Two clients.** `db` is held back by the policies. `platformDb` (`src/lib/platform-db.ts`) is not: it is for sign-in, tokens, the daily jobs that loop over businesses, and the Stripe webhook before it knows whose payment link it has. Only the files listed in `PLATFORM_USERS` in `tests/tenant-scoping.test.ts` may use it. Work for one business that runs outside a request (a stream read after the handler returns, a job) must re-enter it: `withTenant(id, …)` or `keepTenant()`.
+- **Roles (production).** `DATABASE_URL` connects as `crm_app`: not the table owner, no `BYPASSRLS`, no superuser. `DIRECT_URL` (migrations) and `PLATFORM_DATABASE_URL` connect as the owner role that owns the tables, which row-level security does not bind. The migration creates `crm_app` without a login and grants it access; give it one once: `ALTER ROLE crm_app LOGIN PASSWORD '<strong password>';`. If the owner role may not create roles (the migration prints a notice), an administrator runs `CREATE ROLE crm_app LOGIN PASSWORD '…' NOSUPERUSER NOBYPASSRLS;` and then the `GRANT` and `REVOKE` statements at the top of `prisma/migrations/20261031000000_row_level_security/migration.sql`. On start in production the server logs a `[security]` error if `DATABASE_URL` connects as a role the policies do not bind.
+- **Local development.** With the single `crm` owner role and no `PLATFORM_DATABASE_URL`, the policies exist but do not bind (the owner is exempt), so the app works exactly as before and only the application filters apply. To exercise the policies locally, create `crm_app` with a login, point `DATABASE_URL` at it, and set `PLATFORM_DATABASE_URL` to the owner URL.
+- **Adding a table.** A new business table needs `tenantId`, an index, and the same `ENABLE ROW LEVEL SECURITY` plus policy in its migration, and a `GRANT` to `crm_app`; `tests/tenant-schema.test.ts` fails until the policy is there.
+- **What it does not cover.** A foreign key is checked by the database itself, so a row could still point at another business's row; the application refuses that (`assertLinks`, `assertTags`) and reading through the link returns nothing. The platform client, a superuser and the migration role cross businesses by design. A SQL injection would run as `crm_app`, so it would be held to one business.
+- **Tests.** `tests/rls.test.ts` runs unfiltered queries as a restricted login and checks reads, updates, deletes, cross-business writes, transactions, row locks, overlapping requests on the pool, and the audit log. It needs a test user that can create roles (CI's is a superuser); on a plain local database it skips itself, and CI refuses to skip. `tests/tenant-routes.test.ts` runs every route under the same restricted login.
+
 ## Environment variables (names only; see `.env.example`)
-`DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
+`DATABASE_URL`, `DIRECT_URL`, optional `PLATFORM_DATABASE_URL` (owner role; production), `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SEED_USER_PASSWORD` (dev), `RESEND_API_KEY` or `EMAIL_SERVER`, `EMAIL_FROM`, `CRON_SECRET` (production), `AUTH_TRUST_HOST` (self-host), `TRUSTED_PROXY_COUNT` (self-host, default 1), optional `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, optional `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (both or neither; see "Online payments" below), optional `DEFAULT_PHONE_COUNTRY_CODE` (digits, e.g. `234`; lets numbers written as `0803…` get a WhatsApp button).
 
 ## Online payments (Stripe)
 Payment links are Stripe Payment Links (one payment each, USD and EUR only). The CRM never sees card details.
@@ -47,22 +59,24 @@ It sets `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=http://localhost:<port>` and `SKIP
 
 Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema.prisma`, add a matching migration folder, then restart the dev server.
 
-### Tenants (multi-tenancy Phases 0 and 1, see `MULTI_TENANCY_PLAN.md`)
+### Tenants (multi-tenancy Phases 0 to 2, see `MULTI_TENANCY_PLAN.md`)
 
-Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Three migrations, in this order:
+Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Four migrations, in this order:
 
 1. `20261028000000_tenants`: the `Tenant` table, the original business, and `tenantId` on every business table (with a default, so nothing is rewritten).
 2. `20261029000000_tenant_uniques`: contact email, organization domain, tag name, template name, invoice number and the automation setting key are unique **per business** instead of across the database. `User.email` stays unique across the database.
 3. `20261030000000_tenant_required`: drops the default, so every create must name its business.
+4. `20261031000000_row_level_security`: the database refuses cross-business rows itself (see "Row-level security" below).
 
 In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts`) names the caller's business and `ownerScope`/`authorScope`/`taskScope` already include it. Every query on a business table must use one of them. The public entry points (website form, WhatsApp webhook) file leads under `DEFAULT_TENANT_ID` until Phase 3 gives each business its own address.
 
-- **Production / any database that uses migrations:** `npm run db:deploy` applies all three. Back up first.
+- **Production / any database that uses migrations:** `npm run db:deploy` applies all four. Back up first.
 - **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the SQL of each migration you haven't applied, in order, then push:
   1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
   2. `npx prisma db execute --file prisma/migrations/20261029000000_tenant_uniques/migration.sql`
   3. `npx prisma db execute --file prisma/migrations/20261030000000_tenant_required/migration.sql`
-  4. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  4. `npx prisma db execute --file prisma/migrations/20261031000000_row_level_security/migration.sql` (on a plain local database it adds the policies but, lacking CREATEROLE, skips the `crm_app` role with a notice; that is fine for development, see below)
+  5. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
   After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until these have run.
 - **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
 - **New admin in a given business:** `npm run make-admin -- you@example.com --create "Name" --tenant <tenantId>` (default: the original business).

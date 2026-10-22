@@ -1,25 +1,33 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createTenantDb } from "@/lib/tenant-db";
 import { businessModels, createTwoTenants, delegateName, testDatabaseUrl, type TwoTenants } from "./helpers/two-tenants";
 
 // Phase 1 of MULTI_TENANCY_PLAN.md, the check that matters: with the real route handlers running on a real
 // database that holds two businesses, a signed-in user of business A can't read, change, delete, export or link to
 // business B's records, even holding B's ids. Needs TEST_DATABASE_URL (CI sets it); skipped without.
 //
-// Only the session is faked. The real `authed()` wrapper, the real queries and the real Postgres run.
+// Only the session is faked. The real `authed()` wrapper, the real queries and the real Postgres run. Since Phase 2
+// the app's queries go through the real tenant client on a login that row-level security binds, so every handler
+// here runs under both the application filters and the database's policies.
 
-const holder = vi.hoisted(() => ({ db: null as unknown, user: null as unknown }));
-
-vi.mock("@/lib/db", () => ({
-  db: new Proxy(
-    {},
-    {
-      get: (_t, key) => {
-        const v = (holder.db as Record<string | symbol, unknown>)[key];
-        return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(holder.db) : v;
+const { holder, lazy } = vi.hoisted(() => {
+  const holder = { db: null as unknown, platform: null as unknown, user: null as unknown };
+  /** A stand-in that forwards to whatever client the test has set up by the time a query runs. */
+  const lazy = (pick: () => unknown) =>
+    new Proxy(
+      {},
+      {
+        get: (_t, key) => {
+          const target = pick() as Record<string | symbol, unknown>;
+          const v = target[key];
+          return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+        },
       },
-    },
-  ),
-}));
+    );
+  return { holder, lazy };
+});
+vi.mock("@/lib/db", () => ({ db: lazy(() => holder.db) }));
+vi.mock("@/lib/platform-db", () => ({ platformDb: lazy(() => holder.platform) }));
 vi.mock("@/lib/auth-helpers", async () => {
   const { hasRole } = await import("@/lib/rbac");
   const { apiError } = await import("@/lib/api");
@@ -114,7 +122,8 @@ run("tenant isolation through the real routes", () => {
 
   beforeAll(async () => {
     t = await createTwoTenants();
-    holder.db = t.db;
+    holder.db = createTenantDb(t.appDb);
+    holder.platform = t.db;
     a = session(t.a.tenantId, t.a.admin, "ADMIN");
     aSales = session(t.a.tenantId, t.a.sales, "SALES");
     const tid = t.b.tenantId;

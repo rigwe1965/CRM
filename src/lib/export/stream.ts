@@ -1,4 +1,5 @@
 import { CSV_BOM, csvLine } from "@/lib/export/csv";
+import { keepTenant } from "@/lib/tenant-context";
 
 /** Streams batches of rows as a CSV download. Stops after `limit` rows even if more arrive. */
 export function csvResponse(
@@ -8,6 +9,8 @@ export function csvResponse(
   limit: number,
 ): Response {
   const enc = new TextEncoder();
+  // The rows are read while the response streams, after the route handler has returned: stay in its business.
+  const inTenant = keepTenant();
   let started = false;
   let sent = 0;
   const body = new ReadableStream<Uint8Array>({
@@ -18,7 +21,7 @@ export function csvResponse(
           controller.enqueue(enc.encode(CSV_BOM + csvLine(headers)));
           return;
         }
-        const next = await batches.next();
+        const next = await inTenant(() => batches.next());
         if (next.done || sent >= limit) {
           controller.close();
           return;
@@ -32,7 +35,7 @@ export function csvResponse(
       }
     },
     async cancel() {
-      await batches.return(undefined);
+      await inTenant(() => batches.return(undefined));
     },
   });
   // The name is built here from a fixed list and the date, never from user input.

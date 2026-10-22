@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. Phases 0 and 1 are built (see below); Phases 2 to 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phases 0, 1 and 2 are built (see below); Phases 3 to 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -64,6 +64,15 @@
 - **Check:** the two-tenant tests prove tenant A cannot read, edit, delete, export or link to tenant B's records through any route, including by guessing IDs.
 
 ### Phase 2: database backstop (RLS)
+
+**Status: done in code (not yet applied to the owner's dev database; the new tests need a role-creating Postgres, which CI has).** What was built, and where it differs from the text below:
+
+- Migration `20261031000000_row_level_security`: RLS and a `tenant_isolation` policy (`USING` and `WITH CHECK` on `tenantId`) on all 20 business tables, a read-own-row policy on `Tenant`, and a `crm_app` role (created without a login) with the table grants. The app role cannot write `Tenant`, edit or delete the audit log, or touch `Account`, `Session` and `VerificationToken`. The policy is not forced on the table owner, so the owner role stays the platform and migration role. Role creation is best-effort: without CREATEROLE the migration prints a notice and still creates the policies.
+- `src/lib/db.ts` is now a Prisma client extension (`src/lib/tenant-db.ts`) that sets `app.tenant_id` with `set_config(..., true)` inside each query's own transaction, for single queries, `$transaction(fn)` and `$transaction([...])`. The setting lasts for one transaction, so it is safe through a pooled connection, and tests prove overlapping requests never see each other's rows. The business comes from `AsyncLocalStorage` (`src/lib/tenant-context.ts`); `authed()` sets it from the session, and a query with no business set is refused.
+- Differs from the plan: a second client, `platformDb` (connects as `PLATFORM_DATABASE_URL`, the owner role), exists for work that belongs to no single business: sign-in and tokens, the daily jobs that loop over businesses, and the Stripe webhook's first lookup. A test lists the only files allowed to use it. The daily job, the public form and the WhatsApp webhook run each business inside `withTenant`.
+- A bug the tests found on the way: a streamed CSV or zip download reads its rows after `authed()` has returned, which would have lost the business; both streams now re-enter it (`keepTenant`).
+- `tests/rls.test.ts` removes every application filter and proves the database alone still refuses: unfiltered reads, updates and deletes touch only the caller's rows on all 20 tables, a write naming another business is refused, and transactions, row locks and raw queries hold. `tests/tenant-routes.test.ts` now runs every route under the restricted login. At start in production the server logs an error if `DATABASE_URL` connects as a role the policies do not bind.
+- Not covered by RLS, by design: foreign keys (the application's `assertLinks` refuses cross-business links), the platform client, superusers and the migration role.
 
 - Enable RLS on every business table with a policy of `tenantId = current_setting('app.tenant_id')`.
 - Wrap each request's queries in a transaction that sets that value with `SET LOCAL`, through a Prisma client extension.

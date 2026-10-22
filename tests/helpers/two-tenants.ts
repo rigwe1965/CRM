@@ -9,7 +9,14 @@ import { Prisma, PrismaClient } from "@prisma/client";
  * two tenants that each own one row of every business table. Phase 1 uses it to prove that tenant A can't see or
  * touch tenant B's data through any route. It never touches the schema named in DATABASE_URL.
  *
+ * Phase 2 adds `appDb`: a client connected as a throwaway login role that belongs to "crm_app" (created by the row-level
+ * security migration), so it is held back by the policies exactly as the production app role is. `db` stays the
+ * owner/superuser connection, for fixtures and for what the platform client does.
+ *
  * Without TEST_DATABASE_URL the database tests are skipped; the schema test (tenant-schema.test.ts) still runs.
+ * Creating that login needs a test user who may create roles (a superuser, as in CI and the Docker database). A plain
+ * database owner can't, so there `rls` is false and `appDb` is the owner connection: the application filters are still
+ * proven, the row-level security tests skip themselves, and CI (which sets CI=true) refuses to run in that state.
  */
 
 /** Tables that deliberately have no tenantId: they belong to a user (who carries it), or are the tenant itself. */
@@ -30,7 +37,7 @@ const withSchema = (url: string, schema: string) => {
 };
 
 export type TenantFixture = { tenantId: string; admin: string; sales: string; contact: string; deal: string; invoice: string; tag: string };
-export type TwoTenants = { db: PrismaClient; a: TenantFixture; b: TenantFixture; dispose: () => Promise<void> };
+export type TwoTenants = { db: PrismaClient; appDb: PrismaClient; rls: boolean; a: TenantFixture; b: TenantFixture; dispose: () => Promise<void> };
 
 /** Creates the schema, migrates it and seeds tenants A and B. Call `dispose()` when done. */
 export async function createTwoTenants(): Promise<TwoTenants> {
@@ -49,15 +56,34 @@ export async function createTwoTenants(): Promise<TwoTenants> {
   const a = await seedTenant(db, "a");
   const b = await seedTenant(db, "b");
 
+  // A login that only inherits crm_app's rights; the real crm_app is never given a login or a password here.
+  const [me] = await db.$queryRaw<{ ok: boolean }[]>`SELECT (rolsuper OR rolcreaterole) AS ok FROM pg_roles WHERE rolname = current_user`;
+  const rls = !!me?.ok && !!(await db.$queryRaw<unknown[]>`SELECT 1 FROM pg_roles WHERE rolname = 'crm_app'`).length;
+  if (!rls && process.env.CI) throw new Error("CI needs a database user that can create roles, so the row-level security tests can run");
+  const role = `crm_t_${randomBytes(5).toString("hex")}`;
+  let appDb = db;
+  if (rls) {
+    const password = randomBytes(12).toString("hex");
+    await db.$executeRawUnsafe(`CREATE ROLE "${role}" LOGIN PASSWORD '${password}' NOSUPERUSER NOBYPASSRLS IN ROLE crm_app`);
+    const appUrl = new URL(url);
+    appUrl.username = role;
+    appUrl.password = password;
+    appDb = new PrismaClient({ datasourceUrl: appUrl.toString() });
+  }
+
   return {
     db,
+    appDb,
+    rls,
     a,
     b,
     dispose: async () => {
+      if (appDb !== db) await appDb.$disconnect();
       await db.$disconnect();
       if (!/^tenant_test_[0-9a-f]{10}$/.test(schema)) return; // never drop anything we did not create
       const cleaner = new PrismaClient({ datasourceUrl: base });
       await cleaner.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
+      if (rls && /^crm_t_[0-9a-f]{10}$/.test(role)) await cleaner.$executeRawUnsafe(`DROP ROLE "${role}"`);
       await cleaner.$disconnect();
     },
   };

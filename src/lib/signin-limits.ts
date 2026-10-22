@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { LIMITS, isKnownIp, rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -14,7 +14,7 @@ export async function signInAllowed(ip: string, email: string): Promise<{ allowe
     const r = await rateLimit(key, opts);
     if (!r.allowed) return r;
   }
-  const account = await db.user.findUnique({ where: { email }, select: { id: true } });
+  const account = await platformDb.user.findUnique({ where: { email }, select: { id: true } });
   if (account && (await isKnownIp(account.id, ip))) return { allowed: true, retryAfter: 0 };
   return rateLimit(`signin-account:${email}`, LIMITS.signInAccount);
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { apiError, parseBody } from "@/lib/api";
 import { getDummyHash, verifyPassword } from "@/lib/password";
 import { clientIp } from "@/lib/rate-limit";
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const limit = await signInAllowed(ip, email);
   if (!limit.allowed) return apiError(`Too many attempts. Try again in ${limit.retryAfter}s.`, 429);
 
-  const user = await db.user.findUnique({ where: { email }, select: { passwordHash: true, isActive: true, mfaEnabledAt: true } });
+  const user = await platformDb.user.findUnique({ where: { email }, select: { passwordHash: true, isActive: true, mfaEnabledAt: true } });
   const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
   return NextResponse.json({ mfa: !!(user && user.passwordHash && valid && user.isActive && user.mfaEnabledAt) });
 }

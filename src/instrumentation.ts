@@ -5,4 +5,19 @@ export async function register() {
   if (process.env.SKIP_ENV_VALIDATION === "1") return;
   const { assertProductionEnv } = await import("@/lib/env");
   assertProductionEnv();
+  // The database's second wall between businesses only holds if the app connects as a restricted role. A wrong
+  // role breaks nothing visibly, so say so loudly at start instead (TECHNICIAN.md, "Row-level security").
+  try {
+    const { PrismaClient } = await import("@prisma/client");
+    const { rowLevelSecurityWarning } = await import("@/lib/rls-check");
+    const client = new PrismaClient();
+    try {
+      const warning = await rowLevelSecurityWarning(client);
+      if (warning) console.error(`[security] ${warning}: businesses are separated by application filters only. See TECHNICIAN.md.`);
+    } finally {
+      await client.$disconnect();
+    }
+  } catch (e) {
+    console.error("[security] row-level security check failed", e instanceof Error ? e.message : e);
+  }
 }

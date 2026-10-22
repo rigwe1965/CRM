@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, audit } = vi.hoisted(() => ({
+const { db, platformDb, audit } = vi.hoisted(() => ({
   db: {
     automationSetting: { findUnique: vi.fn(), upsert: vi.fn() },
     task: { findFirst: vi.fn(), create: vi.fn(), createMany: vi.fn() },
     contact: { findMany: vi.fn(), count: vi.fn() },
-    tenant: { findMany: vi.fn() },
   },
+  // The daily run lists businesses as the platform, then runs each one as itself.
+  platformDb: { tenant: { findMany: vi.fn() } },
   audit: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
+vi.mock("@/lib/platform-db", () => ({ platformDb }));
 vi.mock("@/lib/audit", () => ({ audit }));
 
 import {
@@ -29,7 +31,7 @@ const NOW = new Date("2026-10-23T08:00:00Z");
 beforeEach(() => {
   vi.clearAllMocks();
   db.automationSetting.findUnique.mockResolvedValue(null);
-  db.tenant.findMany.mockResolvedValue([{ id: "t1" }]);
+  platformDb.tenant.findMany.mockResolvedValue([{ id: "t1" }]);
   db.task.findFirst.mockResolvedValue(null);
   db.task.create.mockResolvedValue({ id: "t1", title: "x" });
   db.task.createMany.mockImplementation(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
@@ -138,13 +140,13 @@ describe("runStageAutomations", () => {
   });
 
   it("runs each active business on its own settings, never the other's", async () => {
-    db.tenant.findMany.mockResolvedValue([{ id: "t1" }, { id: "t2" }]);
+    platformDb.tenant.findMany.mockResolvedValue([{ id: "t1" }, { id: "t2" }]);
     // Only t2 has the rule switched on.
     db.automationSetting.findUnique.mockImplementation(async ({ where }: { where: { tenantId_key: { tenantId: string; key: string } } }) =>
       where.tenantId_key.tenantId === "t2" && where.tenantId_key.key === "quiet-leads" ? { config: { enabled: true, days: 7 } } : null);
     db.contact.findMany.mockResolvedValue([{ id: "c1", firstName: "A", lastName: "B", ownerId: "o1" }]);
     expect(await runDailyAutomations(NOW)).toMatchObject({ ok: true, quietLeads: { created: 1 } });
-    expect(db.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ACTIVE" } }));
+    expect(platformDb.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ACTIVE" } }));
     expect(db.contact.findMany).toHaveBeenCalledTimes(1);
     expect(db.contact.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: "t2" });
     expect(db.task.createMany.mock.calls[0][0].data[0]).toMatchObject({ tenantId: "t2" });
@@ -218,13 +220,13 @@ describe("runDailyAutomations", () => {
   });
 
   it("runs each active business on its own settings, never the other's", async () => {
-    db.tenant.findMany.mockResolvedValue([{ id: "t1" }, { id: "t2" }]);
+    platformDb.tenant.findMany.mockResolvedValue([{ id: "t1" }, { id: "t2" }]);
     // Only t2 has the rule switched on.
     db.automationSetting.findUnique.mockImplementation(async ({ where }: { where: { tenantId_key: { tenantId: string; key: string } } }) =>
       where.tenantId_key.tenantId === "t2" && where.tenantId_key.key === "quiet-leads" ? { config: { enabled: true, days: 7 } } : null);
     db.contact.findMany.mockResolvedValue([{ id: "c1", firstName: "A", lastName: "B", ownerId: "o1" }]);
     expect(await runDailyAutomations(NOW)).toMatchObject({ ok: true, quietLeads: { created: 1 } });
-    expect(db.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ACTIVE" } }));
+    expect(platformDb.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ACTIVE" } }));
     expect(db.contact.findMany).toHaveBeenCalledTimes(1);
     expect(db.contact.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: "t2" });
     expect(db.task.createMany.mock.calls[0][0].data[0]).toMatchObject({ tenantId: "t2" });

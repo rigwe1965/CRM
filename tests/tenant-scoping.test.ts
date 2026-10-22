@@ -35,6 +35,24 @@ const ALLOWED: Record<string, string> = {
   "src/app/api/health/route.ts": "a connectivity check that reads no business data",
 };
 
+/**
+ * Files that may use `platformDb`, the client that is not held back by row-level security. Each one does work that
+ * belongs to no single business, or that must find out which business it is for. Keep this list short.
+ */
+const PLATFORM_USERS: Record<string, string> = {
+  "src/lib/auth.ts": "sign-in, magic links and the session check run before a business is known",
+  "src/lib/signin-limits.ts": "looks a user up by email before sign-in",
+  "src/lib/tokens.ts": "invite and password-reset tokens belong to a user, not a business",
+  "src/lib/mfa-server.ts": "acts on the signed-in user's own row, also during sign-in",
+  "src/app/api/auth/mfa-check/route.ts": "public, before sign-in",
+  "src/app/api/password/forgot/route.ts": "public, before sign-in",
+  "src/app/api/password/reset/route.ts": "public, acts on the user named by the reset token",
+  "src/app/api/health/route.ts": "a connectivity check that reads no business data",
+  "src/lib/automations/index.ts": "lists the active businesses, then runs each one as itself",
+  "src/lib/notifications.ts": "the daily reminder digests read across businesses on purpose",
+  "src/lib/payment-links.ts": "a Stripe event names no business; the payment link says which, and the rest runs as that business",
+};
+
 const MODELS = businessModels().map(delegateName);
 const CALL = new RegExp(`\\b(?:db|tx|prisma)\\.(${MODELS.join("|")})\\.(\\w+)\\(`, "g");
 
@@ -105,7 +123,17 @@ describe("tenant scoping of queries", () => {
     expect(unscoped, "name the tenant (tenantScope(user) / ownerScope(user)), or add the file to ALLOWED with a reason").toEqual([]);
   });
 
+  it("only the listed files use the platform client that row-level security does not hold back", () => {
+    const users = sources("src")
+      .map((abs) => relative(".", abs).replaceAll("\\", "/"))
+      .filter((file) => file !== "src/lib/platform-db.ts" && /@\/lib\/platform-db/.test(readFileSync(file, "utf8")));
+    expect(users.filter((f) => !PLATFORM_USERS[f]), "add the file to PLATFORM_USERS with a reason, or use db inside withTenant").toEqual([]);
+  });
+
   it("the exempt files are real, so the list can't rot", () => {
+    for (const file of Object.keys(PLATFORM_USERS)) {
+      expect(() => statSync(file), file).not.toThrow();
+    }
     for (const file of Object.keys(ALLOWED)) {
       expect(() => statSync(file), file).not.toThrow();
     }

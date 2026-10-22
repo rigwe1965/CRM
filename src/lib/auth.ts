@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "next-auth/adapters";
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { authConfig } from "@/lib/auth.config";
 import { getDummyHash, verifyPassword } from "@/lib/password";
 import { headers } from "next/headers";
@@ -19,7 +19,7 @@ import { signInSchema } from "@/lib/validations/auth";
 import type { Role } from "@prisma/client";
 import { mfaPending } from "@/lib/rbac";
 
-const prismaAdapter = PrismaAdapter(db);
+const prismaAdapter = PrismaAdapter(platformDb);
 
 // Accounts are created by admins only (POST /api/admin/users). Magic links work for existing users;
 // this also stops Auth.js from creating an account for an unknown email.
@@ -45,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const ip = clientIp(await headers());
         if (!(await signInAllowed(ip, email)).allowed) return null;
 
-        const user = await db.user.findUnique({ where: { email } });
+        const user = await platformDb.user.findUnique({ where: { email } });
         const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
         if (!user || !user.passwordHash || !valid || !user.isActive) {
           await audit(user ? { tenantId: user.tenantId } : null, { action: "auth.signin.failed", summary: email, entity: "user", entityId: user?.id });
@@ -73,7 +73,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const limit = await rateLimit(`magic:${identifier}`, LIMITS.magicLink);
         if (!limit.allowed) throw new Error("Too many sign-in link requests");
         // Unknown or deactivated address: send nothing, but look the same as success (no enumeration).
-        const known = await db.user.findUnique({ where: { email: identifier }, select: { isActive: true } });
+        const known = await platformDb.user.findUnique({ where: { email: identifier }, select: { isActive: true } });
         if (!known?.isActive) return;
         // Sent after the response so a known address isn't slower to answer than an unknown one.
         after(() => sendMail({ to: identifier, ...magicLinkEmail(url) }).catch((e) => console.error("magic link email failed", e instanceof Error ? e.message : e)));
@@ -100,7 +100,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const id = token.sub;
 
       const current = await getCachedUser(id, () =>
-        db.user.findUnique({
+        platformDb.user.findUnique({
           where: { id },
           select: { name: true, tenantId: true, tenant: { select: { status: true } }, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
         }).then((u) => u && { name: u.name, tenantId: u.tenantId, tenantActive: u.tenant.status === "ACTIVE", role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),

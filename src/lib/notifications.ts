@@ -1,5 +1,6 @@
 import type { DealStage } from "@prisma/client";
 import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { dealStageEmail, instalmentReminderEmail, taskReminderEmail } from "@/lib/email-templates";
 import { isClosed } from "@/lib/deals";
 import { trySendMail } from "@/lib/mail";
@@ -46,6 +47,8 @@ export async function notifyDealStageChange(opts: {
   }
 }
 
+// The two reminder jobs below run from the daily cron with no business in context and read across businesses on
+// purpose (one digest per person), so they use platformDb.
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -54,7 +57,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Changing a task's due date clears the stamp (see the tasks PATCH handler).
  */
 export async function sendTaskReminders(now = new Date()) {
-  const tasks = await db.task.findMany({
+  const tasks = await platformDb.task.findMany({
     where: {
       status: { in: ["TODO", "IN_PROGRESS"] },
       dueDate: { not: null, lte: new Date(now.getTime() + DAY_MS) },
@@ -85,7 +88,7 @@ export async function sendTaskReminders(now = new Date()) {
     );
     // Stamp only after the provider accepted the message, so a failed send is retried next run.
     if (await trySendMail({ to: email, ...mail })) {
-      await db.task.updateMany({
+      await platformDb.task.updateMany({
         where: { id: { in: mine.map((t) => t.id) }, reminderSentAt: null },
         data: { reminderSentAt: now },
       });
@@ -104,7 +107,7 @@ export async function sendTaskReminders(now = new Date()) {
  * Re-saving a deal's schedule creates fresh instalments, so they can be reminded again.
  */
 export async function sendInstalmentReminders(now = new Date()) {
-  const due = await db.instalment.findMany({
+  const due = await platformDb.instalment.findMany({
     where: {
       reminderSentAt: null,
       dueDate: { lte: new Date(now.getTime() + DAY_MS) },
@@ -150,7 +153,7 @@ export async function sendInstalmentReminders(now = new Date()) {
   }
 
   if (nothingToChase.length) {
-    await db.instalment.updateMany({ where: { id: { in: nothingToChase }, reminderSentAt: null }, data: { reminderSentAt: now } });
+    await platformDb.instalment.updateMany({ where: { id: { in: nothingToChase }, reminderSentAt: null }, data: { reminderSentAt: now } });
   }
 
   let emails = 0;
@@ -160,7 +163,7 @@ export async function sendInstalmentReminders(now = new Date()) {
     const mail = instalmentReminderEmail(name, rows);
     // Stamp only after the provider accepted the message, so a failed send is retried next run.
     if (await trySendMail({ to: email, ...mail })) {
-      await db.instalment.updateMany({ where: { id: { in: rows.map((r) => r.id) }, reminderSentAt: null }, data: { reminderSentAt: now } });
+      await platformDb.instalment.updateMany({ where: { id: { in: rows.map((r) => r.id) }, reminderSentAt: null }, data: { reminderSentAt: now } });
       emails++;
       instalments += rows.length;
     } else {

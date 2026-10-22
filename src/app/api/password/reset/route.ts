@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 import { apiError, parseBody } from "@/lib/api";
 import { hashPassword } from "@/lib/password";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
@@ -20,12 +20,12 @@ export async function POST(req: Request) {
   if (!email) return apiError("This reset link is invalid or has expired.", 400);
 
   // passwordChangedAt invalidates every session issued before the reset.
-  const { count } = await db.user.updateMany({
+  const { count } = await platformDb.user.updateMany({
     where: { email, isActive: true },
     data: { passwordHash: await hashPassword(body.data.password), passwordChangedAt: new Date() },
   });
   if (count === 0) return apiError("This reset link is invalid or has expired.", 400);
-  const reset = await db.user.findUnique({ where: { email }, select: { id: true, tenantId: true } });
+  const reset = await platformDb.user.findUnique({ where: { email }, select: { id: true, tenantId: true } });
   if (reset) invalidateUserCache(reset.id);
   await audit({ id: reset?.id, email, tenantId: reset?.tenantId }, { action: "auth.password.reset", entity: "user", entityId: reset?.id });
   return NextResponse.json({ ok: true });

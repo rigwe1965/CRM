@@ -54,3 +54,29 @@ describe("tenant columns", () => {
     expect(sql.match(/_tenantId_fkey/g)).toHaveLength(businessModels().length - 1);
   });
 });
+
+describe("row-level security (Phase 2)", () => {
+  const sql = () => readFileSync("prisma/migrations/20261031000000_row_level_security/migration.sql", "utf8");
+
+  it("every business table has RLS switched on and a policy that names its tenantId", () => {
+    const migration = sql();
+    for (const name of businessModels()) {
+      expect(migration, `${name} RLS`).toContain(`ALTER TABLE "${name}" ENABLE ROW LEVEL SECURITY;`);
+      const policy = migration.match(new RegExp(String.raw`CREATE POLICY tenant_isolation ON "${name}"([\s\S]*?);`))?.[1] ?? "";
+      expect(policy, `${name} policy`).toContain(`"tenantId" = NULLIF(current_setting('app.tenant_id', true), '')`);
+      expect(policy, `${name} write check`).toContain("WITH CHECK");
+    }
+  });
+
+  it("the tenant table is readable only as itself, and the app role can't change it, the audit log or the sign-in tables", () => {
+    const migration = sql();
+    expect(migration).toContain('ALTER TABLE "Tenant" ENABLE ROW LEVEL SECURITY;');
+    expect(migration).toContain('REVOKE INSERT, UPDATE, DELETE ON "Tenant" FROM crm_app');
+    expect(migration).toContain('REVOKE UPDATE, DELETE ON "AuditLog" FROM crm_app');
+    expect(migration).toContain('REVOKE ALL ON "Account", "Session", "VerificationToken" FROM crm_app');
+  });
+
+  it("the policy is not forced on the table owner, so the platform client keeps working", () => {
+    expect(sql()).not.toMatch(/FORCE ROW LEVEL SECURITY/);
+  });
+});

@@ -3,6 +3,7 @@ import { requireApiUser, type SessionUser } from "@/lib/auth-helpers";
 import { toErrorResponse } from "@/lib/api";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { audit, wasAudited } from "@/lib/audit";
+import { withTenant } from "@/lib/tenant-context";
 
 type Ctx<P> = { req: Request; user: SessionUser; params: P };
 
@@ -26,18 +27,21 @@ export function authed<P = Record<string, string>>(
       await enforceRateLimit(`api:${write ? "w" : "r"}:${guard.user.id}`, write ? LIMITS.apiWrite : LIMITS.apiRead);
       // Routes without a URL segment get no params object at all in Next 15.
       const params = (await context?.params) ?? ({} as P);
-      const res = await handler({ req, user: guard.user, params });
-      // Every successful write is logged; handlers that call audit() themselves (e.g. to keep a
-      // snapshot of what was deleted) replace this generic entry.
-      if (res.status < 400 && write && !wasAudited(req)) {
-        const path = new URL(req.url).pathname;
-        await audit(guard.user, {
-          action: `${req.method} ${path}`,
-          entity: path.split("/")[2],
-          entityId: Object.values(params as Record<string, string>)[0],
-        });
-      }
-      return res;
+      // Everything below runs as the caller's business: the database refuses the rows of any other (src/lib/db.ts).
+      return await withTenant(guard.user.tenantId, async () => {
+        const res = await handler({ req, user: guard.user, params });
+        // Every successful write is logged; handlers that call audit() themselves (e.g. to keep a
+        // snapshot of what was deleted) replace this generic entry.
+        if (res.status < 400 && write && !wasAudited(req)) {
+          const path = new URL(req.url).pathname;
+          await audit(guard.user, {
+            action: `${req.method} ${path}`,
+            entity: path.split("/")[2],
+            entityId: Object.values(params as Record<string, string>)[0],
+          });
+        }
+        return res;
+      });
     } catch (e) {
       return toErrorResponse(e);
     }

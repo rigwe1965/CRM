@@ -1,5 +1,6 @@
 import { strToU8, Zip, ZipDeflate } from "fflate";
 import { CSV_BOM, csvLine } from "@/lib/export/csv";
+import { keepTenant } from "@/lib/tenant-context";
 
 export type ZipFile = {
   /** File name inside the zip: fixed names from the registry, never user input. */
@@ -52,10 +53,12 @@ async function* zipChunks(files: ZipFile[], readme: string, limit: number): Asyn
 
 export function zipResponse(name: string, files: ZipFile[], readme: string, limit: number): Response {
   const chunks = zipChunks(files, readme, limit);
+  // The rows are read while the response streams, after the route handler has returned: stay in its business.
+  const inTenant = keepTenant();
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
-        const next = await chunks.next();
+        const next = await inTenant(() => chunks.next());
         if (next.done) controller.close();
         else controller.enqueue(next.value);
       } catch (e) {
@@ -64,7 +67,7 @@ export function zipResponse(name: string, files: ZipFile[], readme: string, limi
       }
     },
     async cancel() {
-      await chunks.return(undefined);
+      await inTenant(() => chunks.return(undefined));
     },
   });
   return new Response(body, {

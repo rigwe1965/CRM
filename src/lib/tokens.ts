@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
 
 // Reset tokens reuse the VerificationToken table. The identifier is prefixed so they can
 // never collide with Auth.js magic-link tokens, and only a SHA-256 hash is stored.
@@ -13,9 +13,9 @@ export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export async function createPasswordResetToken(email: string, ttlMs = TTL_MS): Promise<string> {
   const raw = randomBytes(32).toString("hex");
   const identifier = PREFIX + email;
-  await db.$transaction([
-    db.verificationToken.deleteMany({ where: { identifier } }),
-    db.verificationToken.create({
+  await platformDb.$transaction([
+    platformDb.verificationToken.deleteMany({ where: { identifier } }),
+    platformDb.verificationToken.create({
       data: { identifier, token: sha256(raw), expires: new Date(Date.now() + ttlMs) },
     }),
   ]);
@@ -25,12 +25,12 @@ export async function createPasswordResetToken(email: string, ttlMs = TTL_MS): P
 /** Atomically consumes the token (single use). Returns the email, or null if invalid/expired. */
 export async function consumePasswordResetToken(raw: string): Promise<string | null> {
   const token = sha256(raw);
-  const record = await db.verificationToken.findUnique({ where: { token } });
+  const record = await platformDb.verificationToken.findUnique({ where: { token } });
   if (!record || !record.identifier.startsWith(PREFIX)) return null;
-  const { count } = await db.verificationToken.deleteMany({
+  const { count } = await platformDb.verificationToken.deleteMany({
     where: { token, expires: { gt: new Date() } },
   });
   if (count === 0) return null;
-  await db.verificationToken.deleteMany({ where: { identifier: record.identifier } });
+  await platformDb.verificationToken.deleteMany({ where: { identifier: record.identifier } });
   return record.identifier.slice(PREFIX.length);
 }

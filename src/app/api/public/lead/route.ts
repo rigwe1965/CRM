@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
 import { DEFAULT_TENANT_ID } from "@/lib/tenant";
+import { withTenant } from "@/lib/tenant-context";
 import { allowedOrigins, captureWebLead } from "@/lib/web-lead";
 import { webLeadSchema } from "@/lib/validations/crm";
 
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
 
   try {
     // One business per deployment until the lead form gets a tenant key (MULTI_TENANCY_PLAN.md, Phase 3).
-    await captureWebLead(DEFAULT_TENANT_ID, parsed.data);
+    await withTenant(DEFAULT_TENANT_ID, () => captureWebLead(DEFAULT_TENANT_ID, parsed.data));
   } catch (e) {
     console.error("[web-lead] failed", e instanceof Error ? e.message : e);
     return reply({ error: "Sorry, something went wrong. Please try again." }, 500);

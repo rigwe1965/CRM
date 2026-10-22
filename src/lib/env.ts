@@ -7,6 +7,7 @@ import { z } from "zod";
 const productionEnv = z
   .object({
     DATABASE_URL: z.string().trim().refine((v) => v.startsWith("postgres"), "must be a postgres:// URL"),
+    PLATFORM_DATABASE_URL: z.string().trim().refine((v) => v === "" || v.startsWith("postgres"), "must be a postgres:// URL").optional(),
     NEXTAUTH_SECRET: z.string().optional(),
     AUTH_SECRET: z.string().optional(),
     NEXTAUTH_URL: z.string().optional(),

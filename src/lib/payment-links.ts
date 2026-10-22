@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import type Stripe from "stripe";
 import { db } from "@/lib/db";
+import { platformDb } from "@/lib/platform-db";
+import { withTenant } from "@/lib/tenant-context";
 import { ApiError } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { ONLINE_CURRENCIES, stripe, toMinorUnits } from "@/lib/stripe";
@@ -140,7 +142,8 @@ export async function recordOnlinePayment(session: Stripe.Checkout.Session): Pro
   const intent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
   if (!providerLinkId || !intent) return { outcome: "unknown_link" };
 
-  const found = await db.paymentLink.findUnique({ where: { providerLinkId }, select: { id: true, tenantId: true, dealId: true } });
+  // Stripe names no business, so the link is found as the platform; from here on everything runs as the link's own.
+  const found = await platformDb.paymentLink.findUnique({ where: { providerLinkId }, select: { id: true, tenantId: true, dealId: true } });
   if (!found) return { outcome: "unknown_link" };
 
   const paid = round2((session.amount_total ?? 0) / 100);
@@ -148,63 +151,65 @@ export async function recordOnlinePayment(session: Stripe.Checkout.Session): Pro
 
   // The business is the payment link's own: nothing in the Stripe event decides which business is credited.
   const { tenantId } = found;
-  return db.$transaction(async (tx) => {
-    await lockDeal(tx, tenantId, found.dealId);
-    const link = await tx.paymentLink.findFirstOrThrow({ where: { id: found.id, tenantId } });
-    const already = await tx.payment.findFirst({ where: { tenantId, providerRef: intent }, select: { id: true } });
-    if (already || link.status === "PAID") return { outcome: "duplicate" as const, tenantId, dealId: link.dealId };
+  return withTenant(tenantId, () =>
+    db.$transaction(async (tx) => {
+      await lockDeal(tx, tenantId, found.dealId);
+      const link = await tx.paymentLink.findFirstOrThrow({ where: { id: found.id, tenantId } });
+      const already = await tx.payment.findFirst({ where: { tenantId, providerRef: intent }, select: { id: true } });
+      if (already || link.status === "PAID") return { outcome: "duplicate" as const, tenantId, dealId: link.dealId };
 
-    const deal = await tx.deal.findFirst({
-      where: { id: link.dealId, tenantId },
-      select: { id: true, title: true, amount: true, currency: true, ownerId: true, contactId: true, deletedAt: true },
-    });
-    const sum = await tx.payment.aggregate({ where: { tenantId, dealId: link.dealId }, _sum: { amount: true } });
-    const balance = deal ? round2(Number(deal.amount) - Number(sum._sum.amount ?? 0)) : 0;
+      const deal = await tx.deal.findFirst({
+        where: { id: link.dealId, tenantId },
+        select: { id: true, title: true, amount: true, currency: true, ownerId: true, contactId: true, deletedAt: true },
+      });
+      const sum = await tx.payment.aggregate({ where: { tenantId, dealId: link.dealId }, _sum: { amount: true } });
+      const balance = deal ? round2(Number(deal.amount) - Number(sum._sum.amount ?? 0)) : 0;
 
-    const problem =
-      !deal || deal.deletedAt ? "the deal no longer exists"
-      : link.status !== "PENDING" ? "the link had been cancelled"
-      : currency !== deal.currency || paid !== Number(link.amount) ? "the amount or currency did not match the link"
-      : paid > balance ? `the deal balance is now only ${balance.toFixed(2)} ${deal.currency}`
-      : null;
+      const problem =
+        !deal || deal.deletedAt ? "the deal no longer exists"
+        : link.status !== "PENDING" ? "the link had been cancelled"
+        : currency !== deal.currency || paid !== Number(link.amount) ? "the amount or currency did not match the link"
+        : paid > balance ? `the deal balance is now only ${balance.toFixed(2)} ${deal.currency}`
+        : null;
 
-    if (problem || !deal) {
-      await tx.paymentLink.update({ where: { id: link.id, tenantId }, data: { status: "REFUND_NEEDED", paidAt: new Date() } });
-      if (deal) {
-        await tx.task.create({
-          data: {
-            tenantId,
-            title: `Refund online payment of ${paid.toFixed(2)} ${currency}`,
-            description: `A customer paid "${deal.title}" online, but it could not be recorded because ${problem}. Refund it in the Stripe dashboard (payment ${intent}).`,
-            priority: "URGENT",
-            dueDate: new Date(),
-            assigneeId: deal.ownerId,
-            createdById: deal.ownerId,
-            dealId: deal.id,
-            contactId: deal.contactId,
-          },
-        });
+      if (problem || !deal) {
+        await tx.paymentLink.update({ where: { id: link.id, tenantId }, data: { status: "REFUND_NEEDED", paidAt: new Date() } });
+        if (deal) {
+          await tx.task.create({
+            data: {
+              tenantId,
+              title: `Refund online payment of ${paid.toFixed(2)} ${currency}`,
+              description: `A customer paid "${deal.title}" online, but it could not be recorded because ${problem}. Refund it in the Stripe dashboard (payment ${intent}).`,
+              priority: "URGENT",
+              dueDate: new Date(),
+              assigneeId: deal.ownerId,
+              createdById: deal.ownerId,
+              dealId: deal.id,
+              contactId: deal.contactId,
+            },
+          });
+        }
+        return { outcome: "refund_needed" as const, tenantId, dealId: link.dealId, summary: `${paid.toFixed(2)} ${currency}: ${problem}` };
       }
-      return { outcome: "refund_needed" as const, tenantId, dealId: link.dealId, summary: `${paid.toFixed(2)} ${currency}: ${problem}` };
-    }
 
-    await tx.payment.create({
-      data: {
-        tenantId,
-        dealId: deal.id,
-        amount: paid,
-        paidAt: new Date(),
-        method: "DIGITAL",
-        reference: intent,
-        note: "Paid online via payment link",
-        source: "ONLINE",
-        providerRef: intent,
-        paymentLinkId: link.id,
-      },
-    });
-    await tx.paymentLink.update({ where: { id: link.id, tenantId }, data: { status: "PAID", paidAt: new Date() } });
-    return { outcome: "recorded" as const, tenantId, dealId: deal.id, summary: `${paid.toFixed(2)} ${currency}` };
-  });
+      await tx.payment.create({
+        data: {
+          tenantId,
+          dealId: deal.id,
+          amount: paid,
+          paidAt: new Date(),
+          method: "DIGITAL",
+          reference: intent,
+          note: "Paid online via payment link",
+          source: "ONLINE",
+          providerRef: intent,
+          paymentLinkId: link.id,
+        },
+      });
+      await tx.paymentLink.update({ where: { id: link.id, tenantId }, data: { status: "PAID", paidAt: new Date() } });
+      return { outcome: "recorded" as const, tenantId, dealId: deal.id, summary: `${paid.toFixed(2)} ${currency}` };
+    }),
+  );
 }
 
 /** Writes the audit entry for a webhook outcome (no signed-in user: the actor is Stripe). */
