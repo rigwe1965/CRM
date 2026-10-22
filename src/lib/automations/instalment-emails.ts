@@ -66,16 +66,18 @@ export type PlannedEmail = {
  * Skips lost and deleted deals, inactive owners, deleted contacts, contacts with no email address and
  * contacts who opted out. Test-mode and live reminders are tracked separately.
  */
-export async function planInstalmentEmails(config: InstalmentEmailsConfig, now = new Date()): Promise<PlannedEmail[]> {
+export async function planInstalmentEmails(tenantId: string, config: InstalmentEmailsConfig, now = new Date()): Promise<PlannedEmail[]> {
   const test = config.mode === "TEST";
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const rows = await db.instalment.findMany({
     where: {
+      tenantId,
       dueDate: {
         gte: new Date(today.getTime() - MAX_OVERDUE_DAYS * DAY_MS),
         lt: new Date(today.getTime() + (config.daysBefore + 1) * DAY_MS),
       },
       deal: {
+        tenantId,
         deletedAt: null,
         stage: { not: "CLOSED_LOST" },
         owner: { isActive: true },
@@ -142,13 +144,13 @@ export async function planInstalmentEmails(config: InstalmentEmailsConfig, now =
  * notice creates a "call them" task for the owner. A reminder is recorded only after the provider accepted
  * the message, so a failed send is retried on the next run.
  */
-export async function runInstalmentEmails(now = new Date()) {
-  const config = await loadInstalmentEmails();
+export async function runInstalmentEmails(tenantId: string, now = new Date()) {
+  const config = await loadInstalmentEmails(tenantId);
   const result = { sent: 0, failed: 0, tasks: 0, test: config.mode === "TEST" };
   if (!config.enabled) return result;
 
   const test = config.mode === "TEST";
-  const plan = (await planInstalmentEmails(config, now)).slice(0, EMAIL_RUN_LIMIT);
+  const plan = (await planInstalmentEmails(tenantId, config, now)).slice(0, EMAIL_RUN_LIMIT);
 
   for (const p of plan) {
     const mail = customerInstalmentEmail({
@@ -177,12 +179,12 @@ export async function runInstalmentEmails(now = new Date()) {
     }
     result.sent++;
     try {
-      await db.instalmentReminder.create({ data: { instalmentId: p.instalmentId, kind: p.kind, test, recipient: to } });
+      await db.instalmentReminder.create({ data: { tenantId, instalmentId: p.instalmentId, kind: p.kind, test, recipient: to } });
       if (test) continue;
       await db.activity.create({
-        data: { type: "EMAIL", subject: mail.subject, body: mail.text, authorId: p.ownerId, contactId: p.contactId, dealId: p.dealId },
+        data: { tenantId, type: "EMAIL", subject: mail.subject, body: mail.text, authorId: p.ownerId, contactId: p.contactId, dealId: p.dealId },
       });
-      if (p.kind === "OVERDUE_2") result.tasks += await createCallTask(p);
+      if (p.kind === "OVERDUE_2") result.tasks += await createCallTask(tenantId, p);
     } catch (e) {
       // The email is already out; a bookkeeping failure must not stop the rest of the run.
       console.error("[automation] instalment email bookkeeping failed", p.instalmentId, e);
@@ -191,7 +193,7 @@ export async function runInstalmentEmails(now = new Date()) {
 
   if (result.sent || result.failed) {
     await audit(
-      { email: "automation" },
+      { email: "automation", tenantId },
       {
         action: "automation.instalment_emails",
         entity: "deal",
@@ -203,12 +205,13 @@ export async function runInstalmentEmails(now = new Date()) {
 }
 
 /** One open "call them" task per instalment, for the deal owner. Returns how many were created. */
-async function createCallTask(p: PlannedEmail) {
+async function createCallTask(tenantId: string, p: PlannedEmail) {
   const automationKey = `overdue-call:${p.instalmentId}`;
-  const open = await db.task.findFirst({ where: { automationKey, status: { in: ["TODO", "IN_PROGRESS"] } }, select: { id: true } });
+  const open = await db.task.findFirst({ where: { tenantId, automationKey, status: { in: ["TODO", "IN_PROGRESS"] } }, select: { id: true } });
   if (open) return 0;
   await db.task.create({
     data: {
+      tenantId,
       title: `Call ${p.customerName}: payment is overdue`.slice(0, 200),
       description: `Two reminder emails have gone out about the instalment of ${p.amountDue} ${p.currency} on "${p.dealTitle}" (due ${p.dueDate.toISOString().slice(0, 10)}). Created automatically.`,
       priority: "HIGH",

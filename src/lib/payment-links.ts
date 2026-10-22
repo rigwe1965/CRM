@@ -8,8 +8,8 @@ import { ONLINE_CURRENCIES, stripe, toMinorUnits } from "@/lib/stripe";
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Takes the same row lock the manual payment route uses, so payments and links on one deal queue up. */
-const lockDeal = (tx: Prisma.TransactionClient, dealId: string) =>
-  tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${dealId} FOR UPDATE`;
+const lockDeal = (tx: Prisma.TransactionClient, tenantId: string, dealId: string) =>
+  tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${dealId} AND "tenantId" = ${tenantId} FOR UPDATE`;
 
 export type PaymentLinkDto = {
   id: string;
@@ -24,9 +24,9 @@ export type PaymentLinkDto = {
 };
 
 /** Links for one deal, newest first. Caller must have checked access to the deal. */
-export async function paymentLinksView(dealId: string): Promise<PaymentLinkDto[]> {
+export async function paymentLinksView(tenantId: string, dealId: string): Promise<PaymentLinkDto[]> {
   const links = await db.paymentLink.findMany({
-    where: { dealId },
+    where: { tenantId, dealId },
     include: { createdBy: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -50,21 +50,21 @@ export async function paymentLinksView(dealId: string): Promise<PaymentLinkDto[]
  * amount), then Stripe is called outside the lock; if Stripe fails the reservation is released.
  */
 export async function createPaymentLink(
-  user: { id: string },
+  user: { id: string; tenantId: string },
   deal: { id: string; title: string },
   input: { amount?: number; note?: string | null },
   baseUrl: string,
 ) {
   const link = await db.$transaction(async (tx) => {
-    await lockDeal(tx, deal.id);
-    const fresh = await tx.deal.findUnique({ where: { id: deal.id }, select: { amount: true, currency: true, deletedAt: true } });
+    await lockDeal(tx, user.tenantId, deal.id);
+    const fresh = await tx.deal.findFirst({ where: { id: deal.id, tenantId: user.tenantId }, select: { amount: true, currency: true, deletedAt: true } });
     if (!fresh || fresh.deletedAt) throw new ApiError(404, "Deal not found", "NOT_FOUND");
     if (!(ONLINE_CURRENCIES as readonly string[]).includes(fresh.currency)) {
       throw new ApiError(422, `Online payment supports ${ONLINE_CURRENCIES.join(" and ")} only; this deal is in ${fresh.currency}.`, "CURRENCY_NOT_SUPPORTED");
     }
     const [paid, reserved] = await Promise.all([
-      tx.payment.aggregate({ where: { dealId: deal.id }, _sum: { amount: true } }),
-      tx.paymentLink.aggregate({ where: { dealId: deal.id, status: "PENDING" }, _sum: { amount: true } }),
+      tx.payment.aggregate({ where: { tenantId: user.tenantId, dealId: deal.id }, _sum: { amount: true } }),
+      tx.paymentLink.aggregate({ where: { tenantId: user.tenantId, dealId: deal.id, status: "PENDING" }, _sum: { amount: true } }),
     ]);
     const available = round2(Number(fresh.amount) - Number(paid._sum.amount ?? 0) - Number(reserved._sum.amount ?? 0));
     if (available <= 0) {
@@ -76,7 +76,7 @@ export async function createPaymentLink(
       throw new ApiError(422, msg, "VALIDATION_ERROR", { amount: [msg] });
     }
     return tx.paymentLink.create({
-      data: { dealId: deal.id, amount, currency: fresh.currency, note: input.note ?? null, createdById: user.id },
+      data: { tenantId: user.tenantId, dealId: deal.id, amount, currency: fresh.currency, note: input.note ?? null, createdById: user.id },
     });
   });
 
@@ -99,18 +99,18 @@ export async function createPaymentLink(
       metadata,
       payment_intent_data: { metadata },
     });
-    return await db.paymentLink.update({ where: { id: link.id }, data: { providerLinkId: created.id, url: created.url } });
+    return await db.paymentLink.update({ where: { id: link.id, tenantId: user.tenantId }, data: { providerLinkId: created.id, url: created.url } });
   } catch (e) {
     // Release the reservation so the amount can be collected another way.
-    await db.paymentLink.update({ where: { id: link.id }, data: { status: "CANCELLED" } }).catch(() => undefined);
+    await db.paymentLink.update({ where: { id: link.id, tenantId: user.tenantId }, data: { status: "CANCELLED" } }).catch(() => undefined);
     console.error("stripe payment link failed", e instanceof Error ? e.message : e);
     throw new ApiError(502, "The payment link could not be created. Please try again.", "PAYMENT_PROVIDER_FAILED");
   }
 }
 
 /** Cancels a pending link. The Stripe link is switched off first, so a customer can't pay a link we think is gone. */
-export async function cancelPaymentLink(dealId: string, linkId: string) {
-  const link = await db.paymentLink.findFirst({ where: { id: linkId, dealId } });
+export async function cancelPaymentLink(tenantId: string, dealId: string, linkId: string) {
+  const link = await db.paymentLink.findFirst({ where: { id: linkId, dealId, tenantId } });
   if (!link) throw new ApiError(404, "Payment link not found", "NOT_FOUND");
   if (link.status !== "PENDING") throw new ApiError(409, "Only an open payment link can be cancelled.", "LINK_NOT_OPEN");
   if (link.providerLinkId) {
@@ -121,7 +121,7 @@ export async function cancelPaymentLink(dealId: string, linkId: string) {
       throw new ApiError(502, "The link could not be switched off at Stripe. It is still open; please try again.", "PAYMENT_PROVIDER_FAILED");
     }
   }
-  const { count } = await db.paymentLink.updateMany({ where: { id: link.id, status: "PENDING" }, data: { status: "CANCELLED" } });
+  const { count } = await db.paymentLink.updateMany({ where: { id: link.id, tenantId, status: "PENDING" }, data: { status: "CANCELLED" } });
   // Paid in the instant between the check and the update: the webhook owns it now.
   if (count === 0) throw new ApiError(409, "This link was just paid, so it can't be cancelled.", "LINK_NOT_OPEN");
 }
@@ -134,29 +134,31 @@ export type OnlinePaymentOutcome = "recorded" | "duplicate" | "refund_needed" | 
  * (the balance dropped, the link was cancelled, the deal was deleted) it is never silently dropped:
  * the link is marked REFUND_NEEDED and the deal owner gets an urgent task.
  */
-export async function recordOnlinePayment(session: Stripe.Checkout.Session): Promise<{ outcome: OnlinePaymentOutcome; dealId?: string; summary?: string }> {
+export async function recordOnlinePayment(session: Stripe.Checkout.Session): Promise<{ outcome: OnlinePaymentOutcome; tenantId?: string; dealId?: string; summary?: string }> {
   if (session.payment_status !== "paid") return { outcome: "not_paid" };
   const providerLinkId = typeof session.payment_link === "string" ? session.payment_link : session.payment_link?.id;
   const intent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
   if (!providerLinkId || !intent) return { outcome: "unknown_link" };
 
-  const found = await db.paymentLink.findUnique({ where: { providerLinkId }, select: { id: true, dealId: true } });
+  const found = await db.paymentLink.findUnique({ where: { providerLinkId }, select: { id: true, tenantId: true, dealId: true } });
   if (!found) return { outcome: "unknown_link" };
 
   const paid = round2((session.amount_total ?? 0) / 100);
   const currency = (session.currency ?? "").toUpperCase();
 
+  // The business is the payment link's own: nothing in the Stripe event decides which business is credited.
+  const { tenantId } = found;
   return db.$transaction(async (tx) => {
-    await lockDeal(tx, found.dealId);
-    const link = await tx.paymentLink.findUniqueOrThrow({ where: { id: found.id } });
-    const already = await tx.payment.findUnique({ where: { providerRef: intent }, select: { id: true } });
-    if (already || link.status === "PAID") return { outcome: "duplicate" as const, dealId: link.dealId };
+    await lockDeal(tx, tenantId, found.dealId);
+    const link = await tx.paymentLink.findFirstOrThrow({ where: { id: found.id, tenantId } });
+    const already = await tx.payment.findFirst({ where: { tenantId, providerRef: intent }, select: { id: true } });
+    if (already || link.status === "PAID") return { outcome: "duplicate" as const, tenantId, dealId: link.dealId };
 
-    const deal = await tx.deal.findUnique({
-      where: { id: link.dealId },
+    const deal = await tx.deal.findFirst({
+      where: { id: link.dealId, tenantId },
       select: { id: true, title: true, amount: true, currency: true, ownerId: true, contactId: true, deletedAt: true },
     });
-    const sum = await tx.payment.aggregate({ where: { dealId: link.dealId }, _sum: { amount: true } });
+    const sum = await tx.payment.aggregate({ where: { tenantId, dealId: link.dealId }, _sum: { amount: true } });
     const balance = deal ? round2(Number(deal.amount) - Number(sum._sum.amount ?? 0)) : 0;
 
     const problem =
@@ -167,10 +169,11 @@ export async function recordOnlinePayment(session: Stripe.Checkout.Session): Pro
       : null;
 
     if (problem || !deal) {
-      await tx.paymentLink.update({ where: { id: link.id }, data: { status: "REFUND_NEEDED", paidAt: new Date() } });
+      await tx.paymentLink.update({ where: { id: link.id, tenantId }, data: { status: "REFUND_NEEDED", paidAt: new Date() } });
       if (deal) {
         await tx.task.create({
           data: {
+            tenantId,
             title: `Refund online payment of ${paid.toFixed(2)} ${currency}`,
             description: `A customer paid "${deal.title}" online, but it could not be recorded because ${problem}. Refund it in the Stripe dashboard (payment ${intent}).`,
             priority: "URGENT",
@@ -182,11 +185,12 @@ export async function recordOnlinePayment(session: Stripe.Checkout.Session): Pro
           },
         });
       }
-      return { outcome: "refund_needed" as const, dealId: link.dealId, summary: `${paid.toFixed(2)} ${currency}: ${problem}` };
+      return { outcome: "refund_needed" as const, tenantId, dealId: link.dealId, summary: `${paid.toFixed(2)} ${currency}: ${problem}` };
     }
 
     await tx.payment.create({
       data: {
+        tenantId,
         dealId: deal.id,
         amount: paid,
         paidAt: new Date(),
@@ -198,11 +202,11 @@ export async function recordOnlinePayment(session: Stripe.Checkout.Session): Pro
         paymentLinkId: link.id,
       },
     });
-    await tx.paymentLink.update({ where: { id: link.id }, data: { status: "PAID", paidAt: new Date() } });
-    return { outcome: "recorded" as const, dealId: deal.id, summary: `${paid.toFixed(2)} ${currency}` };
+    await tx.paymentLink.update({ where: { id: link.id, tenantId }, data: { status: "PAID", paidAt: new Date() } });
+    return { outcome: "recorded" as const, tenantId, dealId: deal.id, summary: `${paid.toFixed(2)} ${currency}` };
   });
 }
 
 /** Writes the audit entry for a webhook outcome (no signed-in user: the actor is Stripe). */
-export const auditOnline = (action: string, dealId: string | undefined, summary: string | undefined, data?: unknown) =>
-  audit({ email: "stripe-webhook" }, { action, entity: "deal", entityId: dealId, summary, data });
+export const auditOnline = (tenantId: string | undefined, action: string, dealId: string | undefined, summary: string | undefined, data?: unknown) =>
+  audit({ email: "stripe-webhook", tenantId }, { action, entity: "deal", entityId: dealId, summary, data });

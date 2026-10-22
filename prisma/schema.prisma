@@ -99,7 +99,7 @@ enum TaskPriority {
 
 model User {
   id                String    @id @default(cuid())
-  tenantId          String    @default("tenant_ivycandy")
+  tenantId          String
   tenant            Tenant    @relation(fields: [tenantId], references: [id])
   email             String    @unique
   name              String
@@ -222,10 +222,10 @@ model Tenant {
 
 model Organization {
   id        String    @id @default(cuid())
-  tenantId  String    @default("tenant_ivycandy")
+  tenantId  String
   tenant    Tenant    @relation(fields: [tenantId], references: [id])
   name      String
-  domain    String?   @unique
+  domain    String?
   industry  String?
   size      Int?
   website   String?
@@ -245,6 +245,7 @@ model Organization {
   deals      Deal[]
   activities Activity[]
 
+  @@unique([tenantId, domain])
   @@index([name])
   @@index([ownerId])
   @@index([industry])
@@ -254,11 +255,11 @@ model Organization {
 
 model Contact {
   id             String      @id @default(cuid())
-  tenantId       String      @default("tenant_ivycandy")
+  tenantId       String
   tenant         Tenant      @relation(fields: [tenantId], references: [id])
   firstName      String
   lastName       String
-  email          String?     @unique
+  email          String?
   phone          String?
   // `phone` normalised to E.164 (+4915906462275); null when it can't be worked out. Kept in sync by the contact routes.
   phoneE164      String?
@@ -288,6 +289,7 @@ model Contact {
   tasks        Task[]
   tags         ContactTag[]
 
+  @@unique([tenantId, email])
   @@index([lastName, firstName])
   @@index([type])
   @@index([leadStatus])
@@ -300,7 +302,7 @@ model Contact {
 
 model Deal {
   id                String    @id @default(cuid())
-  tenantId          String    @default("tenant_ivycandy")
+  tenantId          String
   tenant            Tenant    @relation(fields: [tenantId], references: [id])
   title             String
   amount            Decimal   @default(0) @db.Decimal(14, 2)
@@ -347,7 +349,7 @@ model Deal {
 
 model Activity {
   id             String             @id @default(cuid())
-  tenantId       String             @default("tenant_ivycandy")
+  tenantId       String
   tenant         Tenant             @relation(fields: [tenantId], references: [id])
   type           ActivityType       @default(NOTE)
   subject        String
@@ -378,7 +380,7 @@ model Activity {
 
 model Task {
   id             String       @id @default(cuid())
-  tenantId       String       @default("tenant_ivycandy")
+  tenantId       String
   tenant         Tenant       @relation(fields: [tenantId], references: [id])
   title          String
   description    String?
@@ -416,18 +418,19 @@ model Task {
 // A label the team puts on contacts ("wholesale", "VIP", "curly") to find them as a group.
 model Tag {
   id        String       @id @default(cuid())
-  tenantId  String       @default("tenant_ivycandy")
+  tenantId  String
   tenant    Tenant       @relation(fields: [tenantId], references: [id])
-  name      String       @unique
+  name      String
   createdAt DateTime     @default(now())
   contacts  ContactTag[]
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
 model ContactTag {
   contactId String
-  tenantId  String @default("tenant_ivycandy")
+  tenantId  String
   tenant    Tenant @relation(fields: [tenantId], references: [id])
   tagId     String
 
@@ -442,7 +445,7 @@ model ContactTag {
 // A person's own named set of list filters (today for the contacts list), shown as one-click chips.
 model SavedFilter {
   id        String   @id @default(cuid())
-  tenantId  String   @default("tenant_ivycandy")
+  tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   userId    String
   entity    String
@@ -462,15 +465,16 @@ model SavedFilter {
 // {firstName}, {lastName}, {company} and {senderName} are filled in when a template is chosen.
 model EmailTemplate {
   id          String   @id @default(cuid())
-  tenantId    String   @default("tenant_ivycandy")
+  tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  name        String   @unique
+  name        String
   subject     String
   body        String
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([tenantId, name])
   @@index([tenantId])
 }
 
@@ -479,13 +483,14 @@ model EmailTemplate {
 // Admin overrides for the built-in automations (key "stage-tasks", "quiet-leads"). Defaults live in code
 // (src/lib/automations/config.ts); a missing row means "defaults", which are all switched off.
 model AutomationSetting {
-  key         String   @id
-  tenantId    String   @default("tenant_ivycandy")
+  key         String
+  tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
   config      Json
   updatedById String?
   updatedAt   DateTime @updatedAt
 
+  @@id([tenantId, key])
   @@index([tenantId])
 }
 
@@ -493,9 +498,9 @@ model AutomationSetting {
 
 model Invoice {
   id          String        @id @default(cuid())
-  tenantId    String        @default("tenant_ivycandy")
+  tenantId    String
   tenant      Tenant        @relation(fields: [tenantId], references: [id])
-  number      String        @unique
+  number      String
   status      InvoiceStatus @default(DRAFT)
   invoiceDate DateTime
   currency    String        @default("USD")
@@ -519,6 +524,7 @@ model Invoice {
   // Customer deals this stock order fulfils
   deals Deal[]
 
+  @@unique([tenantId, number])
   @@index([ownerId])
   @@index([invoiceDate])
   @@index([tenantId])
@@ -526,7 +532,7 @@ model Invoice {
 
 model InvoiceItem {
   id           String   @id @default(cuid())
-  tenantId     String   @default("tenant_ivycandy")
+  tenantId     String
   tenant       Tenant   @relation(fields: [tenantId], references: [id])
   invoiceId    String
   position     Int
@@ -555,7 +561,7 @@ model InvoiceItem {
 // Money received against a deal. The balance is deal.amount minus the sum of these.
 model Payment {
   id            String        @id @default(cuid())
-  tenantId      String        @default("tenant_ivycandy")
+  tenantId      String
   tenant        Tenant        @relation(fields: [tenantId], references: [id])
   dealId        String
   amount        Decimal       @db.Decimal(14, 2)
@@ -584,7 +590,7 @@ model Payment {
 // their amount, so links can never add up to more than what is still owed.
 model PaymentLink {
   id             String            @id @default(cuid())
-  tenantId       String            @default("tenant_ivycandy")
+  tenantId       String
   tenant         Tenant            @relation(fields: [tenantId], references: [id])
   dealId         String
   amount         Decimal           @db.Decimal(14, 2)
@@ -610,7 +616,7 @@ model PaymentLink {
 // Optional agreed due dates for a deal. Payments are applied to these oldest-first.
 model Instalment {
   id             String    @id @default(cuid())
-  tenantId       String    @default("tenant_ivycandy")
+  tenantId       String
   tenant         Tenant    @relation(fields: [tenantId], references: [id])
   dealId         String
   position       Int
@@ -636,7 +642,7 @@ enum InstalmentReminderKind {
 // repeated daily run from sending the same reminder twice.
 model InstalmentReminder {
   id           String                 @id @default(cuid())
-  tenantId     String                 @default("tenant_ivycandy")
+  tenantId     String
   tenant       Tenant                 @relation(fields: [tenantId], references: [id])
   instalmentId String
   kind         InstalmentReminderKind
@@ -657,7 +663,7 @@ model InstalmentReminder {
 // What a customer bought on a deal. When a deal has items, deal.amount is their total.
 model DealItem {
   id           String  @id @default(cuid())
-  tenantId     String  @default("tenant_ivycandy")
+  tenantId     String
   tenant       Tenant  @relation(fields: [tenantId], references: [id])
   dealId       String
   position     Int
@@ -682,7 +688,7 @@ model DealItem {
 // row on product + colour + length, the same way sold items are.
 model StockAdjustment {
   id           String   @id @default(cuid())
-  tenantId     String   @default("tenant_ivycandy")
+  tenantId     String
   tenant       Tenant   @relation(fields: [tenantId], references: [id])
   product      String
   color        String   @default("")
@@ -707,7 +713,7 @@ model StockAdjustment {
 // refer to. Deletes of money records keep a full snapshot in `data`.
 model AuditLog {
   id         String   @id @default(cuid())
-  tenantId   String   @default("tenant_ivycandy")
+  tenantId   String
   createdAt  DateTime @default(now())
   actorId    String?
   actorEmail String?

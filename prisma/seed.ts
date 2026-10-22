@@ -20,6 +20,9 @@ assertSafeTarget();
 
 const prisma = new PrismaClient();
 
+// Every row below belongs to the original business.
+const tenantId = DEFAULT_TENANT_ID;
+
 const daysFromNow = (d: number) => new Date(Date.now() + d * 86_400_000);
 
 async function main() {
@@ -50,13 +53,13 @@ async function main() {
   // ── Users ──
   const [admin, sales, support] = await Promise.all([
     prisma.user.create({
-      data: { email: "admin@crm.test", name: "Alex Admin", role: "ADMIN", passwordHash },
+      data: { tenantId, email: "admin@crm.test", name: "Alex Admin", role: "ADMIN", passwordHash },
     }),
     prisma.user.create({
-      data: { email: "sales@crm.test", name: "Sam Sales", role: "SALES", passwordHash },
+      data: { tenantId, email: "sales@crm.test", name: "Sam Sales", role: "SALES", passwordHash },
     }),
     prisma.user.create({
-      data: { email: "support@crm.test", name: "Sue Support", role: "SUPPORT", passwordHash },
+      data: { tenantId, email: "support@crm.test", name: "Sue Support", role: "SUPPORT", passwordHash },
     }),
   ]);
 
@@ -72,7 +75,7 @@ async function main() {
   for (const [i, o] of orgData.entries()) {
     orgs.push(
       await prisma.organization.create({
-        data: { ...o, website: `https://${o.domain}`, ownerId: i % 2 === 0 ? sales.id : admin.id },
+        data: { tenantId, ...o, website: `https://${o.domain}`, ownerId: i % 2 === 0 ? sales.id : admin.id },
       }),
     );
   }
@@ -97,6 +100,7 @@ async function main() {
     contacts.push(
       await prisma.contact.create({
         data: {
+          tenantId,
           firstName: c.firstName,
           lastName: c.lastName,
           email: `${c.firstName}.${c.lastName}@example.com`.toLowerCase(),
@@ -129,6 +133,7 @@ async function main() {
     deals.push(
       await prisma.deal.create({
         data: {
+          tenantId,
           title: d.title,
           amount: d.amount,
           stage: d.stage,
@@ -153,30 +158,30 @@ async function main() {
   // ── Activities ──
   await prisma.activity.createMany({
     data: [
-      { type: "CALL", subject: "Intro call with Imani", body: "Discussed wholesale pricing for salon wigs.", authorId: sales.id, contactId: contacts[2].id, dealId: deals[1].id, occurredAt: daysFromNow(-5) },
-      { type: "EMAIL", subject: "Sent price list to Glam Studio", authorId: sales.id, contactId: contacts[4].id, dealId: deals[3].id, occurredAt: daysFromNow(-3) },
-      { type: "MEETING", subject: "Video call: custom wig specs", body: "Confirmed 613 color and HD lace on 10 units.", authorId: admin.id, dealId: deals[7].id, occurredAt: daysFromNow(-7) },
-      { type: "NOTE", subject: "Deposit received", body: "50% deposit paid via bank transfer.", authorId: sales.id, dealId: deals[1].id, occurredAt: daysFromNow(-2) },
-      { type: "CALL", subject: "Follow-up with Jasmine", authorId: sales.id, contactId: contacts[3].id, occurredAt: daysFromNow(-1) },
-      { type: "EMAIL", subject: "Shipping and customs questions", authorId: support.id, contactId: contacts[7].id, dealId: deals[5].id, occurredAt: daysFromNow(-4) },
-      { type: "NOTE", subject: "Lost to competitor", body: "Price was the deciding factor.", authorId: admin.id, dealId: deals[6].id, occurredAt: daysFromNow(-10) },
-      { type: "MEETING", subject: "Restock planning", authorId: sales.id, organizationId: orgs[0].id, dealId: deals[0].id, occurredAt: daysFromNow(-30) },
-      { type: "NOTE", subject: "Influencer referral", body: "Simone referred two salon owners.", authorId: admin.id, contactId: contacts[10].id, occurredAt: daysFromNow(-6) },
-      { type: "CALL", subject: "Delivery check-in", authorId: support.id, contactId: contacts[8].id, occurredAt: daysFromNow(-8) },
+      { tenantId, type: "CALL", subject: "Intro call with Imani", body: "Discussed wholesale pricing for salon wigs.", authorId: sales.id, contactId: contacts[2].id, dealId: deals[1].id, occurredAt: daysFromNow(-5) },
+      { tenantId, type: "EMAIL", subject: "Sent price list to Glam Studio", authorId: sales.id, contactId: contacts[4].id, dealId: deals[3].id, occurredAt: daysFromNow(-3) },
+      { tenantId, type: "MEETING", subject: "Video call: custom wig specs", body: "Confirmed 613 color and HD lace on 10 units.", authorId: admin.id, dealId: deals[7].id, occurredAt: daysFromNow(-7) },
+      { tenantId, type: "NOTE", subject: "Deposit received", body: "50% deposit paid via bank transfer.", authorId: sales.id, dealId: deals[1].id, occurredAt: daysFromNow(-2) },
+      { tenantId, type: "CALL", subject: "Follow-up with Jasmine", authorId: sales.id, contactId: contacts[3].id, occurredAt: daysFromNow(-1) },
+      { tenantId, type: "EMAIL", subject: "Shipping and customs questions", authorId: support.id, contactId: contacts[7].id, dealId: deals[5].id, occurredAt: daysFromNow(-4) },
+      { tenantId, type: "NOTE", subject: "Lost to competitor", body: "Price was the deciding factor.", authorId: admin.id, dealId: deals[6].id, occurredAt: daysFromNow(-10) },
+      { tenantId, type: "MEETING", subject: "Restock planning", authorId: sales.id, organizationId: orgs[0].id, dealId: deals[0].id, occurredAt: daysFromNow(-30) },
+      { tenantId, type: "NOTE", subject: "Influencer referral", body: "Simone referred two salon owners.", authorId: admin.id, contactId: contacts[10].id, occurredAt: daysFromNow(-6) },
+      { tenantId, type: "CALL", subject: "Delivery check-in", authorId: support.id, contactId: contacts[8].id, occurredAt: daysFromNow(-8) },
     ],
   });
 
   // ── Tasks ──
   await prisma.task.createMany({
     data: [
-      { title: "Send revised quote to Luxe Lace", status: "TODO", priority: "HIGH", dueDate: daysFromNow(2), assigneeId: sales.id, createdById: admin.id, dealId: deals[1].id, contactId: contacts[2].id },
-      { title: "Ship sample bundles to Luxe Lace", status: "IN_PROGRESS", priority: "MEDIUM", dueDate: daysFromNow(5), assigneeId: sales.id, createdById: sales.id, dealId: deals[2].id },
-      { title: "Qualify Chioma Eze", status: "TODO", priority: "LOW", dueDate: daysFromNow(7), assigneeId: sales.id, createdById: admin.id, contactId: contacts[7].id },
-      { title: "Prepare Royal Tresses container quote", status: "TODO", priority: "URGENT", dueDate: daysFromNow(3), assigneeId: admin.id, createdById: admin.id, dealId: deals[4].id },
-      { title: "Answer customs questions for Royal Tresses", status: "IN_PROGRESS", priority: "HIGH", dueDate: daysFromNow(1), assigneeId: support.id, createdById: sales.id, dealId: deals[5].id },
-      { title: "Send restock thank-you to Crown Beauty", status: "DONE", priority: "LOW", dueDate: daysFromNow(-15), completedAt: daysFromNow(-16), assigneeId: sales.id, createdById: sales.id, dealId: deals[0].id },
-      { title: "Review why Velvet Strands went elsewhere", status: "DONE", priority: "MEDIUM", dueDate: daysFromNow(-5), completedAt: daysFromNow(-6), assigneeId: admin.id, createdById: admin.id, dealId: deals[6].id },
-      { title: "Follow up with Dominique Ward", status: "CANCELLED", priority: "LOW", assigneeId: sales.id, createdById: sales.id, contactId: contacts[11].id },
+      { tenantId, title: "Send revised quote to Luxe Lace", status: "TODO", priority: "HIGH", dueDate: daysFromNow(2), assigneeId: sales.id, createdById: admin.id, dealId: deals[1].id, contactId: contacts[2].id },
+      { tenantId, title: "Ship sample bundles to Luxe Lace", status: "IN_PROGRESS", priority: "MEDIUM", dueDate: daysFromNow(5), assigneeId: sales.id, createdById: sales.id, dealId: deals[2].id },
+      { tenantId, title: "Qualify Chioma Eze", status: "TODO", priority: "LOW", dueDate: daysFromNow(7), assigneeId: sales.id, createdById: admin.id, contactId: contacts[7].id },
+      { tenantId, title: "Prepare Royal Tresses container quote", status: "TODO", priority: "URGENT", dueDate: daysFromNow(3), assigneeId: admin.id, createdById: admin.id, dealId: deals[4].id },
+      { tenantId, title: "Answer customs questions for Royal Tresses", status: "IN_PROGRESS", priority: "HIGH", dueDate: daysFromNow(1), assigneeId: support.id, createdById: sales.id, dealId: deals[5].id },
+      { tenantId, title: "Send restock thank-you to Crown Beauty", status: "DONE", priority: "LOW", dueDate: daysFromNow(-15), completedAt: daysFromNow(-16), assigneeId: sales.id, createdById: sales.id, dealId: deals[0].id },
+      { tenantId, title: "Review why Velvet Strands went elsewhere", status: "DONE", priority: "MEDIUM", dueDate: daysFromNow(-5), completedAt: daysFromNow(-6), assigneeId: admin.id, createdById: admin.id, dealId: deals[6].id },
+      { tenantId, title: "Follow up with Dominique Ward", status: "CANCELLED", priority: "LOW", assigneeId: sales.id, createdById: sales.id, contactId: contacts[11].id },
     ],
   });
 
@@ -185,10 +190,12 @@ async function main() {
   await prisma.invoice.create({
     data: {
       ...invoice,
+      tenantId,
       status: "SENT",
       ownerId: sales.id,
       items: {
         create: rows.map(([ref, style, description, color, density, lengthInches, quantity, unitPrice, lineTotal, resalePrice, note], i) => ({
+          tenantId,
           position: i + 1,
           ref,
           style,

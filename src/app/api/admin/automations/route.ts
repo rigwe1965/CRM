@@ -7,15 +7,15 @@ import { loadInstalmentEmails, loadQuietLeads, loadStageTasks, saveAutomations }
 
 export const dynamic = "force-dynamic";
 
-async function view() {
-  const [stageTasks, quietLeads, instalmentEmails] = await Promise.all([loadStageTasks(), loadQuietLeads(), loadInstalmentEmails()]);
+async function view(tenantId: string) {
+  const [stageTasks, quietLeads, instalmentEmails] = await Promise.all([loadStageTasks(tenantId), loadQuietLeads(tenantId), loadInstalmentEmails(tenantId)]);
   // What each daily automation would do on its next run, so switching one on holds no surprise.
-  const [quietLeadsWouldCreate, planned] = await Promise.all([countQuietLeads(quietLeads.days), planInstalmentEmails(instalmentEmails)]);
+  const [quietLeadsWouldCreate, planned] = await Promise.all([countQuietLeads(tenantId, quietLeads.days), planInstalmentEmails(tenantId, instalmentEmails)]);
   return { stageTasks, quietLeads, instalmentEmails, quietLeadsWouldCreate, instalmentEmailsWouldSend: planned.length };
 }
 
 /** GET /api/admin/automations: current settings (defaults are all switched off) and a preview count. */
-export const GET = authed(async () => ok(await view()), "ADMIN");
+export const GET = authed(async ({ user }) => ok(await view(user.tenantId)), "ADMIN");
 
 /**
  * PUT /api/admin/automations: save any of `stageTasks`, `quietLeads`, `instalmentEmails`. Each is replaced as a whole.
@@ -24,6 +24,6 @@ export const GET = authed(async () => ok(await view()), "ADMIN");
  */
 export const PUT = authed(async ({ req, user }) => {
   const body = await readBody(req, automationsUpdateSchema);
-  await saveAutomations(body, user.id);
-  return ok(await view());
+  await saveAutomations(body, user.id, user.tenantId);
+  return ok(await view(user.tenantId));
 }, "ADMIN");

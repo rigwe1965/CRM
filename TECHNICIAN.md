@@ -47,17 +47,26 @@ It sets `AUTH_TRUST_HOST=true`, `NEXTAUTH_URL=http://localhost:<port>` and `SKIP
 
 Migrations are hand-written SQL in `prisma/migrations/`. When you change `schema.prisma`, add a matching migration folder, then restart the dev server.
 
-### Tenants (multi-tenancy Phase 0, see `MULTI_TENANCY_PLAN.md`)
+### Tenants (multi-tenancy Phases 0 and 1, see `MULTI_TENANCY_PLAN.md`)
 
-Every business table now has a `tenantId`. It defaults to the original business (`tenant_ivycandy`, from `src/lib/tenant.ts`), so the app behaves as before; Phase 1 makes queries tenant-aware and removes the default.
+Every business table has a `tenantId` (the business a row belongs to). The original business is `tenant_ivycandy` (`src/lib/tenant.ts`). Three migrations, in this order:
 
-- **Production / any database that uses migrations:** `npm run db:deploy` applies `20261028000000_tenants`. It adds columns with a constant default, so existing rows (including the append-only audit log) are not rewritten. Back up first.
-- **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the migration SQL once, then push:
+1. `20261028000000_tenants`: the `Tenant` table, the original business, and `tenantId` on every business table (with a default, so nothing is rewritten).
+2. `20261029000000_tenant_uniques`: contact email, organization domain, tag name, template name, invoice number and the automation setting key are unique **per business** instead of across the database. `User.email` stays unique across the database.
+3. `20261030000000_tenant_required`: drops the default, so every create must name its business.
+
+In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts`) names the caller's business and `ownerScope`/`authorScope`/`taskScope` already include it. Every query on a business table must use one of them. The public entry points (website form, WhatsApp webhook) file leads under `DEFAULT_TENANT_ID` until Phase 3 gives each business its own address.
+
+- **Production / any database that uses migrations:** `npm run db:deploy` applies all three. Back up first.
+- **A dev database managed with `db:push`** (no migration history): `db:push` alone fails, because the new foreign keys point at a tenant row that doesn't exist yet. Back up, then run the SQL of each migration you haven't applied, in order, then push:
   1. `npx prisma db execute --file prisma/migrations/20261028000000_tenants/migration.sql`
-  2. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
-  After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until step 1 has run.
+  2. `npx prisma db execute --file prisma/migrations/20261029000000_tenant_uniques/migration.sql`
+  3. `npx prisma db execute --file prisma/migrations/20261030000000_tenant_required/migration.sql`
+  4. `npm run db:push` (a no-op that confirms the schema matches), then restart the dev server.
+  After `prisma generate` with the new schema, the app errors with "column tenantId does not exist" until these have run.
 - **Fresh dev database from `db:push` only:** `npm run db:seed` creates the original tenant before the sample data.
-- **Tests:** `tests/tenant-schema.test.ts` always runs (it fails if a business table has no `tenantId`). `tests/tenant-isolation.test.ts` needs a Postgres: set `TEST_DATABASE_URL` (CI does). It creates its own throwaway schema (`tenant_test_…`) and drops it, so it is safe next to real data.
+- **New admin in a given business:** `npm run make-admin -- you@example.com --create "Name" --tenant <tenantId>` (default: the original business).
+- **Tests:** `tests/tenant-schema.test.ts` and `tests/tenant-scoping.test.ts` always run (the second reads the source and fails when a query on a business table doesn't name the business; exempt files are listed in it with reasons). `tests/tenant-isolation.test.ts` and `tests/tenant-routes.test.ts` need a Postgres: set `TEST_DATABASE_URL` (CI does). They create their own throwaway schema (`tenant_test_…`) and drop it, so they are safe next to real data. The route tests run the real handlers against two businesses and prove one can't reach the other's records.
 
 ## Deployment (Vercel)
 1. Set the environment variables above in the Vercel project.

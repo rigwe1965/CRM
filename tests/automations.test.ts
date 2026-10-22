@@ -5,6 +5,7 @@ const { db, audit } = vi.hoisted(() => ({
     automationSetting: { findUnique: vi.fn(), upsert: vi.fn() },
     task: { findFirst: vi.fn(), create: vi.fn(), createMany: vi.fn() },
     contact: { findMany: vi.fn(), count: vi.fn() },
+    tenant: { findMany: vi.fn() },
   },
   audit: vi.fn(),
 }));
@@ -28,6 +29,7 @@ const NOW = new Date("2026-10-23T08:00:00Z");
 beforeEach(() => {
   vi.clearAllMocks();
   db.automationSetting.findUnique.mockResolvedValue(null);
+  db.tenant.findMany.mockResolvedValue([{ id: "t1" }]);
   db.task.findFirst.mockResolvedValue(null);
   db.task.create.mockResolvedValue({ id: "t1", title: "x" });
   db.task.createMany.mockImplementation(async ({ data }: { data: unknown[] }) => ({ count: data.length }));
@@ -35,7 +37,8 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 const stored = (key: string, config: unknown) =>
-  db.automationSetting.findUnique.mockImplementation(async ({ where }: { where: { key: string } }) => (where.key === key ? { key, config } : null));
+  db.automationSetting.findUnique.mockImplementation(async ({ where }: { where: { tenantId_key: { tenantId: string; key: string } } }) =>
+    where.tenantId_key.tenantId === "t1" && where.tenantId_key.key === key ? { key, config } : null);
 
 describe("config", () => {
   it("ships switched off, with three stage rules ready to go", () => {
@@ -77,7 +80,7 @@ describe("runStageAutomations", () => {
   type Deal = Parameters<typeof runStageAutomations>[0]["deal"];
   const deal: Deal = { id: "d1", title: "Adaeze order", ownerId: "owner1", contactId: "c1", contact: { firstName: "Adaeze", lastName: "Okafor" } };
   const move = (to: "PROPOSAL" | "QUALIFICATION" | "CLOSED_WON", from: "QUALIFICATION" | "PROPOSAL" = "QUALIFICATION", d: Deal = deal) =>
-    runStageAutomations({ deal: d, from, to, actor: { id: "actor1" } });
+    runStageAutomations({ deal: d, from, to, actor: { id: "actor1", tenantId: "t1" } });
 
   it("does nothing while the automation is off", async () => {
     await move("PROPOSAL");
@@ -99,8 +102,9 @@ describe("runStageAutomations", () => {
       dealId: "d1",
       contactId: "c1",
       automationKey: "stage:d1:PROPOSAL",
+      tenantId: "t1",
     });
-    expect(audit).toHaveBeenCalledWith({ email: "automation" }, expect.objectContaining({ action: "automation.stage_task", entityId: "d1" }));
+    expect(audit).toHaveBeenCalledWith({ email: "automation", tenantId: "t1" }, expect.objectContaining({ action: "automation.stage_task", entityId: "d1" }));
   });
 
   it("falls back to the deal title when the deal has no contact", async () => {
@@ -132,20 +136,33 @@ describe("runStageAutomations", () => {
     await expect(move("PROPOSAL")).resolves.toBeUndefined();
     spy.mockRestore();
   });
+
+  it("runs each active business on its own settings, never the other's", async () => {
+    db.tenant.findMany.mockResolvedValue([{ id: "t1" }, { id: "t2" }]);
+    // Only t2 has the rule switched on.
+    db.automationSetting.findUnique.mockImplementation(async ({ where }: { where: { tenantId_key: { tenantId: string; key: string } } }) =>
+      where.tenantId_key.tenantId === "t2" && where.tenantId_key.key === "quiet-leads" ? { config: { enabled: true, days: 7 } } : null);
+    db.contact.findMany.mockResolvedValue([{ id: "c1", firstName: "A", lastName: "B", ownerId: "o1" }]);
+    expect(await runDailyAutomations(NOW)).toMatchObject({ ok: true, quietLeads: { created: 1 } });
+    expect(db.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ACTIVE" } }));
+    expect(db.contact.findMany).toHaveBeenCalledTimes(1);
+    expect(db.contact.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: "t2" });
+    expect(db.task.createMany.mock.calls[0][0].data[0]).toMatchObject({ tenantId: "t2" });
+  });
 });
 
 describe("quiet leads", () => {
   const lead = (n: number) => ({ id: `c${n}`, firstName: "Lead", lastName: String(n), ownerId: `o${n}` });
 
   it("does nothing while switched off", async () => {
-    expect(await runQuietLeadNudges(NOW)).toEqual({ created: 0 });
+    expect(await runQuietLeadNudges("t1", NOW)).toEqual({ created: 0 });
     expect(db.contact.findMany).not.toHaveBeenCalled();
   });
 
   it("creates one task per lead for its owner, due tomorrow, with a key per contact", async () => {
     stored("quiet-leads", { enabled: true, days: 7 });
     db.contact.findMany.mockResolvedValue([lead(1), lead(2)]);
-    expect(await runQuietLeadNudges(NOW)).toEqual({ created: 2 });
+    expect(await runQuietLeadNudges("t1", NOW)).toEqual({ created: 2 });
     const { data } = db.task.createMany.mock.calls[0][0];
     expect(data).toHaveLength(2);
     expect(data[0]).toMatchObject({
@@ -157,13 +174,13 @@ describe("quiet leads", () => {
       dueDate: new Date(NOW.getTime() + DAY),
       priority: "MEDIUM",
     });
-    expect(audit).toHaveBeenCalledWith({ email: "automation" }, expect.objectContaining({ action: "automation.quiet_leads", summary: "2 follow-up tasks created" }));
+    expect(audit).toHaveBeenCalledWith({ email: "automation", tenantId: "t1" }, expect.objectContaining({ action: "automation.quiet_leads", summary: "2 follow-up tasks created" }));
   });
 
   it("caps a run and creates nothing when no lead is quiet", async () => {
     stored("quiet-leads", { enabled: true, days: 7 });
     db.contact.findMany.mockResolvedValue([]);
-    expect(await runQuietLeadNudges(NOW)).toEqual({ created: 0 });
+    expect(await runQuietLeadNudges("t1", NOW)).toEqual({ created: 0 });
     expect(db.contact.findMany.mock.calls[0][0].take).toBe(QUIET_LEAD_LIMIT);
     expect(db.task.createMany).not.toHaveBeenCalled();
     expect(audit).not.toHaveBeenCalled();
@@ -171,8 +188,9 @@ describe("quiet leads", () => {
 
   it("selects only live, owned, still-open leads that nobody has touched", () => {
     const cutoff = new Date(NOW.getTime() - 7 * DAY);
-    const where = quietLeadWhere(7, NOW);
+    const where = quietLeadWhere("t1", 7, NOW);
     expect(where).toMatchObject({
+      tenantId: "t1",
       deletedAt: null,
       type: { in: ["LEAD", "PROSPECT"] },
       ownerId: { not: null },
@@ -197,5 +215,18 @@ describe("runDailyAutomations", () => {
     // The quiet-lead failure is reported, and the customer-email automation (off here) still ran.
     expect(await runDailyAutomations(NOW)).toMatchObject({ ok: false, quietLeads: { ok: false, created: 0 }, instalmentEmails: { ok: true, sent: 0 } });
     spy.mockRestore();
+  });
+
+  it("runs each active business on its own settings, never the other's", async () => {
+    db.tenant.findMany.mockResolvedValue([{ id: "t1" }, { id: "t2" }]);
+    // Only t2 has the rule switched on.
+    db.automationSetting.findUnique.mockImplementation(async ({ where }: { where: { tenantId_key: { tenantId: string; key: string } } }) =>
+      where.tenantId_key.tenantId === "t2" && where.tenantId_key.key === "quiet-leads" ? { config: { enabled: true, days: 7 } } : null);
+    db.contact.findMany.mockResolvedValue([{ id: "c1", firstName: "A", lastName: "B", ownerId: "o1" }]);
+    expect(await runDailyAutomations(NOW)).toMatchObject({ ok: true, quietLeads: { created: 1 } });
+    expect(db.tenant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ACTIVE" } }));
+    expect(db.contact.findMany).toHaveBeenCalledTimes(1);
+    expect(db.contact.findMany.mock.calls[0][0].where).toMatchObject({ tenantId: "t2" });
+    expect(db.task.createMany.mock.calls[0][0].data[0]).toMatchObject({ tenantId: "t2" });
   });
 });

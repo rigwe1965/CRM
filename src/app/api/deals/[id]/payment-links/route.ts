@@ -19,7 +19,7 @@ const visibleDeal = (id: string, user: Parameters<typeof ownerScope>[0]) =>
 export const GET = authed<P>(async ({ user, params }) => {
   const deal = await visibleDeal(params.id, user);
   if (!deal) throw notFound("Deal");
-  return ok({ configured: stripeConfigured(), links: await paymentLinksView(deal.id) });
+  return ok({ configured: stripeConfigured(), links: await paymentLinksView(user.tenantId, deal.id) });
 });
 
 /**
@@ -35,5 +35,5 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   // Configured URL only: the request's Host header is client-controlled and must not decide where Stripe redirects.
   const link = await createPaymentLink(user, deal, body, appUrl());
   await audit(user, { action: "payment_link.created", entity: "deal", entityId: deal.id, summary: `${link.amount} ${link.currency}`, data: { linkId: link.id, amount: Number(link.amount) } }, req);
-  return ok({ configured: true, links: await paymentLinksView(deal.id) }, 201);
+  return ok({ configured: true, links: await paymentLinksView(user.tenantId, deal.id) }, 201);
 });

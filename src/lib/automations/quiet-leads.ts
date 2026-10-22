@@ -14,9 +14,10 @@ const OPEN = ["TODO", "IN_PROGRESS"] as const;
  * deals, no task completed for it, and no nudge already open or made within that window. Unqualified
  * leads, deleted contacts, contacts younger than the window and contacts without an active owner are left out.
  */
-export function quietLeadWhere(days: number, now: Date): Prisma.ContactWhereInput {
+export function quietLeadWhere(tenantId: string, days: number, now: Date): Prisma.ContactWhereInput {
   const cutoff = new Date(now.getTime() - days * DAY_MS);
   return {
+    tenantId,
     deletedAt: null,
     type: { in: ["LEAD", "PROSPECT"] },
     ownerId: { not: null },
@@ -40,15 +41,15 @@ export function quietLeadWhere(days: number, now: Date): Prisma.ContactWhereInpu
 }
 
 /** How many contacts would get a task right now (shown in Settings before an admin switches the rule on). */
-export const countQuietLeads = (days: number, now = new Date()) => db.contact.count({ where: quietLeadWhere(days, now) });
+export const countQuietLeads = (tenantId: string, days: number, now = new Date()) => db.contact.count({ where: quietLeadWhere(tenantId, days, now) });
 
 /** Creates one follow-up task per quiet lead, assigned to its owner and due tomorrow. */
-export async function runQuietLeadNudges(now = new Date()) {
-  const config = await loadQuietLeads();
+export async function runQuietLeadNudges(tenantId: string, now = new Date()) {
+  const config = await loadQuietLeads(tenantId);
   if (!config.enabled) return { created: 0 };
 
   const leads = await db.contact.findMany({
-    where: quietLeadWhere(config.days, now),
+    where: quietLeadWhere(tenantId, config.days, now),
     select: { id: true, firstName: true, lastName: true, ownerId: true },
     orderBy: { createdAt: "asc" },
     take: QUIET_LEAD_LIMIT,
@@ -58,6 +59,7 @@ export async function runQuietLeadNudges(now = new Date()) {
   const due = new Date(now.getTime() + DAY_MS);
   const { count } = await db.task.createMany({
     data: leads.map((c) => ({
+      tenantId,
       title: `Follow up with ${c.firstName} ${c.lastName}: no contact in ${config.days} days`.slice(0, 200),
       description: "Created automatically: nothing has been logged for this lead recently. Log a call, message or email, or mark the lead unqualified.",
       priority: "MEDIUM" as const,
@@ -68,6 +70,6 @@ export async function runQuietLeadNudges(now = new Date()) {
       automationKey: `quiet:${c.id}`,
     })),
   });
-  await audit({ email: "automation" }, { action: "automation.quiet_leads", entity: "contact", summary: `${count} follow-up task${count === 1 ? "" : "s"} created` });
+  await audit({ email: "automation", tenantId }, { action: "automation.quiet_leads", entity: "contact", summary: `${count} follow-up task${count === 1 ? "" : "s"} created` });
   return { created: count };
 }

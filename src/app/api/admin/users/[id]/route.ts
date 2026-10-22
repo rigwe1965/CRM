@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError, readBody } from "@/lib/api";
-import { wouldLeaveNoAdmin } from "@/lib/access";
+import { tenantScope, wouldLeaveNoAdmin } from "@/lib/access";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { invalidateUserCache } from "@/lib/user-cache";
@@ -25,15 +25,15 @@ export const PATCH = authed<{ id: string }>(async ({ req, user: admin, params })
       if (demoting || deactivating) {
         // Lock every active admin so two admins demoting each other at the same moment are serialised
         // and the second one sees the first one's change. Locked in id order so two of them can't deadlock.
-        await tx.$queryRaw`SELECT id FROM "User" WHERE role = 'ADMIN' AND "isActive" = true ORDER BY id FOR UPDATE`;
-        const target = await tx.user.findUnique({ where: { id: params.id }, select: { role: true, isActive: true } });
-        const otherActiveAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true, id: { not: params.id } } });
+        await tx.$queryRaw`SELECT id FROM "User" WHERE role = 'ADMIN' AND "isActive" = true AND "tenantId" = ${admin.tenantId} ORDER BY id FOR UPDATE`;
+        const target = await tx.user.findFirst({ where: { id: params.id, ...tenantScope(admin) }, select: { role: true, isActive: true } });
+        const otherActiveAdmins = await tx.user.count({ where: { ...tenantScope(admin), role: "ADMIN", isActive: true, id: { not: params.id } } });
         if (target && wouldLeaveNoAdmin({ target, demoting, deactivating, otherActiveAdmins })) {
           throw new ApiError(400, "At least one active admin must remain");
         }
       }
       return tx.user.update({
-        where: { id: params.id },
+        where: { id: params.id, ...tenantScope(admin) },
         data,
         select: { id: true, email: true, name: true, role: true, isActive: true },
       });

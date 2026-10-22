@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { notFound, ownerScope } from "@/lib/access";
+import { notFound, ownerScope, tenantScope } from "@/lib/access";
 import { canReplyFreely, sendWhatsAppText, whatsappConfigured } from "@/lib/whatsapp";
 import { sendWhatsappSchema } from "@/lib/validations/crm";
 
@@ -17,7 +17,7 @@ export const GET = authed<P>(async ({ user, params }) => {
   const contact = await find(params.id, user);
   if (!contact) throw notFound("Contact");
   const configured = whatsappConfigured();
-  return ok({ configured, canSend: configured && !!contact.phoneE164 && (await canReplyFreely(contact.id)) });
+  return ok({ configured, canSend: configured && !!contact.phoneE164 && (await canReplyFreely(user.tenantId, contact.id)) });
 });
 
 /**
@@ -31,7 +31,7 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   if (!contact) throw notFound("Contact");
   if (!whatsappConfigured()) throw new ApiError(409, "WhatsApp is not set up on this CRM yet", "NOT_CONFIGURED");
   if (!contact.phoneE164) throw new ApiError(422, "This contact has no WhatsApp-ready phone number (use the international form, +49…)", "VALIDATION_ERROR", { message: ["No valid phone number"] });
-  if (!(await canReplyFreely(contact.id))) {
+  if (!(await canReplyFreely(user.tenantId, contact.id))) {
     throw new ApiError(409, "WhatsApp only allows free-text replies within 24 hours of the customer's last message. Wait for them to write, or use an approved template.", "OUTSIDE_WINDOW");
   }
   let id: string;
@@ -41,7 +41,7 @@ export const POST = authed<P>(async ({ req, user, params }) => {
     throw new ApiError(502, e instanceof Error ? e.message : "WhatsApp did not accept the message", "WHATSAPP_ERROR");
   }
   const activity = await db.activity.create({
-    data: { type: "WHATSAPP", direction: "OUT", subject: "WhatsApp message", body: message, externalId: id, authorId: user.id, contactId: contact.id },
+    data: { ...tenantScope(user), type: "WHATSAPP", direction: "OUT", subject: "WhatsApp message", body: message, externalId: id, authorId: user.id, contactId: contact.id },
   });
   return ok(activity, 201);
 });

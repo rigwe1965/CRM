@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import type { OwnerScope } from "@/lib/access";
 import { addMoney, type MoneyMap } from "@/lib/money";
 
 const DAY = 86_400_000;
@@ -74,14 +75,14 @@ export function leadsBySource(contacts: { source: string | null; type: string }[
 }
 
 /** All the report numbers for the caller's data (`owned` is their owner scope; admins see everything). */
-export async function buildReports(owned: { ownerId?: string }, monthsBack: number, now = new Date()) {
+export async function buildReports(owned: OwnerScope, monthsBack: number, now = new Date()) {
   const months = lastMonths(monthsBack, now);
   const from = new Date(`${months[0]}-01T00:00:00.000Z`);
   const liveDeal: Prisma.DealWhereInput = { deletedAt: null, ...owned };
 
   const [payments, wonDeals, wonItems, contacts] = await Promise.all([
     db.payment.findMany({
-      where: { paidAt: { gte: from }, deal: liveDeal },
+      where: { tenantId: owned.tenantId, paidAt: { gte: from }, deal: liveDeal },
       select: { amount: true, paidAt: true, deal: { select: { currency: true } } },
     }),
     db.deal.findMany({

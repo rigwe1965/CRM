@@ -4,7 +4,7 @@ import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { contactInclude } from "@/lib/includes";
 import { normalizePhone } from "@/lib/phone";
-import { assertLinks, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
+import { assertLinks, assertTags, tenantScope, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
 import { contactListQuery, createContactSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -59,13 +59,15 @@ export const GET = authed(async ({ req, user }) => {
 export const POST = authed(async ({ req, user }) => {
   const { tagIds, ...body } = await readBody(req, createContactSchema);
   await assertLinks(user, { organizationId: body.organizationId });
+  await assertTags(user, tagIds);
   const ownerId = await resolveOwner(user, body.ownerId);
   const contact = await db.contact.create({
     data: {
       ...body,
+      ...tenantScope(user),
       ownerId,
       phoneE164: normalizePhone(body.phone),
-      ...(tagIds?.length ? { tags: { create: [...new Set(tagIds)].map((tagId) => ({ tagId })) } } : {}),
+      ...(tagIds?.length ? { tags: { create: [...new Set(tagIds)].map((tagId) => ({ tenantId: user.tenantId, tagId })) } } : {}),
     },
     include: contactInclude,
   });

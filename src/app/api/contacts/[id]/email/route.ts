@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { displayName, notFound, ownerScope } from "@/lib/access";
+import { displayName, notFound, ownerScope, tenantScope } from "@/lib/access";
 import { contactEmail } from "@/lib/email-templates";
 import { FROM, sendMail } from "@/lib/mail";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -49,6 +49,7 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
 
   const activity = await db.activity.create({
     data: {
+      ...tenantScope(user),
       type: "EMAIL",
       subject: body.subject,
       body: body.message,

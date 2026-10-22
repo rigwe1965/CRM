@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { ApiError, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { tenantScope } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { sendInvite } from "@/lib/invite";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
@@ -18,7 +19,7 @@ export const POST = authed(async ({ req, user: admin }) => {
   let user;
   try {
     user = await db.user.create({
-      data: { name, email, role },
+      data: { name, email, role, ...tenantScope(admin) },
       select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
     });
   } catch (e) {
@@ -32,8 +33,9 @@ export const POST = authed(async ({ req, user: admin }) => {
   return NextResponse.json({ user, emailed, devLink }, { status: 201 });
 }, "ADMIN");
 
-export const GET = authed(async () => {
+export const GET = authed(async ({ user: admin }) => {
   const users = await db.user.findMany({
+    where: tenantScope(admin),
     orderBy: { createdAt: "asc" },
     select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, passwordHash: true, mfaEnabledAt: true },
   });

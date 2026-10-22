@@ -16,7 +16,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const { count } = await db.stockAdjustment.updateMany({ where: { id: params.id, ...ownerScope(user) }, data: body });
   if (count === 0) throw notFound("Adjustment");
   await audit(user, { action: "stock.adjustment.updated", entity: "stockAdjustment", entityId: params.id, data: { before, changes: body } }, req);
-  return ok(await db.stockAdjustment.findUniqueOrThrow({ where: { id: params.id } }));
+  return ok(await db.stockAdjustment.findFirstOrThrow({ where: { id: params.id, ...ownerScope(user) } }));
 });
 
 /** DELETE /api/stock/adjustments/:id: permanent delete. */

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { db } from "@/lib/db";
-import { liveFilter, ownerScope } from "@/lib/access";
+import { liveFilter, ownerScope, tenantScope } from "@/lib/access";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { listing, type ExportEntity, type WithDeleted } from "@/lib/export/define";
 import { exportAuditQuery, exportContactsQuery } from "@/lib/validations/crm";
@@ -68,7 +68,8 @@ const contacts = listing({
   ],
 });
 
-const auditWhere = (q: z.infer<typeof exportAuditQuery>): Prisma.AuditLogWhereInput => ({
+const auditWhere = (user: SessionUser, q: z.infer<typeof exportAuditQuery>): Prisma.AuditLogWhereInput => ({
+  ...tenantScope(user),
   ...((q.from || q.to) && { createdAt: { gte: q.from, lte: q.to } }),
   ...(q.q && {
     OR: [
@@ -85,10 +86,10 @@ const audit = listing({
   adminOnly: true,
   stepUp: true,
   schema: exportAuditQuery,
-  count: (_user, q) => db.auditLog.count({ where: auditWhere(q) }),
-  fetch: (_user, q, page) =>
+  count: (user, q) => db.auditLog.count({ where: auditWhere(user, q) }),
+  fetch: (user, q, page) =>
     db.auditLog.findMany({
-      where: auditWhere(q),
+      where: auditWhere(user, q),
       select: {
         id: true, createdAt: true, actorId: true, actorEmail: true, action: true, entity: true,
         entityId: true, summary: true, ip: true, data: true,

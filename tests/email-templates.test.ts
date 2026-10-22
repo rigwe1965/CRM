@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { db, audit } = vi.hoisted(() => ({
   db: {
-    emailTemplate: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
+    emailTemplate: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), findFirstOrThrow: vi.fn(), findFirst: vi.fn(), deleteMany: vi.fn() },
   },
   audit: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock("@/lib/route", () => ({
       // Mirrors the real wrapper: a restricted route refuses anyone who is not an admin.
       const role = req.headers.get("x-test-role") ?? "ADMIN";
       if (roles.length && role !== "ADMIN" && !roles.includes(role)) return new Response(null, { status: 403 });
-      return await handler({ req, user: { id: "u1", role, name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
+      return await handler({ req, user: { id: "u1", tenantId: "t1", role, name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
     } catch (e) {
       const err = e as { status?: number };
       return new Response(null, { status: err.status ?? 500 });
@@ -84,14 +84,14 @@ describe("routes", () => {
     expect((await DELETE(json("DELETE", undefined, "SALES"), idCtx)).status).toBe(403);
     expect(db.emailTemplate.create).not.toHaveBeenCalled();
     expect(db.emailTemplate.updateMany).not.toHaveBeenCalled();
-    expect(db.emailTemplate.delete).not.toHaveBeenCalled();
+    expect(db.emailTemplate.deleteMany).not.toHaveBeenCalled();
   });
 
   it("an admin creates a template and it records who made it", async () => {
     db.emailTemplate.create.mockResolvedValue({ id: "t1", ...valid });
     const res = await POST(json("POST", valid), { params: Promise.resolve({}) });
     expect(res.status).toBe(201);
-    expect(db.emailTemplate.create).toHaveBeenCalledWith({ data: { ...valid, createdById: "u1" } });
+    expect(db.emailTemplate.create).toHaveBeenCalledWith({ data: { ...valid, tenantId: "t1", createdById: "u1" } });
   });
 
   it("changing a missing template is a 404", async () => {
@@ -100,15 +100,15 @@ describe("routes", () => {
   });
 
   it("deleting keeps a copy in the audit log first", async () => {
-    db.emailTemplate.findUnique.mockResolvedValue({ id: "t1", ...valid });
+    db.emailTemplate.findFirst.mockResolvedValue({ id: "t1", ...valid });
     expect((await DELETE(json("DELETE"), idCtx)).status).toBe(204);
-    expect(db.emailTemplate.delete).toHaveBeenCalledWith({ where: { id: "t1" } });
+    expect(db.emailTemplate.deleteMany).toHaveBeenCalledWith({ where: { id: "t1", tenantId: "t1" } });
     expect(audit).toHaveBeenCalledWith(
       expect.objectContaining({ id: "u1" }),
       expect.objectContaining({ action: "email_template.deleted", summary: "Quote", data: expect.objectContaining({ body: "Hi {firstName}" }) }),
       expect.anything(),
     );
-    db.emailTemplate.findUnique.mockResolvedValue(null);
+    db.emailTemplate.findFirst.mockResolvedValue(null);
     expect((await DELETE(json("DELETE"), idCtx)).status).toBe(404);
   });
 });

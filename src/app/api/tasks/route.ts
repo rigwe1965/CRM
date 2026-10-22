@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { taskInclude } from "@/lib/includes";
-import { assertLinks, resolveOwner, taskScope } from "@/lib/access";
+import { assertLinks, resolveOwner, taskScope, tenantScope } from "@/lib/access";
 import { createTaskSchema, taskListQuery } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,7 @@ export const POST = authed(async ({ req, user }) => {
   const task = await db.task.create({
     data: {
       ...body,
+      ...tenantScope(user),
       assigneeId,
       createdById: user.id,
       completedAt: body.status === "DONE" ? new Date() : null,

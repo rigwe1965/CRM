@@ -12,14 +12,22 @@ import type { SessionUser } from "@/lib/auth-helpers";
  */
 export const isAdmin = (user: SessionUser) => user.role === "ADMIN";
 
-export const ownerScope = (user: SessionUser): { ownerId?: string } =>
-  isAdmin(user) ? {} : { ownerId: user.id };
+/** The caller's business. Every query on a business table must carry it, so one business never sees another's rows. */
+export const tenantScope = (user: Pick<SessionUser, "tenantId">): { tenantId: string } => ({ tenantId: user.tenantId });
 
-export const authorScope = (user: SessionUser): { authorId?: string } =>
-  isAdmin(user) ? {} : { authorId: user.id };
+/** What `ownerScope` returns, for library functions that take the caller's scope. Always names the business. */
+export type OwnerScope = { tenantId: string; ownerId?: string };
+
+// The three scopes below include the tenant, so using them is enough to stay inside the caller's business
+// (admins included: ADMIN is the business admin, not the platform owner).
+export const ownerScope = (user: SessionUser): OwnerScope =>
+  isAdmin(user) ? tenantScope(user) : { ...tenantScope(user), ownerId: user.id };
+
+export const authorScope = (user: SessionUser): { tenantId: string; authorId?: string } =>
+  isAdmin(user) ? tenantScope(user) : { ...tenantScope(user), authorId: user.id };
 
 export const taskScope = (user: SessionUser): Prisma.TaskWhereInput =>
-  isAdmin(user) ? {} : { OR: [{ assigneeId: user.id }, { createdById: user.id }] };
+  isAdmin(user) ? tenantScope(user) : { ...tenantScope(user), OR: [{ assigneeId: user.id }, { createdById: user.id }] };
 
 /** Soft-delete filter: only admins can opt in to deleted rows. */
 export const liveFilter = (user: SessionUser, includeDeleted?: boolean) =>
@@ -42,7 +50,7 @@ export async function resolveOwner(
   }
   if (requested === user.id) return user.id;
   if (!isAdmin(user)) throw new ApiError(403, "You can only assign records to yourself");
-  const target = await db.user.findFirst({ where: { id: requested, isActive: true }, select: { id: true } });
+  const target = await db.user.findFirst({ where: { id: requested, isActive: true, ...tenantScope(user) }, select: { id: true } });
   if (!target) {
     throw new ApiError(422, "User not found", "INVALID_REFERENCE", { ownerId: ["User not found"] });
   }
@@ -85,6 +93,16 @@ export async function assertLinks(
       "INVALID_REFERENCE",
       Object.fromEntries(missing.map((f) => [f, ["Record not found"]])),
     );
+  }
+}
+
+/** Ensures every tag id belongs to the caller's business, so a guessed id from another business can't be attached. */
+export async function assertTags(user: SessionUser, tagIds: string[] | undefined) {
+  const ids = [...new Set(tagIds ?? [])];
+  if (ids.length === 0) return;
+  const found = await db.tag.count({ where: { id: { in: ids }, ...tenantScope(user) } });
+  if (found !== ids.length) {
+    throw new ApiError(422, "A referenced record was not found", "INVALID_REFERENCE", { tagIds: ["Tag not found"] });
   }
 }
 

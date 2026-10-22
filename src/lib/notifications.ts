@@ -14,13 +14,14 @@ export async function notifyDealStageChange(opts: {
   deal: { id: string; title: string; amount: unknown; currency: string; ownerId: string; lostReason: string | null };
   from: DealStage;
   to: DealStage;
-  actor: { id: string; name: string };
+  actor: { id: string; name: string; tenantId: string };
 }) {
   const { deal, from, to, actor } = opts;
   if (from === to) return;
   try {
     const recipients = await db.user.findMany({
       where: {
+        tenantId: actor.tenantId,
         isActive: true,
         id: { not: actor.id },
         OR: [{ id: deal.ownerId }, ...(isClosed(to) ? [{ role: "ADMIN" as const }] : [])],
@@ -58,6 +59,9 @@ export async function sendTaskReminders(now = new Date()) {
       status: { in: ["TODO", "IN_PROGRESS"] },
       dueDate: { not: null, lte: new Date(now.getTime() + DAY_MS) },
       reminderSentAt: null,
+      // The daily job is the one place that reads across businesses: each digest goes to one user about their own
+      // tasks, and a suspended business gets none.
+      tenant: { status: "ACTIVE" },
       assignee: { isActive: true },
     },
     select: { id: true, title: true, dueDate: true, assignee: { select: { id: true, name: true, email: true } } },
@@ -104,6 +108,7 @@ export async function sendInstalmentReminders(now = new Date()) {
     where: {
       reminderSentAt: null,
       dueDate: { lte: new Date(now.getTime() + DAY_MS) },
+      tenant: { status: "ACTIVE" }, // see sendTaskReminders: cross-business by design, one digest per owner
       deal: { deletedAt: null, stage: { not: "CLOSED_LOST" }, owner: { isActive: true } },
     },
     select: {

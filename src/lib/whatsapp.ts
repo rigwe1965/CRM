@@ -71,11 +71,11 @@ export function parseInbound(payload: unknown): InboundMessage[] {
  *  - Known number: a WhatsApp note (IN) on that contact, and a reply task for its owner if none is open.
  *  - Unknown number: a new LEAD (source "WhatsApp") for the default owner, with the same note and task, and an email.
  */
-export async function recordInbound(msg: InboundMessage): Promise<"recorded" | "duplicate"> {
-  if (await db.activity.findUnique({ where: { externalId: msg.id }, select: { id: true } })) return "duplicate";
+export async function recordInbound(tenantId: string, msg: InboundMessage): Promise<"recorded" | "duplicate"> {
+  if (await db.activity.findFirst({ where: { tenantId, externalId: msg.id }, select: { id: true } })) return "duplicate";
 
-  let contact = await db.contact.findFirst({ where: { phoneE164: msg.from, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, ownerId: true, firstName: true, lastName: true } });
-  const fallbackOwner = contact?.ownerId ? null : await resolveLeadOwner();
+  let contact = await db.contact.findFirst({ where: { tenantId, phoneE164: msg.from, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, ownerId: true, firstName: true, lastName: true } });
+  const fallbackOwner = contact?.ownerId ? null : await resolveLeadOwner(tenantId);
   const ownerId = contact?.ownerId ?? fallbackOwner?.id;
   if (!ownerId) throw new Error("No active user to receive WhatsApp messages");
 
@@ -83,7 +83,7 @@ export async function recordInbound(msg: InboundMessage): Promise<"recorded" | "
   if (!contact) {
     const [firstName, ...rest] = (msg.name?.replace(/\s+/g, " ").trim() || msg.from).split(" ");
     contact = await db.contact.create({
-      data: { firstName, lastName: rest.join(" ") || "-", phone: msg.from, phoneE164: msg.from, type: "LEAD", leadStatus: "NEW", source: "WhatsApp", ownerId },
+      data: { tenantId, firstName, lastName: rest.join(" ") || "-", phone: msg.from, phoneE164: msg.from, type: "LEAD", leadStatus: "NEW", source: "WhatsApp", ownerId },
       select: { id: true, ownerId: true, firstName: true, lastName: true },
     });
     created = true;
@@ -91,7 +91,7 @@ export async function recordInbound(msg: InboundMessage): Promise<"recorded" | "
 
   try {
     await db.activity.create({
-      data: { type: "WHATSAPP", direction: "IN", subject: "WhatsApp message", body: msg.text, occurredAt: msg.at, externalId: msg.id, authorId: ownerId, contactId: contact.id },
+      data: { tenantId, type: "WHATSAPP", direction: "IN", subject: "WhatsApp message", body: msg.text, occurredAt: msg.at, externalId: msg.id, authorId: ownerId, contactId: contact.id },
     });
   } catch (e) {
     // Two deliveries at the same instant: the unique id let one through.
@@ -101,16 +101,16 @@ export async function recordInbound(msg: InboundMessage): Promise<"recorded" | "
 
   const label = `${contact.firstName} ${contact.lastName === "-" ? "" : contact.lastName}`.trim();
   const key = `wa-reply:${contact.id}`;
-  const open = await db.task.findFirst({ where: { automationKey: key, status: { in: ["TODO", "IN_PROGRESS"] } }, select: { id: true } });
+  const open = await db.task.findFirst({ where: { tenantId, automationKey: key, status: { in: ["TODO", "IN_PROGRESS"] } }, select: { id: true } });
   if (!open) {
     await db.task.create({
-      data: { title: `Reply to WhatsApp from ${label}`, priority: "HIGH", dueDate: new Date(), assigneeId: ownerId, createdById: ownerId, contactId: contact.id, automationKey: key },
+      data: { tenantId, title: `Reply to WhatsApp from ${label}`, priority: "HIGH", dueDate: new Date(), assigneeId: ownerId, createdById: ownerId, contactId: contact.id, automationKey: key },
     });
   }
-  await audit({ email: "whatsapp-webhook" }, { action: created ? "whatsapp.lead_created" : "whatsapp.received", entity: "contact", entityId: contact.id, summary: label });
+  await audit({ email: "whatsapp-webhook", tenantId }, { action: created ? "whatsapp.lead_created" : "whatsapp.received", entity: "contact", entityId: contact.id, summary: label });
 
   if (created) {
-    const owner = fallbackOwner ?? (await resolveLeadOwner());
+    const owner = fallbackOwner ?? (await resolveLeadOwner(tenantId));
     if (owner) {
       await trySendMail({ to: owner.email, subject: `New WhatsApp lead: ${label}`.slice(0, 150), text: `${label} (${msg.from})\n\n${msg.text}\n\nOpen: ${appUrl()}/contacts/${contact.id}` });
     }
@@ -119,9 +119,9 @@ export async function recordInbound(msg: InboundMessage): Promise<"recorded" | "
 }
 
 /** True when the customer wrote to us in the last 24 hours, so a free-text reply is allowed. */
-export async function canReplyFreely(contactId: string, now = new Date()): Promise<boolean> {
+export async function canReplyFreely(tenantId: string, contactId: string, now = new Date()): Promise<boolean> {
   const last = await db.activity.findFirst({
-    where: { contactId, type: "WHATSAPP", direction: "IN" },
+    where: { tenantId, contactId, type: "WHATSAPP", direction: "IN" },
     orderBy: { occurredAt: "desc" },
     select: { occurredAt: true },
   });

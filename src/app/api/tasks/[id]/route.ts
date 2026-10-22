@@ -3,7 +3,7 @@ import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { taskInclude } from "@/lib/includes";
-import { assertLinks, notFound, resolveOwner, taskScope } from "@/lib/access";
+import { assertLinks, notFound, resolveOwner, taskScope, tenantScope } from "@/lib/access";
 import { updateTaskSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const reminderSentAt = dueChanged || (assigneeId !== undefined && assigneeId !== existing.assigneeId) ? null : undefined;
 
   const task = await db.task.update({
-    where: { id: params.id },
+    where: { id: params.id, ...tenantScope(user) },
     data: { ...body, assigneeId, completedAt, reminderSentAt },
     include: taskInclude,
   });

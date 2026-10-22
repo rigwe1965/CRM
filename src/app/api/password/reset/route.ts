@@ -25,8 +25,8 @@ export async function POST(req: Request) {
     data: { passwordHash: await hashPassword(body.data.password), passwordChangedAt: new Date() },
   });
   if (count === 0) return apiError("This reset link is invalid or has expired.", 400);
-  const reset = await db.user.findUnique({ where: { email }, select: { id: true } });
+  const reset = await db.user.findUnique({ where: { email }, select: { id: true, tenantId: true } });
   if (reset) invalidateUserCache(reset.id);
-  await audit({ id: reset?.id, email }, { action: "auth.password.reset", entity: "user", entityId: reset?.id });
+  await audit({ id: reset?.id, email, tenantId: reset?.tenantId }, { action: "auth.password.reset", entity: "user", entityId: reset?.id });
   return NextResponse.json({ ok: true });
 }

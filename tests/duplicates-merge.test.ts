@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { db, audit } = vi.hoisted(() => {
   const db = {
-    contact: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), findUniqueOrThrow: vi.fn() },
+    contact: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), findFirstOrThrow: vi.fn() },
     deal: { updateMany: vi.fn() },
     activity: { updateMany: vi.fn() },
     task: { updateMany: vi.fn() },
@@ -18,7 +18,7 @@ vi.mock("@/lib/route", () => ({
     try {
       const role = req.headers.get("x-test-role") ?? "ADMIN";
       if (roles.length && role !== "ADMIN" && !roles.includes(role)) return new Response(null, { status: 403 });
-      return await handler({ req, user: { id: "u1", role, name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
+      return await handler({ req, user: { id: "u1", tenantId: "t1", role, name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
     } catch (e) {
       const err = e as { status?: number; code?: string };
       return new Response(JSON.stringify({ code: err.code }), { status: err.status ?? 500 });
@@ -71,7 +71,7 @@ describe("merge", () => {
 
   beforeEach(() => {
     db.contact.findFirst.mockImplementation(async ({ where }: { where: { id: string } }) => (where.id === "a" ? from : into));
-    db.contact.findUniqueOrThrow.mockResolvedValue({ id: "b" });
+    db.contact.findFirstOrThrow.mockResolvedValue({ id: "b" });
   });
 
   it("is admin only", async () => {
@@ -89,10 +89,10 @@ describe("merge", () => {
   it("moves deals, activities, tasks and tags, fills only the blanks, and frees the email before the kept contact takes it", async () => {
     const res = await merge(req("POST", { intoId: "b" }), id("a"));
     expect(res.status).toBe(200);
-    expect(db.deal.updateMany).toHaveBeenCalledWith({ where: { contactId: "a" }, data: { contactId: "b" } });
-    expect(db.activity.updateMany).toHaveBeenCalledWith({ where: { contactId: "a" }, data: { contactId: "b" } });
-    expect(db.task.updateMany).toHaveBeenCalledWith({ where: { contactId: "a" }, data: { contactId: "b" } });
-    expect(db.contactTag.createMany).toHaveBeenCalledWith({ data: [{ contactId: "b", tagId: "t1" }, { contactId: "b", tagId: "t2" }], skipDuplicates: true });
+    expect(db.deal.updateMany).toHaveBeenCalledWith({ where: { tenantId: "t1", contactId: "a" }, data: { contactId: "b" } });
+    expect(db.activity.updateMany).toHaveBeenCalledWith({ where: { tenantId: "t1", contactId: "a" }, data: { contactId: "b" } });
+    expect(db.task.updateMany).toHaveBeenCalledWith({ where: { tenantId: "t1", contactId: "a" }, data: { contactId: "b" } });
+    expect(db.contactTag.createMany).toHaveBeenCalledWith({ data: [{ tenantId: "t1", contactId: "b", tagId: "t1" }, { tenantId: "t1", contactId: "b", tagId: "t2" }], skipDuplicates: true });
     const [removed, kept] = db.contact.update.mock.calls.map((c) => c[0]);
     expect(removed.where.id).toBe("a");
     expect(removed.data).toMatchObject({ email: null });

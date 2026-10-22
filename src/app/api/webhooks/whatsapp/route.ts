@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { DEFAULT_TENANT_ID } from "@/lib/tenant";
 import { parseInbound, recordInbound, validSignature, whatsappConfigured } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
   try {
-    for (const msg of parseInbound(payload)) await recordInbound(msg);
+    for (const msg of parseInbound(payload)) await recordInbound(DEFAULT_TENANT_ID, msg); // one business per deployment until Phase 3 gives each its own webhook URL
   } catch (e) {
     console.error("[whatsapp] webhook failed", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Could not record message" }, { status: 500 });

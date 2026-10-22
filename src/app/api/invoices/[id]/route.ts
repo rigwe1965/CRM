@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
-import { notFound, ownerScope } from "@/lib/access";
+import { notFound, ownerScope, tenantScope } from "@/lib/access";
 import { assertDealIds, invoiceDto, invoiceTotals, invoiceWithItems } from "@/lib/invoices";
 import { updateInvoiceSchema } from "@/lib/validations/crm";
 
@@ -35,13 +35,13 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
     if (items) {
       const t = invoiceTotals(items, body.shipping ?? Number(existing.shipping), body.total);
       money = { subtotal: t.subtotal, total: t.total };
-      await tx.invoiceItem.deleteMany({ where: { invoiceId: params.id } });
+      await tx.invoiceItem.deleteMany({ where: { invoiceId: params.id, ...tenantScope(user) } });
       await tx.invoiceItem.createMany({
-        data: items.map((i, n) => ({ ...i, invoiceId: params.id, position: n + 1, lineTotal: t.lineTotals[n] })),
+        data: items.map((i, n) => ({ ...i, tenantId: user.tenantId, invoiceId: params.id, position: n + 1, lineTotal: t.lineTotals[n] })),
       });
     }
     return tx.invoice.update({
-      where: { id: params.id },
+      where: { id: params.id, ...tenantScope(user) },
       data: { ...body, ...money, ...(links && { deals: { set: links.map((id) => ({ id })) } }) },
       include: invoiceWithItems,
     });

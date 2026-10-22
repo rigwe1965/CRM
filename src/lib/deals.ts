@@ -1,6 +1,7 @@
 import type { DealStage, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
+import type { OwnerScope } from "@/lib/access";
 import { addMoney, sumMoney, type MoneyMap } from "@/lib/money";
 
 /** Pipeline order, left to right. */
@@ -87,10 +88,10 @@ export const NO_LEGACY_HAIR = {
  * Per-stage counts, total value and probability-weighted value for the given (already scoped) deals.
  * Values are per currency (see MoneyMap): different currencies are never added together.
  */
-export async function pipelineSummary(where: Prisma.DealWhereInput) {
+export async function pipelineSummary(owned: OwnerScope) {
   const rows = await db.deal.groupBy({
     by: ["stage", "probability", "currency"],
-    where: { AND: [{ deletedAt: null }, where] },
+    where: { AND: [{ deletedAt: null }, owned] },
     _count: { _all: true },
     _sum: { amount: true },
   });

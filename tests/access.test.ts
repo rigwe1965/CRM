@@ -2,19 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findFirst = vi.fn();
 vi.mock("@/lib/db", () => ({ db: { user: { findFirst: (...a: unknown[]) => findFirst(...a) } } }));
-import { liveFilter, ownerScope, resolveOwner, wouldLeaveNoAdmin } from "@/lib/access";
+import { authorScope, liveFilter, ownerScope, resolveOwner, taskScope, wouldLeaveNoAdmin } from "@/lib/access";
 import { hasRole, isPublicPath, requiredRolesFor, safeRedirect } from "@/lib/rbac";
 
 type U = Parameters<typeof ownerScope>[0];
-const sales = { id: "u1", role: "SALES" } as U;
-const admin = { id: "a1", role: "ADMIN" } as U;
+const sales = { id: "u1", tenantId: "t1", role: "SALES" } as U;
+const admin = { id: "a1", tenantId: "t1", role: "ADMIN" } as U;
 
 beforeEach(() => findFirst.mockReset());
 
 describe("ownerScope / liveFilter", () => {
-  it("scopes non-admins to their own rows and lets admins see all", () => {
-    expect(ownerScope(sales)).toEqual({ ownerId: "u1" });
-    expect(ownerScope(admin)).toEqual({});
+  it("scopes non-admins to their own rows and lets admins see their whole business", () => {
+    expect(ownerScope(sales)).toEqual({ tenantId: "t1", ownerId: "u1" });
+    expect(ownerScope(admin)).toEqual({ tenantId: "t1" });
+  });
+  it("every scope names the caller's business, admins included", () => {
+    expect(authorScope(admin)).toEqual({ tenantId: "t1" });
+    expect(authorScope(sales)).toEqual({ tenantId: "t1", authorId: "u1" });
+    expect(taskScope(admin)).toEqual({ tenantId: "t1" });
+    expect(taskScope(sales)).toMatchObject({ tenantId: "t1" });
   });
   it("only admins can see deleted rows", () => {
     expect(liveFilter(sales, true)).toEqual({ deletedAt: null });
@@ -32,6 +38,8 @@ describe("resolveOwner", () => {
   it("lets admins assign an active user, and rejects unknown ones", async () => {
     findFirst.mockResolvedValueOnce({ id: "u2" });
     expect(await resolveOwner(admin, "u2")).toBe("u2");
+    // The assignee must belong to the admin's own business.
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenantId: "t1" }) }));
     findFirst.mockResolvedValueOnce(null);
     await expect(resolveOwner(admin, "nope")).rejects.toMatchObject({ status: 422 });
   });

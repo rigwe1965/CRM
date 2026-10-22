@@ -238,7 +238,7 @@ const instalments: ExportEntity = {
         )) {
           const sums = await db.payment.groupBy({
             by: ["dealId"],
-            where: { dealId: { in: batch.map((d) => d.id) } },
+            where: { tenantId: user.tenantId, dealId: { in: batch.map((d) => d.id) } },
             _sum: { amount: true },
           });
           const paid = new Map(sums.map((s) => [s.dealId, Number(s._sum.amount ?? 0)]));

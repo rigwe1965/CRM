@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
-import { assertLinks, displayName, notFound, ownerScope, resolveOwner } from "@/lib/access";
+import { assertLinks, displayName, notFound, ownerScope, resolveOwner, tenantScope } from "@/lib/access";
 import { assertDealCoversPayments, dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
 import { notifyDealStageChange } from "@/lib/notifications";
 import { runStageAutomations } from "@/lib/automations";
@@ -44,12 +44,12 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
 
   const deal = await db.$transaction(async (tx) => {
     // Same row lock as recording a payment, so the paid total can't change between check and update.
-    await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${params.id} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM "Deal" WHERE id = ${params.id} AND "tenantId" = ${user.tenantId} FOR UPDATE`;
     // The currency is read under the lock too: a concurrent edit may have changed it since `existing`.
-    const current = await tx.deal.findUnique({ where: { id: params.id }, select: { currency: true, deletedAt: true } });
+    const current = await tx.deal.findFirst({ where: { id: params.id, ...tenantScope(user) }, select: { currency: true, deletedAt: true } });
     if (!current || current.deletedAt) throw notFound("Deal");
     if (newTotal !== undefined || body.currency !== undefined) {
-      const { _sum } = await tx.payment.aggregate({ where: { dealId: params.id }, _sum: { amount: true } });
+      const { _sum } = await tx.payment.aggregate({ where: { dealId: params.id, ...tenantScope(user) }, _sum: { amount: true } });
       assertDealCoversPayments({
         paid: Number(_sum.amount ?? 0),
         currency: current.currency,
@@ -58,11 +58,11 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
       });
     }
     return tx.deal.update({
-      where: { id: params.id },
+      where: { id: params.id, ...tenantScope(user) },
       data: {
         ...body,
         ...(items && {
-          items: { deleteMany: {}, create: items.map((i, n) => ({ ...i, position: n + 1 })) },
+          items: { deleteMany: {}, create: items.map((i, n) => ({ ...i, tenantId: user.tenantId, position: n + 1 })) },
           ...(items.length > 0 && { ...NO_LEGACY_HAIR, amount: itemsTotal(items) }),
         }),
         ownerId,
@@ -76,9 +76,9 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
       deal,
       from: existing.stage,
       to: deal.stage,
-      actor: { id: user.id, name: displayName(user) },
+      actor: { id: user.id, name: displayName(user), tenantId: user.tenantId },
     });
-    await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id } });
+    await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id, tenantId: user.tenantId } });
   }
   return ok(dealDto(deal));
 });

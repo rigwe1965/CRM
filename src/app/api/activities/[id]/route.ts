@@ -3,7 +3,7 @@ import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
 import { activityInclude } from "@/lib/includes";
-import { assertLinks, authorScope, notFound } from "@/lib/access";
+import { assertLinks, authorScope, notFound, tenantScope } from "@/lib/access";
 import { updateActivitySchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   if (!existing) throw notFound("Activity");
   await assertLinks(user, body);
   // `occurredAt`/`type` are non-nullable columns; the schema never produces null for them.
-  const activity = await db.activity.update({ where: { id: params.id }, data: body, include: activityInclude });
+  const activity = await db.activity.update({ where: { id: params.id, ...tenantScope(user) }, data: body, include: activityInclude });
   return ok(activity);
 });
 

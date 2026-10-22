@@ -148,49 +148,49 @@ describe("running it", () => {
   });
 
   it("does nothing while off", async () => {
-    expect(await runInstalmentEmails(NOW)).toMatchObject({ sent: 0 });
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 0 });
     expect(db.instalment.findMany).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });
 
   it("test mode: emails the test address only, and changes nothing about the customer or the deal", async () => {
     saved(test);
-    expect(await runInstalmentEmails(NOW)).toMatchObject({ sent: 1, failed: 0, tasks: 0, test: true });
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 1, failed: 0, tasks: 0, test: true });
     const mail = send.mock.calls[0][0];
     expect(mail.to).toBe("boss@example.com");
     expect(mail.subject).toBe("[TEST] Second reminder: $100.00 is overdue");
     expect(mail.text).toContain("This would have gone to Adaeze Okafor <ada@customer.test>");
     expect(JSON.stringify(mail)).not.toContain('"to":"ada@customer.test"');
-    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { instalmentId: "i1", kind: "OVERDUE_2", test: true, recipient: "boss@example.com" } });
+    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: true, recipient: "boss@example.com" } });
     expect(db.activity.create).not.toHaveBeenCalled();
     expect(db.task.create).not.toHaveBeenCalled();
   });
 
   it("live mode: emails the customer, replies go to the owner, logs it, and after the second notice makes a call task", async () => {
     saved(live);
-    expect(await runInstalmentEmails(NOW)).toMatchObject({ sent: 1, tasks: 1, test: false });
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 1, tasks: 1, test: false });
     const mail = send.mock.calls[0][0];
     expect(mail).toMatchObject({ to: "ada@customer.test", replyTo: "sam@shop.test", from: expect.stringContaining('"Ivycandy Hair"') });
     expect(mail.subject).toBe("Second reminder: $100.00 is overdue");
-    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { instalmentId: "i1", kind: "OVERDUE_2", test: false, recipient: "ada@customer.test" } });
-    expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ type: "EMAIL", authorId: "owner1", contactId: "c1", dealId: "d1" });
+    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: false, recipient: "ada@customer.test" } });
+    expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ tenantId: "t1", type: "EMAIL", authorId: "owner1", contactId: "c1", dealId: "d1" });
     expect(db.task.create.mock.calls[0][0].data).toMatchObject({
       title: "Call Adaeze Okafor: payment is overdue", priority: "HIGH", assigneeId: "owner1", automationKey: "overdue-call:i1",
     });
-    expect(audit).toHaveBeenCalledWith({ email: "automation" }, expect.objectContaining({ action: "automation.instalment_emails" }));
+    expect(audit).toHaveBeenCalledWith({ email: "automation", tenantId: "t1" }, expect.objectContaining({ action: "automation.instalment_emails" }));
   });
 
   it("makes no second call task while one is open", async () => {
     saved(live);
     db.task.findFirst.mockResolvedValue({ id: "open" });
-    expect(await runInstalmentEmails(NOW)).toMatchObject({ sent: 1, tasks: 0 });
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 1, tasks: 0 });
     expect(db.task.create).not.toHaveBeenCalled();
   });
 
   it("records nothing when the provider rejects the email, so the next run retries", async () => {
     saved(live);
     send.mockResolvedValue(false);
-    expect(await runInstalmentEmails(NOW)).toMatchObject({ sent: 0, failed: 1 });
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 0, failed: 1 });
     expect(db.instalmentReminder.create).not.toHaveBeenCalled();
     expect(db.activity.create).not.toHaveBeenCalled();
   });
@@ -202,13 +202,13 @@ describe("running it", () => {
       row({ id: "i1" }, { payments: [{ amount: 100 }] }), // paid in full
       row({ id: "i2", dueDate: d("2026-12-03") }), // not due for weeks
     ]);
-    expect(await planInstalmentEmails({ ...DEFAULT_INSTALMENT_EMAILS, ...live }, NOW)).toEqual([]);
-    expect(await runInstalmentEmails(NOW)).toMatchObject({ sent: 0, failed: 0 });
+    expect(await planInstalmentEmails("t1", { ...DEFAULT_INSTALMENT_EMAILS, ...live }, NOW)).toEqual([]);
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 0, failed: 0 });
     expect(send).not.toHaveBeenCalled();
   });
 
   it("asks only for live deals with a reachable contact, and looks at test and live reminders separately", async () => {
-    await planInstalmentEmails({ ...DEFAULT_INSTALMENT_EMAILS, ...test }, NOW);
+    await planInstalmentEmails("t1", { ...DEFAULT_INSTALMENT_EMAILS, ...test }, NOW);
     const q = db.instalment.findMany.mock.calls[0][0];
     expect(q.where.deal).toMatchObject({
       deletedAt: null,
@@ -217,13 +217,13 @@ describe("running it", () => {
       contact: { deletedAt: null, email: { not: null }, emailOptOut: false },
     });
     expect(q.select.reminders.where).toEqual({ test: true });
-    await planInstalmentEmails({ ...DEFAULT_INSTALMENT_EMAILS, ...live }, NOW);
+    await planInstalmentEmails("t1", { ...DEFAULT_INSTALMENT_EMAILS, ...live }, NOW);
     expect(db.instalment.findMany.mock.calls[1][0].select.reminders.where).toEqual({ test: false });
   });
 
   it("caps one run", async () => {
     saved(live);
     db.instalment.findMany.mockResolvedValue(Array.from({ length: EMAIL_RUN_LIMIT + 25 }, (_, n) => row({ id: `i${n}` }, { instalments: [{ id: `i${n}`, position: 1, dueDate: d("2026-11-03"), amount: 100 }], amount: 100 })));
-    expect((await runInstalmentEmails(NOW)).sent).toBe(EMAIL_RUN_LIMIT);
+    expect((await runInstalmentEmails("t1", NOW)).sent).toBe(EMAIL_RUN_LIMIT);
   });
 });

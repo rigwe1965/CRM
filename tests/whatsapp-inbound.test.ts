@@ -6,7 +6,7 @@ const { db, audit, trySendMail, sendFetch } = vi.hoisted(() => ({
     automationSetting: { findUnique: vi.fn() },
     user: { findFirst: vi.fn() },
     contact: { findFirst: vi.fn(), create: vi.fn() },
-    activity: { findUnique: vi.fn(), findFirst: vi.fn(), create: vi.fn() },
+    activity: { findFirst: vi.fn(), create: vi.fn() },
     task: { findFirst: vi.fn(), create: vi.fn() },
   },
   audit: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock("@/lib/mail", () => ({ trySendMail, appUrl: () => "https://crm.test" }))
 vi.mock("@/lib/route", () => ({
   authed: (handler: (ctx: unknown) => Promise<Response>) => async (req: Request, context?: { params: Promise<unknown> }) => {
     try {
-      return await handler({ req, user: { id: "u1", role: "ADMIN", name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
+      return await handler({ req, user: { id: "u1", tenantId: "t1", role: "ADMIN", name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
     } catch (e) {
       const err = e as { status?: number; code?: string };
       return new Response(JSON.stringify({ code: err.code }), { status: err.status ?? 500 });
@@ -48,7 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(process.env, { WHATSAPP_ACCESS_TOKEN: "tok", WHATSAPP_PHONE_NUMBER_ID: "123", WHATSAPP_APP_SECRET: SECRET, WHATSAPP_VERIFY_TOKEN: TOKEN });
   vi.stubGlobal("fetch", sendFetch);
-  db.activity.findUnique.mockResolvedValue(null);
+  db.activity.findFirst.mockResolvedValue(null);
   db.activity.create.mockResolvedValue({ id: "a1" });
   db.task.findFirst.mockResolvedValue(null);
   db.automationSetting.findUnique.mockResolvedValue(null);
@@ -93,9 +93,9 @@ describe("incoming messages", () => {
   it("logs it on the existing contact (IN), makes one reply task, and creates no new contact", async () => {
     db.contact.findFirst.mockResolvedValue({ id: "c1", ownerId: "sales1", firstName: "Ada", lastName: "Okafor" });
     expect((await hook(payload())).status).toBe(200);
-    expect(db.contact.findFirst.mock.calls[0][0].where).toMatchObject({ phoneE164: "+4915906462275", deletedAt: null });
+    expect(db.contact.findFirst.mock.calls[0][0].where).toMatchObject({ tenantId: "tenant_ivycandy", phoneE164: "+4915906462275", deletedAt: null });
     expect(db.contact.create).not.toHaveBeenCalled();
-    expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ type: "WHATSAPP", direction: "IN", externalId: "wamid.1", contactId: "c1", authorId: "sales1", body: "Hi, price for 24 inch?" });
+    expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ tenantId: "tenant_ivycandy", type: "WHATSAPP", direction: "IN", externalId: "wamid.1", contactId: "c1", authorId: "sales1", body: "Hi, price for 24 inch?" });
     expect(db.task.create.mock.calls[0][0].data).toMatchObject({ assigneeId: "sales1", automationKey: "wa-reply:c1" });
     expect(trySendMail).not.toHaveBeenCalled();
   });
@@ -116,10 +116,10 @@ describe("incoming messages", () => {
   });
 
   it("records a message only once, however many times Meta delivers it", async () => {
-    db.activity.findUnique.mockResolvedValue({ id: "a1" });
+    db.activity.findFirst.mockResolvedValue({ id: "a1" });
     expect((await hook(payload())).status).toBe(200);
     expect(db.activity.create).not.toHaveBeenCalled();
-    db.activity.findUnique.mockResolvedValue(null);
+    db.activity.findFirst.mockResolvedValue(null);
     db.contact.findFirst.mockResolvedValue({ id: "c1", ownerId: "sales1", firstName: "Ada", lastName: "Okafor" });
     db.activity.create.mockRejectedValueOnce(Object.assign(new Error("dup"), { code: "P2002" })); // lost a race
     expect((await hook(payload())).status).toBe(200);

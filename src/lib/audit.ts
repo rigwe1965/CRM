@@ -1,13 +1,14 @@
 import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { clientIp } from "@/lib/rate-limit";
+import { PLATFORM_TENANT_ID } from "@/lib/tenant";
 
 /**
  * Append-only audit trail (AuditLog table). `authed()` records every successful write automatically;
  * call `audit()` yourself for sign-in and account events, and to attach a snapshot to a delete.
  * It never throws: a logging failure must not undo or block the action it describes.
  */
-type Actor = { id?: string | null; email?: string | null } | null;
+type Actor = { id?: string | null; email?: string | null; tenantId?: string | null } | null;
 export type AuditEntry = { action: string; entity?: string; entityId?: string; summary?: string; data?: unknown };
 
 const audited = new WeakSet<Request>();
@@ -29,6 +30,8 @@ export async function audit(actor: Actor, entry: AuditEntry, req?: Request) {
     }
     await db.auditLog.create({
       data: {
+        // Events that belong to no business (an unknown email signing in) are filed under the platform.
+        tenantId: actor?.tenantId ?? PLATFORM_TENANT_ID,
         actorId: actor?.id ?? null,
         actorEmail: actor?.email ?? null,
         action: entry.action,

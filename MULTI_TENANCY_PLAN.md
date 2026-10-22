@@ -1,6 +1,6 @@
 # Plan: multi-tenancy for the Ivycandy CRM
 
-- **Status:** plan approved by the owner on 2026-10-22. Phase 0 is built (see below); Phases 1 to 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
+- **Status:** plan approved by the owner on 2026-10-22. Phases 0 and 1 are built (see below); Phases 2 to 5 are not started. Each phase below needs its own go-ahead before work on it starts (CLAUDE.md: no code changes without an approved plan).
 - **Goal:** let several separate businesses use one deployment of this CRM without ever seeing each other's data, so it can be offered as a paid service.
 
 ## What the code looks like today
@@ -27,10 +27,10 @@
 **Status: done (code, not yet applied to the owner's dev database).** What was built, and where it differs from the text below:
 
 - Migration `20261028000000_tenants`: a `Tenant` table, the original business `tenant_ivycandy`, and a `tenantId` on all 20 business tables (every table except `Account`, `Session`, `VerificationToken`, which belong to a user). The column is added as `NOT NULL DEFAULT 'tenant_ivycandy'` in one step instead of "nullable, backfill, then required": a constant default fills existing rows without rewriting them, which the append-only audit log needs (it refuses `UPDATE`). The audit log gets the column and an index but no foreign key, by design.
-- The default stays until Phase 1, so no create had to change and the app behaves as before. Phase 1 must remove it (`tests/tenant-schema.test.ts` will then need its default assertion updated).
+- The default stayed until Phase 1, so no create had to change in Phase 0; Phase 1 removed it.
 - Rehearsed on a copy: the 20 old migrations plus sample rows, then this migration. Existing rows got the original tenant, a row for a missing tenant is refused, the audit log stayed append-only, and `prisma migrate diff` reports no difference between the migrations and the schema.
 - Seed: ensures the original tenant exists, then loads the sample data into it.
-- Harness: `tests/helpers/two-tenants.ts` builds a throwaway schema with tenants A and B, each owning a row in every business table. `tests/tenant-schema.test.ts` (no database) and `tests/tenant-isolation.test.ts` (needs `TEST_DATABASE_URL`, set in CI) guard it. Phase 1's route-level tests are listed in the isolation file as `it.todo`.
+- Harness: `tests/helpers/two-tenants.ts` builds a throwaway schema with tenants A and B, each owning a row in every business table. `tests/tenant-schema.test.ts` (no database) and `tests/tenant-isolation.test.ts` (needs `TEST_DATABASE_URL`, set in CI) guard it. The route-level tests are in `tests/tenant-routes.test.ts` (Phase 1).
 - Not changed: API responses may now include the row's own `tenantId` where whole rows are returned; nothing reads it.
 - Applying it to a `db:push` dev database is a manual step: see TECHNICIAN.md.
 
@@ -41,6 +41,20 @@
 - **Check:** the app behaves exactly as before for Ivycandy.
 
 ### Phase 1: scope every query
+
+**Status: done (code, not yet applied to the owner's dev database).** What was built, and where it differs from the text below:
+
+- `tenantId` is in the session and JWT (read from the database on every session check, cached 30 s with the user). A suspended business is signed out like a deactivated user.
+- `tenantScope(user)` is in `src/lib/access.ts`, and `ownerScope`, `authorScope` and `taskScope` include it, so the 34 files that already used them are scoped without edits. Admins are the business admin: they see their whole business, never another.
+- Models with no owner scope (users, tags, templates, saved filters, settings, audit log, payments, instalments, invoice items, contact tags) name the business directly. Ids in a request (`tagIds`, `ownerId`, `organizationId`, `contactId`, `dealId`, `dealIds`, assignees, the lead-form owner) must belong to the caller's business (`assertLinks`, new `assertTags`, `resolveOwner`).
+- Unique per business (migration `20261029000000_tenant_uniques`): contact email, organization domain, tag name, template name, invoice number, automation setting key. `User.email` stays global.
+- The default is gone (migration `20261030000000_tenant_required`): a create without a tenant is a type error and a database error.
+- Raw SQL: `cashflow.ts`, the deal and admin row locks and the payment-link lock all filter on the business. A payment from Stripe is credited to the payment link's own business, and the deal is looked up inside it.
+- The daily automations run once per active business on that business's settings; the reminder digests stay one job across businesses (one email per user, none for suspended businesses).
+- Audit entries carry the actor's business; events that belong to no business (an unknown email signing in) are filed under `platform`.
+- The website form and the WhatsApp webhook file leads under the original business (`DEFAULT_TENANT_ID`) until Phase 3.
+- Guards: `tests/tenant-scoping.test.ts` (reads the source; fails on a query that doesn't name the business) and `tests/tenant-routes.test.ts` (real handlers on a real database with two businesses: 404 for every route by id, links refused, lists, dashboard money, audit log and CSV exports hold only the caller's rows, same values allowed in both businesses). Breaking `tenantScope` on purpose makes 39 of them fail.
+- Not done here: Postgres row-level security (Phase 2), per-business Stripe/WhatsApp/lead-form settings (Phase 3).
 
 - Add `tenantId` to the session and JWT, and to `requireApiUser` and `authed()`, so every handler receives it.
 - Add one `tenantScope(user)` helper and combine it with the existing `ownerScope`, so the owner rules still apply inside a tenant.

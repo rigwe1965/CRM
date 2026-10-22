@@ -31,9 +31,9 @@ export async function POST(req: Request) {
   try {
     const result = await recordOnlinePayment(event.data.object as Stripe.Checkout.Session);
     if (result.outcome === "recorded") {
-      await auditOnline("payment.recorded_online", result.dealId, result.summary, { eventId: event.id });
+      await auditOnline(result.tenantId, "payment.recorded_online", result.dealId, result.summary, { eventId: event.id });
     } else if (result.outcome === "refund_needed") {
-      await auditOnline("payment.online_refund_needed", result.dealId, result.summary, { eventId: event.id });
+      await auditOnline(result.tenantId, "payment.online_refund_needed", result.dealId, result.summary, { eventId: event.id });
     }
     return NextResponse.json({ received: true, outcome: result.outcome });
   } catch (e) {

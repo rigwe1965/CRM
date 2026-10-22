@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
-import { displayName, notFound, ownerScope } from "@/lib/access";
+import { displayName, notFound, ownerScope, tenantScope } from "@/lib/access";
 import { dealDto, stageTransition } from "@/lib/deals";
 import { notifyDealStageChange } from "@/lib/notifications";
 import { runStageAutomations } from "@/lib/automations";
@@ -23,7 +23,7 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
   });
   if (!existing) throw notFound("Deal");
   const deal = await db.deal.update({
-    where: { id: params.id },
+    where: { id: params.id, ...tenantScope(user) },
     data: stageTransition(body.stage, { probability: body.probability, lostReason: body.lostReason }),
     include: dealInclude,
   });
@@ -31,8 +31,8 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
     deal,
     from: existing.stage,
     to: deal.stage,
-    actor: { id: user.id, name: displayName(user) },
+    actor: { id: user.id, name: displayName(user), tenantId: user.tenantId },
   });
-  await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id } });
+  await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id, tenantId: user.tenantId } });
   return ok(dealDto(deal));
 });

@@ -21,18 +21,18 @@ export async function runStageAutomations(opts: {
   };
   from: DealStage;
   to: DealStage;
-  actor: { id: string };
+  actor: { id: string; tenantId: string };
 }) {
   const { deal, from, to, actor } = opts;
   if (from === to) return;
   try {
-    const config = await loadStageTasks();
+    const config = await loadStageTasks(actor.tenantId);
     const rule = config.stages[to];
     if (!config.enabled || !rule.enabled || !rule.title) return;
 
     const automationKey = `stage:${deal.id}:${to}`;
     const open = await db.task.findFirst({
-      where: { automationKey, status: { in: ["TODO", "IN_PROGRESS"] } },
+      where: { tenantId: actor.tenantId, automationKey, status: { in: ["TODO", "IN_PROGRESS"] } },
       select: { id: true },
     });
     if (open) return;
@@ -40,6 +40,7 @@ export async function runStageAutomations(opts: {
     const customer = deal.contact ? `${deal.contact.firstName} ${deal.contact.lastName}` : deal.title;
     const task = await db.task.create({
       data: {
+        tenantId: actor.tenantId,
         title: renderTitle(rule.title, { deal: deal.title, customer, stage: STAGE_LABEL[to] }),
         description: `Created automatically when "${deal.title}" moved to ${STAGE_LABEL[to]}.`,
         priority: rule.priority,
@@ -52,7 +53,7 @@ export async function runStageAutomations(opts: {
       },
       select: { id: true, title: true },
     });
-    await audit({ email: "automation" }, { action: "automation.stage_task", entity: "deal", entityId: deal.id, summary: task.title });
+    await audit({ email: "automation", tenantId: actor.tenantId }, { action: "automation.stage_task", entity: "deal", entityId: deal.id, summary: task.title });
   } catch (e) {
     console.error("[automation] stage task failed", e);
   }

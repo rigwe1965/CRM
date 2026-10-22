@@ -10,12 +10,12 @@ import { TENANTLESS_MODELS, businessModels } from "./helpers/two-tenants";
 const models = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
 
 describe("tenant columns", () => {
-  it("every business table carries a required tenantId that defaults to the original business", () => {
+  it("every business table carries a required tenantId with no default, so a create must name its business", () => {
     expect(businessModels().length).toBeGreaterThanOrEqual(20);
     for (const name of businessModels()) {
       const f = models.get(name)!.fields.find((x) => x.name === "tenantId");
       expect(f, `${name}.tenantId`).toBeDefined();
-      expect(f).toMatchObject({ type: "String", isRequired: true, hasDefaultValue: true, default: DEFAULT_TENANT_ID });
+      expect(f).toMatchObject({ type: "String", isRequired: true, hasDefaultValue: false });
     }
   });
 

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { organizationInclude } from "@/lib/includes";
-import { liveFilter, ownerScope, resolveOwner } from "@/lib/access";
+import { tenantScope, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
 import { createOrganizationSchema, organizationListQuery } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +44,6 @@ export const GET = authed(async ({ req, user }) => {
 export const POST = authed(async ({ req, user }) => {
   const body = await readBody(req, createOrganizationSchema);
   const ownerId = await resolveOwner(user, body.ownerId);
-  const org = await db.organization.create({ data: { ...body, ownerId }, include: organizationInclude });
+  const org = await db.organization.create({ data: { ...body, ...tenantScope(user), ownerId }, include: organizationInclude });
   return ok(org, 201);
 });

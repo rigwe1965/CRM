@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { tenantScope } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,11 @@ const query = z.object({
 });
 
 /** GET /api/admin/audit: newest first. `q` matches the action, actor email, summary or record id. */
-export const GET = authed(async ({ req }) => {
+export const GET = authed(async ({ req, user }) => {
   const { page, pageSize, q } = readQuery(req, query);
-  const where = q
+  const where = {
+    ...tenantScope(user),
+    ...(q
     ? {
         OR: [
           { action: { contains: q, mode: "insensitive" as const } },
@@ -24,7 +27,8 @@ export const GET = authed(async ({ req }) => {
           { entityId: q },
         ],
       }
-    : {};
+    : {}),
+  };
   const [total, rows] = await Promise.all([
     db.auditLog.count({ where }),
     db.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),

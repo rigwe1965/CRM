@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { ownerScope } from "@/lib/access";
+import { ownerScope, tenantScope } from "@/lib/access";
 import { assertDealIds, invoiceDto, invoiceInclude, invoiceTotals, invoiceWithItems } from "@/lib/invoices";
 import { createInvoiceSchema, invoiceListQuery } from "@/lib/validations/crm";
 
@@ -45,8 +45,9 @@ export const POST = authed(async ({ req, user }) => {
       ...body,
       subtotal: t.subtotal,
       total: t.total,
+      ...tenantScope(user),
       ownerId: user.id,
-      items: { create: items.map((i, n) => ({ ...i, position: n + 1, lineTotal: t.lineTotals[n] })) },
+      items: { create: items.map((i, n) => ({ ...i, tenantId: user.tenantId, position: n + 1, lineTotal: t.lineTotals[n] })) },
       deals: { connect: links.map((id) => ({ id })) },
     },
     include: invoiceWithItems,

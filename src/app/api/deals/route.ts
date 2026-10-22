@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { dealInclude } from "@/lib/includes";
-import { assertLinks, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
+import { assertLinks, tenantScope, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
 import { dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
 import { paymentSummaries } from "@/lib/payments";
 import { createDealSchema, dealListQuery } from "@/lib/validations/crm";
@@ -63,10 +63,11 @@ export const POST = authed(async ({ req, user }) => {
   const deal = await db.deal.create({
     data: {
       ...body,
+      ...tenantScope(user),
       ...(items?.length && {
         ...NO_LEGACY_HAIR,
         amount: itemsTotal(items),
-        items: { create: items.map((i, n) => ({ ...i, position: n + 1 })) },
+        items: { create: items.map((i, n) => ({ ...i, tenantId: user.tenantId, position: n + 1 })) },
       }),
       ownerId,
       stage,

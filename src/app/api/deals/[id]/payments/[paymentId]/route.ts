@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { ok } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
-import { notFound, ownerScope } from "@/lib/access";
+import { notFound, ownerScope, tenantScope } from "@/lib/access";
 import { dealPaymentsView } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +14,8 @@ export const DELETE = authed<{ id: string; paymentId: string }>(async ({ req, us
     select: { id: true, amount: true, currency: true },
   });
   if (!deal) throw notFound("Deal");
-  const snapshot = await db.payment.findFirst({ where: { id: params.paymentId, dealId: deal.id } });
-  const { count } = await db.payment.deleteMany({ where: { id: params.paymentId, dealId: deal.id } });
+  const snapshot = await db.payment.findFirst({ where: { id: params.paymentId, dealId: deal.id, ...tenantScope(user) } });
+  const { count } = await db.payment.deleteMany({ where: { id: params.paymentId, dealId: deal.id, ...tenantScope(user) } });
   if (count === 0) throw notFound("Payment");
   await audit(user, { action: "payment.deleted", entity: "deal", entityId: deal.id, summary: snapshot ? `${snapshot.amount} ${deal.currency}` : undefined, data: snapshot }, req);
   return ok(await dealPaymentsView(deal));

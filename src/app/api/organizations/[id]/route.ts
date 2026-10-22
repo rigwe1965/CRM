@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { notFound, ownerScope, resolveOwner } from "@/lib/access";
+import { notFound, ownerScope, resolveOwner, tenantScope } from "@/lib/access";
 import { updateOrganizationSchema } from "@/lib/validations/crm";
 import { organizationInclude } from "@/lib/includes";
 
@@ -29,7 +29,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   if (!existing) throw notFound("Organization");
   const ownerId = body.ownerId === undefined ? undefined : await resolveOwner(user, body.ownerId);
   const org = await db.organization.update({
-    where: { id: params.id },
+    where: { id: params.id, ...tenantScope(user) },
     data: { ...body, ownerId },
     include: organizationInclude,
   });

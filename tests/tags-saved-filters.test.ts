@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { db, audit } = vi.hoisted(() => {
   const db = {
-    tag: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), count: vi.fn(), updateMany: vi.fn(), delete: vi.fn() },
+    tag: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findFirstOrThrow: vi.fn(), create: vi.fn(), count: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
     savedFilter: { findMany: vi.fn(), findUnique: vi.fn(), count: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn() },
     contact: { count: vi.fn(), findMany: vi.fn(), create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
@@ -14,6 +14,7 @@ vi.mock("@/lib/audit", () => ({ audit }));
 vi.mock("@/lib/access", async (orig) => ({
   ...(await orig<typeof import("@/lib/access")>()),
   assertLinks: vi.fn(),
+  assertTags: vi.fn(),
   resolveOwner: vi.fn(async () => "u1"),
 }));
 vi.mock("@/lib/route", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/lib/route", () => ({
     try {
       const role = req.headers.get("x-test-role") ?? "ADMIN";
       if (roles.length && role !== "ADMIN" && !roles.includes(role)) return new Response(null, { status: 403 });
-      return await handler({ req, user: { id: "u1", role, name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
+      return await handler({ req, user: { id: "u1", tenantId: "t1", role, name: "Boss", email: "b@x.test" }, params: (await context?.params) ?? {} });
     } catch (e) {
       const err = e as { status?: number; code?: string };
       return new Response(JSON.stringify({ code: err.code }), { status: err.status ?? 500 });
@@ -53,7 +54,7 @@ describe("tags", () => {
     db.tag.create.mockResolvedValue({ id: "t2", name: "wholesale" });
     const res = await createTag(req("POST", { name: "  wholesale " }, "SALES"), none);
     expect(res.status).toBe(201);
-    expect(db.tag.create).toHaveBeenCalledWith({ data: { name: "wholesale" } });
+    expect(db.tag.create).toHaveBeenCalledWith({ data: { tenantId: "t1", name: "wholesale" } });
   });
 
   it("asking for a name that exists (any capitals) returns that tag instead of a second one", async () => {
@@ -78,10 +79,10 @@ describe("tags", () => {
   });
 
   it("deleting a tag is audited with how many contacts had it", async () => {
-    db.tag.findUnique.mockResolvedValue({ id: "t1", name: "VIP", _count: { contacts: 4 } });
+    db.tag.findFirst.mockResolvedValue({ id: "t1", name: "VIP", _count: { contacts: 4 } });
     expect((await deleteTag(req("DELETE"), id())).status).toBe(204);
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ id: "u1" }), expect.objectContaining({ action: "tag.deleted", data: { name: "VIP", contacts: 4 } }), expect.anything());
-    db.tag.findUnique.mockResolvedValue(null);
+    db.tag.findFirst.mockResolvedValue(null);
     expect((await deleteTag(req("DELETE"), id())).status).toBe(404);
   });
 });
@@ -92,7 +93,7 @@ describe("saved filters", () => {
   it("lists only your own views for the list asked for", async () => {
     db.savedFilter.findMany.mockResolvedValue([]);
     await listFilters(req("GET", undefined, "SALES", "http://x.test/api/saved-filters?entity=contacts"), none);
-    expect(db.savedFilter.findMany.mock.calls[0][0].where).toEqual({ userId: "u1", entity: "contacts" });
+    expect(db.savedFilter.findMany.mock.calls[0][0].where).toEqual({ tenantId: "t1", userId: "u1", entity: "contacts" });
   });
 
   it("saves a view under your name; saving the same name again replaces it", async () => {
@@ -100,7 +101,7 @@ describe("saved filters", () => {
     db.savedFilter.count.mockResolvedValue(2);
     db.savedFilter.upsert.mockResolvedValue({ id: "f1", ...view });
     expect((await saveFilter(req("POST", view), none)).status).toBe(201);
-    expect(db.savedFilter.upsert.mock.calls[0][0].create).toMatchObject({ userId: "u1", entity: "contacts", name: "Wholesale leads" });
+    expect(db.savedFilter.upsert.mock.calls[0][0].create).toMatchObject({ tenantId: "t1", userId: "u1", entity: "contacts", name: "Wholesale leads" });
     db.savedFilter.findUnique.mockResolvedValue({ id: "f1" });
     expect((await saveFilter(req("POST", view), none)).status).toBe(200);
   });
@@ -124,7 +125,7 @@ describe("saved filters", () => {
   it("deletes only your own view; someone else's id is a 404", async () => {
     db.savedFilter.deleteMany.mockResolvedValue({ count: 1 });
     expect((await deleteFilter(req("DELETE"), id("f1"))).status).toBe(204);
-    expect(db.savedFilter.deleteMany).toHaveBeenCalledWith({ where: { id: "f1", userId: "u1" } });
+    expect(db.savedFilter.deleteMany).toHaveBeenCalledWith({ where: { id: "f1", userId: "u1", tenantId: "t1" } });
     db.savedFilter.deleteMany.mockResolvedValue({ count: 0 });
     expect((await deleteFilter(req("DELETE"), id("f2"))).status).toBe(404);
   });
@@ -149,7 +150,7 @@ describe("tags on contacts", () => {
     const res = await createContact(req("POST", { firstName: "Ada", lastName: "Okafor", tagIds: ["t1", "t2", "t1"] }), none);
     expect(res.status).toBe(201);
     const data = db.contact.create.mock.calls[0][0].data;
-    expect(data.tags).toEqual({ create: [{ tagId: "t1" }, { tagId: "t2" }] });
+    expect(data.tags).toEqual({ create: [{ tenantId: "t1", tagId: "t1" }, { tenantId: "t1", tagId: "t2" }] });
     expect(data).not.toHaveProperty("tagIds");
   });
 
@@ -161,7 +162,7 @@ describe("tags on contacts", () => {
     db.contact.findFirst.mockResolvedValue({ id: "c1" });
     db.contact.update.mockResolvedValue({ id: "c1" });
     await patchContact(req("PATCH", { tagIds: ["t2"] }), id("c1"));
-    expect(db.contact.update.mock.calls[0][0].data.tags).toEqual({ deleteMany: {}, create: [{ tagId: "t2" }] });
+    expect(db.contact.update.mock.calls[0][0].data.tags).toEqual({ deleteMany: {}, create: [{ tenantId: "t1", tagId: "t2" }] });
     await patchContact(req("PATCH", { tagIds: [] }), id("c1"));
     expect(db.contact.update.mock.calls[1][0].data.tags).toEqual({ deleteMany: {}, create: [] }); // clears them
     await patchContact(req("PATCH", { title: "Buyer" }), id("c1"));

@@ -53,7 +53,7 @@ export const GET = authed(async ({ user }) => {
     db.task.count({ where: { AND: [taskScope(user), openTask] } }),
     db.task.count({ where: { AND: [taskScope(user), openTask, { dueDate: { lt: now } }] } }),
     db.invoice.groupBy({ by: ["currency"], where: stockWhere, _count: { _all: true }, _sum: { total: true } }),
-    db.invoiceItem.aggregate({ where: { invoice: stockWhere }, _sum: { quantity: true } }),
+    db.invoiceItem.aggregate({ where: { tenantId: user.tenantId, invoice: stockWhere }, _sum: { quantity: true } }),
     cashflow(owned, now),
     db.activity.findMany({
       where: authorScope(user),

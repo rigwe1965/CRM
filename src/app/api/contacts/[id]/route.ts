@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { noContent, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { assertLinks, notFound, ownerScope, resolveOwner } from "@/lib/access";
+import { assertLinks, assertTags, notFound, ownerScope, resolveOwner, tenantScope } from "@/lib/access";
 import { updateContactSchema } from "@/lib/validations/crm";
 import { contactInclude } from "@/lib/includes";
 import { normalizePhone } from "@/lib/phone";
@@ -29,15 +29,16 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   });
   if (!existing) throw notFound("Contact");
   await assertLinks(user, { organizationId: body.organizationId });
+  await assertTags(user, tagIds);
   const ownerId = body.ownerId === undefined ? undefined : await resolveOwner(user, body.ownerId);
   const contact = await db.contact.update({
-    where: { id: params.id },
+    where: { id: params.id, ...tenantScope(user) },
     data: {
       ...body,
       ownerId,
       ...(body.phone !== undefined && { phoneE164: normalizePhone(body.phone) }),
       // The list replaces the contact's tags as a whole.
-      ...(tagIds !== undefined && { tags: { deleteMany: {}, create: [...new Set(tagIds)].map((tagId) => ({ tagId })) } }),
+      ...(tagIds !== undefined && { tags: { deleteMany: {}, create: [...new Set(tagIds)].map((tagId) => ({ tenantId: user.tenantId, tagId })) } }),
     },
     include: contactInclude,
   });

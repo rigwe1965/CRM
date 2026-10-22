@@ -4,3 +4,6 @@
  * queries and creates tenant-aware and removes the default.
  */
 export const DEFAULT_TENANT_ID = "tenant_ivycandy";
+
+/** Audit entries that belong to no business (a sign-in attempt for an unknown email) carry this instead of a tenant id. */
+export const PLATFORM_TENANT_ID = "platform";

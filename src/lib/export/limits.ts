@@ -20,7 +20,7 @@ export const EXPORT_LIMIT = { max: 5, windowMs: 10 * 60_000 } as const;
  */
 export async function enforceExportLimit(user: SessionUser) {
   const used = await db.auditLog.count({
-    where: { actorId: user.id, action: EXPORT_ACTION, createdAt: { gte: new Date(Date.now() - EXPORT_LIMIT.windowMs) } },
+    where: { tenantId: user.tenantId, actorId: user.id, action: EXPORT_ACTION, createdAt: { gte: new Date(Date.now() - EXPORT_LIMIT.windowMs) } },
   });
   if (used >= EXPORT_LIMIT.max) {
     throw new ApiError(429, "Too many exports. Wait a few minutes and try again.", "RATE_LIMITED");
@@ -46,6 +46,7 @@ export async function recordExport(
   }
   await db.auditLog.create({
     data: {
+      tenantId: user.tenantId,
       actorId: user.id,
       actorEmail: user.email ?? null,
       action: EXPORT_ACTION,

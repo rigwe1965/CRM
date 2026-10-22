@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { audit } from "@/lib/audit";
-import { notFound } from "@/lib/access";
+import { notFound, tenantScope } from "@/lib/access";
 import { contactInclude } from "@/lib/includes";
 import { mergeContactSchema } from "@/lib/validations/crm";
 
@@ -21,8 +21,8 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
   const { intoId } = await readBody(req, mergeContactSchema);
   if (intoId === params.id) throw new ApiError(422, "Pick a different contact to merge into", "VALIDATION_ERROR", { intoId: ["Choose another contact"] });
   const [from, into] = await Promise.all([
-    db.contact.findFirst({ where: { id: params.id, deletedAt: null }, include: { tags: { select: { tagId: true } } } }),
-    db.contact.findFirst({ where: { id: intoId, deletedAt: null } }),
+    db.contact.findFirst({ where: { id: params.id, deletedAt: null, ...tenantScope(user) }, include: { tags: { select: { tagId: true } } } }),
+    db.contact.findFirst({ where: { id: intoId, deletedAt: null, ...tenantScope(user) } }),
   ]);
   if (!from) throw notFound("Contact");
   if (!into) throw notFound("Contact to merge into");
@@ -33,14 +33,14 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
   if (from.emailOptOut && !into.emailOptOut) fill.emailOptOut = true;
 
   const [deals, activities, tasks] = await db.$transaction([
-    db.deal.updateMany({ where: { contactId: from.id }, data: { contactId: into.id } }),
-    db.activity.updateMany({ where: { contactId: from.id }, data: { contactId: into.id } }),
-    db.task.updateMany({ where: { contactId: from.id }, data: { contactId: into.id } }),
-    db.contactTag.createMany({ data: from.tags.map((t) => ({ contactId: into.id, tagId: t.tagId })), skipDuplicates: true }),
-    db.contactTag.deleteMany({ where: { contactId: from.id } }),
+    db.deal.updateMany({ where: { ...tenantScope(user), contactId: from.id }, data: { contactId: into.id } }),
+    db.activity.updateMany({ where: { ...tenantScope(user), contactId: from.id }, data: { contactId: into.id } }),
+    db.task.updateMany({ where: { ...tenantScope(user), contactId: from.id }, data: { contactId: into.id } }),
+    db.contactTag.createMany({ data: from.tags.map((t) => ({ ...tenantScope(user), contactId: into.id, tagId: t.tagId })), skipDuplicates: true }),
+    db.contactTag.deleteMany({ where: { ...tenantScope(user), contactId: from.id } }),
     // Email is unique, so the removed contact lets go of it before the kept one can take it.
-    db.contact.update({ where: { id: from.id }, data: { deletedAt: new Date(), email: null } }),
-    db.contact.update({ where: { id: into.id }, data: fill }),
+    db.contact.update({ where: { id: from.id, ...tenantScope(user) }, data: { deletedAt: new Date(), email: null } }),
+    db.contact.update({ where: { id: into.id, ...tenantScope(user) }, data: fill }),
   ]);
   const moved = { deals: deals.count, activities: activities.count, tasks: tasks.count, tags: from.tags.length };
   await audit(
@@ -54,5 +54,5 @@ export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
     },
     req,
   );
-  return ok(await db.contact.findUniqueOrThrow({ where: { id: into.id }, include: contactInclude }));
+  return ok(await db.contact.findFirstOrThrow({ where: { id: into.id, ...tenantScope(user) }, include: contactInclude }));
 }, "ADMIN");

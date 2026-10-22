@@ -2,6 +2,7 @@ import { Prisma, type DealStage } from "@prisma/client";
 import { db } from "@/lib/db";
 import { addMoney, type MoneyMap } from "@/lib/money";
 import { summarize } from "@/lib/payments";
+import type { OwnerScope } from "@/lib/access";
 
 const DAY = 86_400_000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -52,10 +53,11 @@ const openDealsSql = (dealOwner: Prisma.Sql) => Prisma.sql`
  * Owed and overdue need the per-deal instalment logic (`summarize`), so only deals that still
  * have something outstanding (and their instalments) are loaded; fully paid deals cost nothing.
  */
-export async function cashflow(owned: { ownerId?: string }, now = new Date()) {
+export async function cashflow(owned: OwnerScope, now = new Date()) {
   const since = new Date(now.getTime() - 30 * DAY);
-  const dealOwner = owned.ownerId ? Prisma.sql`AND d."ownerId" = ${owned.ownerId}` : Prisma.empty;
-  const invoiceOwner = owned.ownerId ? Prisma.sql`AND i."ownerId" = ${owned.ownerId}` : Prisma.empty;
+  // Raw SQL gets no automatic scoping, so the business is named here, in the one place both filters are built.
+  const dealOwner = Prisma.sql`AND d."tenantId" = ${owned.tenantId} ${owned.ownerId ? Prisma.sql`AND d."ownerId" = ${owned.ownerId}` : Prisma.empty}`;
+  const invoiceOwner = Prisma.sql`AND i."tenantId" = ${owned.tenantId} ${owned.ownerId ? Prisma.sql`AND i."ownerId" = ${owned.ownerId}` : Prisma.empty}`;
 
   const [collectedRows, profitRows, openDeals, openInstalments] = await Promise.all([
     // A payment is in its deal's currency.

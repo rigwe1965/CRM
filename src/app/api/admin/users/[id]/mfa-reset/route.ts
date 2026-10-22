@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import { authed } from "@/lib/route";
+import { tenantScope } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { revokeCutoff } from "@/lib/sessions";
 import { invalidateUserCache } from "@/lib/user-cache";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const POST = authed<{ id: string }>(async ({ req, user: admin, params }) => {
   const { id } = params;
   const { count } = await db.user.updateMany({
-    where: { id },
+    where: { id, ...tenantScope(admin) },
     data: { mfaSecret: null, mfaEnabledAt: null, mfaLastStep: null, mfaRecoveryCodes: [], passwordChangedAt: revokeCutoff() },
   });
   if (count === 0) throw new ApiError(404, "User not found");

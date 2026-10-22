@@ -48,19 +48,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await db.user.findUnique({ where: { email } });
         const valid = await verifyPassword(password, user?.passwordHash ?? (await getDummyHash()));
         if (!user || !user.passwordHash || !valid || !user.isActive) {
-          await audit(null, { action: "auth.signin.failed", summary: email, entity: "user", entityId: user?.id });
+          await audit(user ? { tenantId: user.tenantId } : null, { action: "auth.signin.failed", summary: email, entity: "user", entityId: user?.id });
           return null;
         }
         // Two-step verification: an authenticator code (or a one-time recovery code) is required too.
         if (user.mfaEnabledAt) {
           const code = typeof raw?.code === "string" ? raw.code : "";
           if (!(await verifyMfaCode(user, code))) {
-            await audit(null, { action: "auth.signin.failed", summary: `${email} (two-step code)`, entity: "user", entityId: user.id });
+            await audit({ tenantId: user.tenantId }, { action: "auth.signin.failed", summary: `${email} (two-step code)`, entity: "user", entityId: user.id });
             return null;
           }
         }
         await markKnownIp(user.id, ip);
-        await audit({ id: user.id, email: user.email }, { action: "auth.signin", entity: "user", entityId: user.id });
+        await audit({ id: user.id, email: user.email, tenantId: user.tenantId }, { action: "auth.signin", entity: "user", entityId: user.id });
 
         return { id: user.id, email: user.email, name: user.name, image: user.image, role: user.role };
       },
@@ -102,10 +102,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const current = await getCachedUser(id, () =>
         db.user.findUnique({
           where: { id },
-          select: { name: true, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
-        }).then((u) => u && { name: u.name, role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
+          select: { name: true, tenantId: true, tenant: { select: { status: true } }, role: true, isActive: true, passwordChangedAt: true, mfaEnabledAt: true },
+        }).then((u) => u && { name: u.name, tenantId: u.tenantId, tenantActive: u.tenant.status === "ACTIVE", role: u.role, isActive: u.isActive, passwordChangedAt: u.passwordChangedAt, mfaEnabled: !!u.mfaEnabledAt }),
       );
-      if (!current || !current.isActive) return null;
+      // A suspended business is signed out everywhere, like a deactivated user.
+      if (!current || !current.isActive || !current.tenantActive) return null;
       if (
         current.passwordChangedAt &&
         token.iat &&
@@ -114,6 +115,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
       token.role = current.role;
+      token.tenantId = current.tenantId;
       token.mfaPending = mfaPending(current.role, current.mfaEnabled);
       token.name = current.name; // keeps the displayed name fresh after profile edits
       return token;
@@ -123,6 +125,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // middleware keeps the real role (it can't see the database) and only does the coarse gate.
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
+      if (token.tenantId) session.user.tenantId = token.tenantId as string;
       if (token.role) session.user.role = token.mfaPending ? "SALES" : (token.role as Role);
       session.user.mfaPending = !!token.mfaPending;
       return session;

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { activityInclude } from "@/lib/includes";
-import { assertLinks, authorScope } from "@/lib/access";
+import { assertLinks, authorScope, tenantScope } from "@/lib/access";
 import { activityListQuery, createActivitySchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +52,7 @@ export const POST = authed(async ({ req, user }) => {
   const body = await readBody(req, createActivitySchema);
   await assertLinks(user, body);
   const activity = await db.activity.create({
-    data: { ...body, authorId: user.id },
+    data: { ...body, ...tenantScope(user), authorId: user.id },
     include: activityInclude,
   });
   return ok(activity, 201);

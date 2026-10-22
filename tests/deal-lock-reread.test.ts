@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { tx, db } = vi.hoisted(() => {
   const tx = {
     $queryRaw: vi.fn(),
-    deal: { findUnique: vi.fn(), update: vi.fn() },
+    deal: { findFirst: vi.fn(), update: vi.fn() },
     payment: { aggregate: vi.fn(), create: vi.fn() },
   };
   const db = {
@@ -18,7 +18,7 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/route", () => ({
   authed: (handler: (ctx: unknown) => Promise<Response>) => async (req: Request, context: { params: Promise<unknown> }) => {
     try {
-      return await handler({ req, user: { id: "u1", role: "ADMIN", name: "A" }, params: await context.params });
+      return await handler({ req, user: { id: "u1", tenantId: "t1", role: "ADMIN", name: "A" }, params: await context.params });
     } catch (e) {
       const err = e as { status?: number };
       return new Response(null, { status: err.status ?? 500 });
@@ -51,21 +51,21 @@ describe("recording a payment", () => {
 
   it("uses the amount read under the lock, not the one read before it", async () => {
     db.deal.findFirst.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD" }); // stale
-    tx.deal.findUnique.mockResolvedValue({ id: "d1", amount: 100, currency: "USD", deletedAt: null }); // after the edit
+    tx.deal.findFirst.mockResolvedValue({ id: "d1", amount: 100, currency: "USD", deletedAt: null }); // after the edit
     expect((await pay(900)).status).toBe(422);
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
 
   it("still records a payment that fits the current amount", async () => {
     db.deal.findFirst.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD" });
-    tx.deal.findUnique.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD", deletedAt: null });
+    tx.deal.findFirst.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD", deletedAt: null });
     expect((await pay(900)).status).toBe(201);
     expect(tx.payment.create).toHaveBeenCalledOnce();
   });
 
   it("refuses a deal that was deleted while waiting for the lock", async () => {
     db.deal.findFirst.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD" });
-    tx.deal.findUnique.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD", deletedAt: new Date() });
+    tx.deal.findFirst.mockResolvedValue({ id: "d1", amount: 1000, currency: "USD", deletedAt: new Date() });
     expect((await pay(10)).status).toBe(404);
     expect(tx.payment.create).not.toHaveBeenCalled();
   });
@@ -76,7 +76,7 @@ describe("editing a deal", () => {
 
   it("checks the currency under the lock", async () => {
     db.deal.findFirst.mockResolvedValue({ stage: "LEAD" });
-    tx.deal.findUnique.mockResolvedValue({ currency: "EUR", deletedAt: null }); // changed by another request
+    tx.deal.findFirst.mockResolvedValue({ currency: "EUR", deletedAt: null }); // changed by another request
     tx.payment.aggregate.mockResolvedValue({ _sum: { amount: 50 } });
     // Payments exist and the deal is EUR now, so asking for EUR must pass and asking for USD must not.
     tx.deal.update.mockResolvedValue({ stage: "LEAD" });
@@ -86,7 +86,7 @@ describe("editing a deal", () => {
 
   it("refuses a deal that was deleted while waiting for the lock", async () => {
     db.deal.findFirst.mockResolvedValue({ stage: "LEAD" });
-    tx.deal.findUnique.mockResolvedValue({ currency: "USD", deletedAt: new Date() });
+    tx.deal.findFirst.mockResolvedValue({ currency: "USD", deletedAt: new Date() });
     expect((await patch({ amount: 5 })).status).toBe(404);
     expect(tx.deal.update).not.toHaveBeenCalled();
   });

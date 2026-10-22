@@ -35,11 +35,11 @@ run("two-tenant fixtures (Phase 0 harness)", () => {
     await expect(t.db.tenant.delete({ where: { id: t.a.tenantId } })).rejects.toMatchObject({ code: "P2003" });
   });
 
-  it("still fills the original business when no tenant is given (until Phase 1 removes the default)", async () => {
+  it("refuses a row that names no business (the Phase 0 default is gone)", async () => {
     const c = await t.db.tenant.findUnique({ where: { id: "tenant_ivycandy" } });
     expect(c).toMatchObject({ slug: "ivycandy", status: "ACTIVE" });
-    const contact = await t.db.contact.create({ data: { firstName: "D", lastName: "Default" } });
-    expect(contact.tenantId).toBe("tenant_ivycandy");
+    const noTenant = { firstName: "D", lastName: "Default" } as unknown as Parameters<typeof t.db.contact.create>[0]["data"];
+    await expect(t.db.contact.create({ data: noTenant })).rejects.toThrow(/Argument `tenant` is missing|tenantId/);
   });
 
   it("keeps the audit log append-only", async () => {
@@ -47,9 +47,6 @@ run("two-tenant fixtures (Phase 0 harness)", () => {
     await expect(t.db.auditLog.update({ where: { id: row.id }, data: { action: "tampered" } })).rejects.toThrow(/append-only/);
   });
 
-  // Phase 1 (route-level isolation) fills these in using the fixtures above.
-  it.todo("tenant A's user can't list, read, edit, delete or export tenant B's records through any route");
-  it.todo("guessing tenant B's ids in a link (contactId, dealId, organizationId, tagId) is refused");
-  it.todo("the same email, domain, tag name, template name and invoice number can exist in both tenants");
-  it.todo("raw SQL (cashflow, row locks) only sees the caller's tenant");
+  // Route-level isolation (reading, changing, deleting, exporting and linking across businesses, the same value in
+  // both businesses, the raw SQL in cashflow.ts) is proved against the real route handlers in tenant-routes.test.ts.
 });

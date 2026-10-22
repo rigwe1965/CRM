@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ApiError, ok } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { notFound, ownerScope } from "@/lib/access";
+import { notFound, ownerScope, tenantScope } from "@/lib/access";
 import { contactInclude } from "@/lib/includes";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export const POST = authed<{ id: string }>(async ({ user, params }) => {
   if (!existing) throw notFound("Contact");
   if (existing.type === "CUSTOMER") throw new ApiError(409, "Contact is already a customer", "ALREADY_CONVERTED");
   const contact = await db.contact.update({
-    where: { id: params.id },
+    where: { id: params.id, ...tenantScope(user) },
     data: { type: "CUSTOMER", leadStatus: null },
     include: contactInclude,
   });

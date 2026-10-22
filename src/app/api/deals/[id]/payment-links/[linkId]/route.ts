@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const DELETE = authed<{ id: string; linkId: string }>(async ({ req, user, params }) => {
   const deal = await db.deal.findFirst({ where: { id: params.id, deletedAt: null, ...ownerScope(user) }, select: { id: true } });
   if (!deal) throw notFound("Deal");
-  await cancelPaymentLink(deal.id, params.linkId);
+  await cancelPaymentLink(user.tenantId, deal.id, params.linkId);
   await audit(user, { action: "payment_link.cancelled", entity: "deal", entityId: deal.id, data: { linkId: params.linkId } }, req);
-  return ok({ configured: stripeConfigured(), links: await paymentLinksView(deal.id) });
+  return ok({ configured: stripeConfigured(), links: await paymentLinksView(user.tenantId, deal.id) });
 });
