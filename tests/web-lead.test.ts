@@ -104,10 +104,13 @@ describe("website lead form", () => {
   });
 
   it("is rate limited, size limited and validated", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     rateLimit.mockResolvedValue({ allowed: false, retryAfter: 120 });
     const limited = await post({ name: "Ada", email: "a@x.test" });
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBe("120");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("overall hourly limit"));
+    warn.mockRestore();
     rateLimit.mockResolvedValue({ allowed: true, retryAfter: 0 });
     expect((await post("x".repeat(10_001))).status).toBe(413);
     expect((await post("not json")).status).toBe(400);

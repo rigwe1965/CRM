@@ -38,6 +38,8 @@ export async function POST(req: Request) {
 
   const [mine, all] = await Promise.all([rateLimit(`weblead:${clientIp(req.headers)}`, LIMITS.webLead), rateLimit("weblead:all", LIMITS.webLeadAll)]);
   if (!mine.allowed || !all.allowed) {
+    // The shared cap being hit means real visitors are being refused too: worth noticing in the logs.
+    if (!all.allowed) console.warn("[web-lead] overall hourly limit reached: website enquiries are being refused");
     return NextResponse.json({ error: "Too many enquiries. Please try again later." }, { status: 429, headers: { ...c.headers, "Retry-After": String(Math.max(mine.retryAfter, 1)) } });
   }
 
