@@ -39,6 +39,15 @@ export const quietLeadsSchema = z.object({
 });
 export type QuietLeadsConfig = z.infer<typeof quietLeadsSchema>;
 
+/** Your own subject and message for one notice. Blank means the built-in wording. */
+export const reminderWordingSchema = z.object({
+  subject: z.string().trim().max(150, "Keep the subject under 150 characters"),
+  message: z.string().trim().max(2000, "Keep the message under 2000 characters"),
+});
+export type ReminderWording = z.infer<typeof reminderWordingSchema>;
+const BLANK_WORDING: ReminderWording = { subject: "", message: "" };
+export const DEFAULT_WORDING = { UPCOMING: BLANK_WORDING, OVERDUE_1: BLANK_WORDING, OVERDUE_2: BLANK_WORDING };
+
 export const instalmentEmailsSchema = z
   .object({
     enabled: z.boolean(),
@@ -52,6 +61,10 @@ export const instalmentEmailsSchema = z
     /** First and second overdue notice, in days after the due date. */
     firstOverdueDays: z.number().int().min(1).max(30),
     secondOverdueDays: z.number().int().min(2).max(60),
+    /** Optional custom wording per notice. A saved setting without it keeps the built-in wording. */
+    wording: z
+      .object({ UPCOMING: reminderWordingSchema.default(BLANK_WORDING), OVERDUE_1: reminderWordingSchema.default(BLANK_WORDING), OVERDUE_2: reminderWordingSchema.default(BLANK_WORDING) })
+      .default(DEFAULT_WORDING),
   })
   .superRefine((v, ctx) => {
     if (v.secondOverdueDays <= v.firstOverdueDays) {
@@ -75,6 +88,8 @@ export const sampleEmailSchema = z.object({
   to: z.email("Enter a valid email address"),
   brandName: z.string().trim().min(1, "Required").max(60),
   kind: z.enum(["UPCOMING", "OVERDUE_1", "OVERDUE_2"]),
+  /** The wording being tried, so an unsaved edit can be checked. Omitted = the built-in wording. */
+  wording: reminderWordingSchema.optional(),
 });
 
 /** Body of PUT /api/admin/automations: send any of them. */
@@ -111,6 +126,7 @@ export const DEFAULT_INSTALMENT_EMAILS: InstalmentEmailsConfig = {
   daysBefore: 2,
   firstOverdueDays: 1,
   secondOverdueDays: 7,
+  wording: DEFAULT_WORDING,
 };
 
 /** Saved settings laid over the defaults; anything missing or invalid falls back to the defaults. */

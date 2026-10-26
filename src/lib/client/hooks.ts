@@ -341,7 +341,7 @@ export function useDeleteEmailTemplate() {
 
 export const useSendSampleEmail = () =>
   useMutation({
-    mutationFn: async (body: { to: string; brandName: string; kind: "UPCOMING" | "OVERDUE_1" | "OVERDUE_2" }) =>
+    mutationFn: async (body: { to: string; brandName: string; kind: "UPCOMING" | "OVERDUE_1" | "OVERDUE_2"; wording?: { subject: string; message: string } }) =>
       (await request<{ data: { to: string; consoleOnly: boolean } }>("POST", "/api/admin/automations/sample-email", body)).data,
   });
 

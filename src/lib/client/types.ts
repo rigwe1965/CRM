@@ -151,6 +151,7 @@ export type StageTasksConfig = { enabled: boolean; stages: Record<DealStage, Sta
 export type QuietLeadsConfig = { enabled: boolean; days: number };
 export type LowStockConfig = { enabled: boolean; defaultThreshold: number };
 
+export type ReminderWording = { subject: string; message: string };
 export type InstalmentEmailsConfig = {
   enabled: boolean;
   mode: "TEST" | "LIVE";
@@ -159,6 +160,7 @@ export type InstalmentEmailsConfig = {
   daysBefore: number;
   firstOverdueDays: number;
   secondOverdueDays: number;
+  wording: Record<"UPCOMING" | "OVERDUE_1" | "OVERDUE_2", ReminderWording>;
 };
 export type AutomationsView = {
   stageTasks: StageTasksConfig;

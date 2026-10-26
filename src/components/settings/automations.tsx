@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/page";
@@ -158,6 +158,8 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
   const num = (k: "daysBefore" | "firstOverdueDays" | "secondOverdueDays", min: number, max: number) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setDraft((d) => ({ ...d, [k]: clampInt(e.target.value, min, max) }));
   const live = draft.mode === "LIVE";
+  const own = draft.wording[sampleKind];
+  const setOwn = (part: Partial<typeof own>) => setDraft((d) => ({ ...d, wording: { ...d.wording, [sampleKind]: { ...d.wording[sampleKind], ...part } } }));
 
   return (
     <Card>
@@ -211,9 +213,28 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
           </label>
         </div>
         <div className="space-y-2 rounded-md border p-3">
+          <p className="text-sm font-medium">Your own wording (optional)</p>
+          <p className="text-xs text-muted-foreground">
+            Pick a notice with the list below, then write your own subject and message. Leave a box empty to keep the built-in text. The greeting (&quot;Hi Name,&quot;), the Pay now button and the sign-off are always added. You can use{" "}
+            <code>{"{name}"}</code>, <code>{"{amount}"}</code>, <code>{"{deal}"}</code>, <code>{"{dueDate}"}</code> and <code>{"{daysLate}"}</code>; they are filled in for each customer.
+          </p>
+          <Select value={sampleKind} onValueChange={(k) => setSampleKind(k as typeof sampleKind)}>
+            <SelectTrigger className="w-64" aria-label="Which notice to word">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="UPCOMING">Reminder before it is due</SelectItem>
+              <SelectItem value="OVERDUE_1">First overdue notice</SelectItem>
+              <SelectItem value="OVERDUE_2">Second overdue notice</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input aria-label="Your subject" placeholder="Built-in subject" maxLength={150} value={own.subject} onChange={(e) => setOwn({ subject: e.target.value })} />
+          <Textarea aria-label="Your message" placeholder="Built-in message" rows={5} maxLength={2000} value={own.message} onChange={(e) => setOwn({ message: e.target.value })} />
+        </div>
+        <div className="space-y-2 rounded-md border p-3">
           <p className="text-sm font-medium">Check the wording now</p>
           <p className="text-xs text-muted-foreground">
-            Sends one sample email with made-up details to the address above, using the sender name above (it need not be saved first). Nothing is recorded and no customer is emailed.
+            Sends one sample email with made-up details to the address above, using the sender name and wording above (they need not be saved first). Nothing is recorded and no customer is emailed.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={sampleKind} onValueChange={(k) => setSampleKind(k as typeof sampleKind)}>
@@ -231,7 +252,7 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
               disabled={!draft.testEmail.trim() || !draft.brandName.trim() || sample.isPending}
               onClick={() =>
                 sample.mutate(
-                  { to: draft.testEmail.trim(), brandName: draft.brandName.trim(), kind: sampleKind },
+                  { to: draft.testEmail.trim(), brandName: draft.brandName.trim(), kind: sampleKind, wording: draft.wording[sampleKind] },
                   {
                     onSuccess: (r) =>
                       r.consoleOnly

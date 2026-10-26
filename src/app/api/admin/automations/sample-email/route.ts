@@ -37,6 +37,7 @@ export const POST = authed(async ({ req, user }) => {
     dueDate,
     daysLate: Math.max(0, -SAMPLE_DUE_IN_DAYS[body.kind]),
     kind: body.kind,
+    wording: body.wording,
     testNote: "This is a sample with made-up details. Nothing was recorded and no customer was emailed.",
   });
   const sent = await trySendMail({

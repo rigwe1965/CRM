@@ -222,6 +222,8 @@ export type CustomerInstalmentMail = {
   kind: "UPCOMING" | "OVERDUE_1" | "OVERDUE_2";
   /** A secure online payment link for this amount. Only https links are shown. */
   payUrl?: string;
+  /** The business's own subject and message for this notice. A blank part keeps the built-in text. */
+  wording?: { subject: string; message: string };
   /** Test mode only: who would really have received this. Shown at the top of the email. */
   testNote?: string;
 };
@@ -231,6 +233,14 @@ export type CustomerInstalmentMail = {
  * one after it is late, and a firmer second notice. It never states payment details (the owner replies
  * with those) and always leaves room for "I have already paid".
  */
+/** Words an admin can put in curly brackets in their own reminder wording. */
+export const WORDING_PLACEHOLDERS = ["name", "amount", "deal", "dueDate", "daysLate"] as const;
+
+/** Fills {name}, {amount}, {deal}, {dueDate} and {daysLate}; any other {word} is left as written. */
+function fillWording(text: string, vars: Record<(typeof WORDING_PLACEHOLDERS)[number], string>): string {
+  return text.replace(/{(name|amount|deal|dueDate|daysLate)}/g, (_m, k: keyof typeof vars) => vars[k]);
+}
+
 export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
   let amt: string;
   try {
@@ -260,6 +270,15 @@ export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
     subject = `Second reminder: ${amt} is overdue`;
     title = "Payment overdue";
     body = `${hi}\n\nYour instalment of ${amt} for "${deal}" is now ${d.daysLate} days overdue (it was due on ${date}).\n\nPlease arrange the payment, or reply to this email to tell us when we can expect it. If you have already paid, please send us the details so we can match it to your order.`;
+  }
+
+  const own = d.wording;
+  if (own?.subject || own?.message) {
+    const vars = { name: oneLine(d.firstName), amount: amt, deal, dueDate: date, daysLate: String(d.daysLate) };
+    if (own.subject) subject = fillWording(own.subject, vars);
+    if (own.message) body = `${hi}
+
+${fillWording(own.message, vars)}`;
   }
 
   const note = d.testNote ? `[TEST MODE] ${d.testNote}` : "";

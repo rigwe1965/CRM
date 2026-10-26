@@ -188,6 +188,7 @@ async function sendOne(
     dueDate: p.dueDate,
     daysLate: p.daysLate,
     kind: p.kind,
+    wording: config.wording[p.kind],
     payUrl,
     testNote: test
       ? `This would have gone to ${p.customerName} <${p.to}>.${p.kind === "OVERDUE_2" && !manual ? " A call task would also be created for the deal owner." : ""} Live emails include a secure pay link when Stripe is connected (the button here is only a placeholder).`
