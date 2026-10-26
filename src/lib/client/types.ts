@@ -149,6 +149,8 @@ export type EmailTemplate = { id: string; name: string; subject: string; body: s
 export type StageRule = { enabled: boolean; title: string; dueInDays: number; priority: TaskPriority };
 export type StageTasksConfig = { enabled: boolean; stages: Record<DealStage, StageRule> };
 export type QuietLeadsConfig = { enabled: boolean; days: number };
+export type LowStockConfig = { enabled: boolean; defaultThreshold: number };
+
 export type InstalmentEmailsConfig = {
   enabled: boolean;
   mode: "TEST" | "LIVE";
@@ -162,8 +164,11 @@ export type AutomationsView = {
   stageTasks: StageTasksConfig;
   quietLeads: QuietLeadsConfig;
   instalmentEmails: InstalmentEmailsConfig;
+  lowStock: LowStockConfig;
   /** Contacts that would get a follow-up task on the next daily run. */
   quietLeadsWouldCreate: number;
+  /** Stock rows that are at or below their level right now, business-wide. */
+  lowStockNow: number;
   /** Customer emails that would go out on the next daily run (to the test address in test mode). */
   instalmentEmailsWouldSend: number;
 };
@@ -346,6 +351,12 @@ export type Dashboard = {
 
 export type StockAdjustment = { id: string; quantity: number; reason: string; note: string | null; createdAt: string };
 export type StockRow = {
+  key: string;
+  /** This row's own low-stock level; null = the business default, 0 = never alert. */
+  threshold: number | null;
+  /** The level the row is held to (its own, else the default). */
+  level: number;
+  low: boolean;
   product: string;
   description: string;
   color: string;
@@ -360,6 +371,6 @@ export type StockRow = {
 
 export type UnmatchedSale = { dealId: string; dealTitle: string; product: string; color: string; length: string; quantity: number; reason: string };
 
-export type Stock = { rows: StockRow[]; unmatched: UnmatchedSale[] };
+export type Stock = { rows: StockRow[]; unmatched: UnmatchedSale[]; defaultThreshold: number; alertsOn: boolean };
 
 export type SessionUser = { id: string; tenantId: string; name: string; email: string; role: Role; mfaPending?: boolean; tenantWritable?: boolean };

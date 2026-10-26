@@ -232,7 +232,7 @@ export function useAutomations() {
 export function useSaveAutomations() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails">>) =>
+    mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails" | "lowStock">>) =>
       (await request<{ data: AutomationsView }>("PUT", "/api/admin/automations", body)).data,
     onSuccess: (data) => qc.setQueryData(["automations"], data),
   });
@@ -377,5 +377,18 @@ export function useStock() {
   return useQuery({
     queryKey: ["stock"],
     queryFn: async () => (await request<{ data: Stock }>("GET", "/api/stock")).data,
+  });
+}
+
+/** Sets when one stock row counts as low. `threshold` null = business default, 0 = never alert. */
+export function useSetStockLevel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { product: string; color: string; lengthInches: number | null; threshold: number | null }) =>
+      request("PUT", "/api/stock/thresholds", body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["stock"] });
+      void qc.invalidateQueries({ queryKey: ["automations"] });
+    },
   });
 }

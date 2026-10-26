@@ -403,6 +403,14 @@ export const updateStockAdjustmentSchema = adjustmentFields
   .partial()
   .refine(nonEmpty, atLeastOne);
 
+// Where a stock row counts as low. null: use the business default; 0: never alert for this row.
+export const setStockLevelSchema = z.object({
+  product: requiredText(200),
+  color: z.string().trim().max(100).default(""),
+  lengthInches: z.number().int().min(1).max(200).nullish(),
+  threshold: z.number().int().min(0).max(100_000).nullable(),
+});
+
 // ─── Export ─────────────────────────────────────────────
 
 // Same filters as the list screens, minus paging (an export is one file). Deleted rows are never

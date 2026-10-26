@@ -20,6 +20,7 @@ import {
   organizationListQuery,
   scheduleSchema,
   sendReminderSchema,
+  setStockLevelSchema,
   taskListQuery,
   updateActivitySchema,
   sendContactEmailSchema,
@@ -107,7 +108,8 @@ const OPERATIONS: Op[] = [
   { method: "post", path: "/deals/{id}/reminders", tag: "Payments", summary: "Send a payment reminder for one instalment now", description: "The notice follows how late the instalment is. In TEST mode it goes to the test address, not the customer. 422 if the instalment is paid, the deal is lost, the customer has no email or has opted out; 429 RECENTLY_SENT within an hour of the last reminder for it. Returns the updated `{ mode, canEmail, reminders }`.", body: sendReminderSchema, success: 201 },
   { method: "put", path: "/deals/{id}/schedule", tag: "Payments", summary: "Replace the instalment schedule", description: "Send an empty `instalments` list to clear it. Returns the updated payments view. 422 if the instalments total more than the deal amount.", body: scheduleSchema },
   // Stock
-  { method: "get", path: "/stock", tag: "Stock", summary: "Stock on hand per product, colour and length", description: "On hand = pieces bought (lines of SENT and PAID invoices) - pieces sold (items on PROPOSAL, NEGOTIATION and CLOSED_WON deals) + manual adjustments, matched case-insensitively on product, colour and length. Each row lists its adjustments and the invoices it came from. `unmatched` lists sold items that matched no invoice line." },
+  { method: "get", path: "/stock", tag: "Stock", summary: "Stock on hand per product, colour and length", description: "On hand = pieces bought (lines of SENT and PAID invoices) - pieces sold (items on PROPOSAL, NEGOTIATION and CLOSED_WON deals) + manual adjustments, matched case-insensitively on product, colour and length. Each row lists its adjustments and the invoices it came from. `unmatched` lists sold items that matched no invoice line. Each row has a `key`, its own low-stock `threshold` (null = business default), the `level` it is held to and whether it is `low`; `defaultThreshold` and `alertsOn` come from the low-stock setting." },
+  { method: "put", path: "/stock/thresholds", tag: "Stock", summary: "Set when one stock row counts as low (admins)", description: "`threshold` is the most pieces that still count as low. `null` uses the business default and `0` never alerts for this row. The row is named by product, colour and length, matched case-insensitively. Returns `{ key, threshold }`.", body: setStockLevelSchema },
   { method: "post", path: "/stock/adjustments", tag: "Stock", summary: "Record a manual stock adjustment", description: "`quantity` is signed and non-zero: positive adds pieces (found stock, opening stock), negative removes them (damaged, lost). Matched to a stock row on product, colour and length; if no invoice line matches, it creates its own row.", body: createStockAdjustmentSchema, success: 201 },
   { method: "patch", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Change an adjustment's quantity, reason or note", description: "The product, colour and length cannot be changed; delete and re-create the adjustment instead.", body: updateStockAdjustmentSchema },
   { method: "delete", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Delete a stock adjustment (hard delete)", success: 204 },

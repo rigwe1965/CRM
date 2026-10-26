@@ -26,6 +26,8 @@ export type AdjustmentLine = {
 };
 
 export type StockRow = {
+  /** Names the row: normalised product, colour and length (see stockKey). Low-stock levels are saved against it. */
+  key: string;
   product: string;
   description: string;
   color: string;
@@ -57,7 +59,15 @@ function lengthKey(v: string | number | null | undefined): string | null {
   return m ? m[1] : null;
 }
 
-const newRow = (product: string, description: string, color: string, lengthInches: number | null): StockRow => ({
+/**
+ * The name of a stock row: product, colour and length, case-insensitive. The stock table, the saved low-stock
+ * levels and the daily alert all use this one function, so they always agree on which row is which.
+ */
+export const stockKey = (product: string, color: string | null | undefined, lengthInches: number | null | undefined) =>
+  `${norm(product)}|${norm(color)}|${lengthInches ?? ""}`;
+
+const newRow = (key: string, product: string, description: string, color: string, lengthInches: number | null): StockRow => ({
+  key,
   product,
   description,
   color,
@@ -83,8 +93,8 @@ export function computeStock(bought: BoughtLine[], sold: SoldLine[], adjustments
   for (const b of bought) {
     const color = norm(b.color);
     const len = b.lengthInches === null ? "" : String(b.lengthInches);
-    const key = `${norm(b.style)}|${color}|${len}`;
-    const row = rows.get(key) ?? newRow(b.style, b.description, b.color ?? "", b.lengthInches);
+    const key = stockKey(b.style, b.color, b.lengthInches);
+    const row = rows.get(key) ?? newRow(key, b.style, b.description, b.color ?? "", b.lengthInches);
     row.bought += b.quantity;
     if (b.invoice && !row.sources.some((x) => x.invoiceId === b.invoice!.id)) {
       row.sources.push({ invoiceId: b.invoice.id, number: b.invoice.number });
@@ -113,10 +123,9 @@ export function computeStock(bought: BoughtLine[], sold: SoldLine[], adjustments
   }
 
   for (const a of adjustments) {
-    const len = a.lengthInches === null ? "" : String(a.lengthInches);
-    const own = `${norm(a.product)}|${norm(a.color)}|${len}`;
+    const own = stockKey(a.product, a.color, a.lengthInches);
     const key = alias.get(own) ?? own;
-    const row = rows.get(key) ?? newRow(a.product, "Manual stock", a.color, a.lengthInches);
+    const row = rows.get(key) ?? newRow(key, a.product, "Manual stock", a.color, a.lengthInches);
     row.adjusted += a.quantity;
     row.adjustments.push({ id: a.id, quantity: a.quantity, reason: a.reason, note: a.note, createdAt: a.createdAt });
     rows.set(key, row);
@@ -154,4 +163,26 @@ export async function loadStock(owned: OwnerScope) {
     })),
     adjustments,
   );
+}
+
+/** Most pieces a low-stock level can be set to. */
+export const MAX_STOCK_LEVEL = 100_000;
+
+/** A saved level for one stock row. `threshold` null means "use the business default"; 0 means "never alert". */
+export type StockLevel = { key: string; threshold: number | null };
+
+/** The level at which a row counts as low: its own setting, else the business default. A level of 0 never alerts. */
+export const effectiveLevel = (own: number | null | undefined, defaultLevel: number) => own ?? defaultLevel;
+
+/** Low means at or below the level (so a row that is out, or oversold, is low too). A level of 0 switches the row off. */
+export const isLow = (onHand: number, level: number) => level > 0 && onHand <= level;
+
+/** Stock rows with the level they are held to and whether they are low now. Rows with no saved level use the default. */
+export function withLowStock<R extends { key: string; onHand: number }>(rows: R[], levels: StockLevel[], defaultLevel: number) {
+  const own = new Map(levels.map((l) => [l.key, l.threshold]));
+  return rows.map((r) => {
+    const threshold = own.get(r.key) ?? null;
+    const level = effectiveLevel(threshold, defaultLevel);
+    return { ...r, threshold, level, low: isLow(r.onHand, level) };
+  });
 }

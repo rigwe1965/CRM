@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/page";
 import { DEAL_STAGES, TASK_PRIORITIES } from "@/lib/client/constants";
 import { errorMessage, useAutomations, useSaveAutomations, useSendSampleEmail } from "@/lib/client/hooks";
-import type { AutomationsView, InstalmentEmailsConfig, QuietLeadsConfig, StageRule, StageTasksConfig, TaskPriority } from "@/lib/client/types";
+import type { AutomationsView, InstalmentEmailsConfig, LowStockConfig, QuietLeadsConfig, StageRule, StageTasksConfig, TaskPriority } from "@/lib/client/types";
 
 const clampInt = (raw: string, min: number, max: number) => Math.min(max, Math.max(min, Math.floor(Number(raw) || 0)));
 
@@ -267,6 +267,50 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
   );
 }
 
+function LowStockCard({ initial, lowNow }: { initial: LowStockConfig; lowNow: number }) {
+  const save = useSaveAutomations();
+  const [draft, setDraft] = useState<LowStockConfig>(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Low-stock alerts</CardTitle>
+        <CardDescription>
+          Once a day, all active admins get one email listing the stock items that have dropped to or below their alert level. An item is mentioned once per dip: it is emailed again only after it has been restocked above its level. Stock is counted for the whole business. An admin can give any item its own level (or switch it off) with the bell button on the Stock page. The Stock page marks low items whether or not the email is on.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <SwitchRow checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} label="Email admins when stock runs low" />
+        <label className="flex items-center gap-2 text-sm">
+          Low at
+          <Input
+            type="number"
+            min={0}
+            max={100000}
+            aria-label="Default low-stock level in pieces"
+            className="h-9 w-24"
+            value={draft.defaultThreshold}
+            onChange={(e) => setDraft((d) => ({ ...d, defaultThreshold: clampInt(e.target.value, 0, 100000) }))}
+          />
+          pieces or fewer (0 = no default; only items with their own level are watched)
+        </label>
+        <p className="rounded-md border bg-muted/40 p-3 text-sm">
+          {initial.enabled
+            ? `${lowNow} item${lowNow === 1 ? " is" : "s are"} low right now. Items that have not been alerted yet are included in the next daily email.`
+            : `If you switch this on, ${lowNow} item${lowNow === 1 ? " is" : "s are"} already at or below the saved level (including any sample data), so the first email would list ${lowNow === 1 ? "it" : "them"}. Save, then it starts with the next daily run.`}
+        </p>
+        <Button
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate({ lowStock: draft }, { onSuccess: () => toast.success("Low-stock setting saved"), onError: (e) => toast.error(errorMessage(e)) })}
+        >
+          {save.isPending ? "Saving…" : "Save low-stock alerts"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AutomationsCard() {
   const { data, isLoading, error, refetch } = useAutomations();
   if (isLoading) return <Skeleton className="h-64" />;
@@ -281,6 +325,7 @@ function AutomationsForms({ data }: { data: AutomationsView }) {
       <StageTasksCard key={JSON.stringify(data.stageTasks)} initial={data.stageTasks} />
       <QuietLeadsCard key={JSON.stringify(data.quietLeads)} initial={data.quietLeads} wouldCreate={data.quietLeadsWouldCreate} />
       <InstalmentEmailsCard key={JSON.stringify(data.instalmentEmails)} initial={data.instalmentEmails} wouldSend={data.instalmentEmailsWouldSend} />
+      <LowStockCard key={JSON.stringify(data.lowStock)} initial={data.lowStock} lowNow={data.lowStockNow} />
     </div>
   );
 }

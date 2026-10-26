@@ -285,3 +285,40 @@ ${senderName}`,
     html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#18181b">${textToHtml(message)}<p style="margin:0;color:#71717a">${esc(senderName)}</p></div>`,
   };
 }
+
+export type LowStockMail = {
+  brand: string;
+  rows: { product: string; color: string; lengthInches: number | null; onHand: number; level: number }[];
+  /** Low rows that did not fit in the list. */
+  more: number;
+};
+
+/** The daily low-stock alert for a business's admins: the rows that have just dropped to or below their level. */
+export function lowStockEmail(d: LowStockMail): Rendered {
+  const total = d.rows.length + d.more;
+  const url = `${appUrl()}/stock`;
+  const label = (r: LowStockMail["rows"][number]) =>
+    `${oneLine(r.product)}${r.color ? ` · ${oneLine(r.color)}` : ""}${r.lengthInches ? ` · ${r.lengthInches}"` : ""}`;
+  const subject = `Low stock: ${total} item${total === 1 ? "" : "s"} to reorder`;
+  const intro = `${total} stock item${total === 1 ? " has" : "s have"} dropped to or below ${total === 1 ? "its" : "their"} alert level.`;
+  const lines = d.rows.map((r) => `- ${label(r)}: ${r.onHand} left (alert at ${r.level})`);
+  if (d.more > 0) lines.push(`- ...and ${d.more} more`);
+  const text = `${intro}\n\n${lines.join("\n")}\n\nSee all stock: ${url}\n\nYou get one alert each time an item drops this low. It is sent again only after the item has been restocked above its level.`;
+  const cell = "padding:6px 8px;border-bottom:1px solid #e4e4e7";
+  const rowsHtml = d.rows
+    .map(
+      (r) =>
+        `<tr><td style="${cell}">${esc(label(r))}</td><td style="${cell};text-align:right">${r.onHand}</td><td style="${cell};text-align:right">${r.level}</td></tr>`,
+    )
+    .join("");
+  const table = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 14px;font-size:14px"><tr><th align="left" style="${cell}">Item</th><th align="right" style="${cell}">Left</th><th align="right" style="${cell}">Alert at</th></tr>${rowsHtml}</table>${d.more > 0 ? `<p style="margin:0 0 14px">...and ${d.more} more.</p>` : ""}`;
+  return {
+    subject,
+    text,
+    html: layout(
+      "Low stock",
+      `<p style="margin:0 0 14px">${esc(intro)}</p>${table}${button(url, "Open stock")}<p style="margin:0;color:#71717a;font-size:13px">You get one alert each time an item drops this low. It is sent again only after the item has been restocked above its level.</p>`,
+      d.brand,
+    ),
+  };
+}

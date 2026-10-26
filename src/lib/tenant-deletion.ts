@@ -50,7 +50,7 @@ export async function cancelDeletion(user: SessionUser, req: Request) {
  * it is all or nothing. Children come before the rows they point at. A test checks this list covers every table.
  */
 export const ERASE_ORDER = [
-  "instalmentReminder", "instalment", "payment", "paymentLink", "invoiceItem", "invoice", "dealItem", "stockAdjustment",
+  "instalmentReminder", "instalment", "payment", "paymentLink", "invoiceItem", "invoice", "dealItem", "stockAdjustment", "stockThreshold",
   "activity", "task", "contactTag", "tag", "savedFilter", "deal", "contact", "organization", "emailTemplate",
   "automationSetting", "tenantIntegration", "auditLog", "user",
 ] as const;

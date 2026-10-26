@@ -242,6 +242,7 @@ model Tenant {
   instalmentReminders InstalmentReminder[]
   dealItems           DealItem[]
   stockAdjustments    StockAdjustment[]
+  stockThresholds     StockThreshold[]
 }
 
 // ─── CRM core ───────────────────────────────────────────
@@ -751,6 +752,29 @@ model StockAdjustment {
   owner User @relation("StockAdjustmentOwner", fields: [ownerId], references: [id], onDelete: Restrict)
 
   @@index([ownerId])
+  @@index([tenantId])
+}
+
+// When to warn that a stock row is running low. Stock rows are worked out, not stored, so a row is named by its
+// key (normalised product|colour|length, see stockKey in src/lib/stock.ts). A row exists only once someone sets
+// a level for it or an alert went out for it.
+model StockThreshold {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  key          String
+  product      String
+  color        String   @default("")
+  lengthInches Int?
+  // Alert at or below this many pieces. Null: use the business default. 0: never alert for this row.
+  threshold    Int?
+  // Set when the low-stock email went out for the row; cleared once stock is back above its level, so one
+  // dip is one email.
+  alertedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, key])
   @@index([tenantId])
 }
 

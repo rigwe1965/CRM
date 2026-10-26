@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AlertTriangle, ExternalLink, Package, Plus, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, BellRing, ExternalLink, Package, Plus, SlidersHorizontal } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StockAdjustmentDialog } from "@/components/forms/stock-adjustment-dialog";
+import { StockLevelDialog } from "@/components/forms/stock-level-dialog";
+import { useCurrentUser } from "@/components/providers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, ErrorState, PageHeader, SearchInput, TableSkeleton } from "@/components/common/page";
@@ -18,7 +21,11 @@ export default function StockPage() {
   const [search, setSearch] = useState("");
   // "new" = add stock for a product that isn't on an invoice; otherwise the key of the row being adjusted.
   const [adjusting, setAdjusting] = useState<string | "new" | null>(null);
+  // Row key of the item whose alert level is being set (admins only).
+  const [levelKey, setLevelKey] = useState<string | null>(null);
+  const isAdmin = useCurrentUser().role === "ADMIN";
   const rowKey = (r: StockRow) => `${r.product}|${r.color}|${r.lengthInches}`;
+  const levelRow = levelKey ? (data?.rows ?? []).find((r) => rowKey(r) === levelKey) ?? null : null;
   const adjustingRow = adjusting && adjusting !== "new" ? (data?.rows ?? []).find((r) => rowKey(r) === adjusting) ?? null : null;
 
   const q = search.trim().toLowerCase();
@@ -29,6 +36,7 @@ export default function StockPage() {
   const sold = (data?.rows ?? []).reduce((s, r) => s + r.sold, 0);
   const onHand = (data?.rows ?? []).reduce((s, r) => s + r.onHand, 0);
   const adjusted = (data?.rows ?? []).reduce((s, r) => s + r.adjusted, 0);
+  const lowCount = (data?.rows ?? []).filter((r) => r.low).length;
 
   return (
     <>
@@ -59,6 +67,7 @@ export default function StockPage() {
           </div>
         }
       />
+      <StockLevelDialog row={levelRow} defaultThreshold={data?.defaultThreshold ?? 0} onClose={() => setLevelKey(null)} />
       <StockAdjustmentDialog open={adjusting !== null && (adjusting === "new" || !!adjustingRow)} row={adjustingRow} onClose={() => setAdjusting(null)} />
 
       {isLoading ? (
@@ -75,10 +84,16 @@ export default function StockPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <Stat label="Bought" value={bought} />
             <Stat label="Sold (confirmed orders)" value={sold} />
             <Stat label="On hand" value={onHand} hint={adjusted !== 0 ? `includes ${adjusted > 0 ? "+" : ""}${adjusted} adjusted` : undefined} />
+            <Stat
+              label="Low stock"
+              value={lowCount}
+              tone={lowCount > 0 ? "warn" : undefined}
+              hint={data.alertsOn ? "admins are emailed when an item drops low" : "email alerts are off (Settings → Automations)"}
+            />
           </div>
 
           <Card>
@@ -99,7 +114,10 @@ export default function StockPage() {
                 {rows.map((r) => (
                   <TableRow key={rowKey(r)}>
                     <TableCell>
-                      <p className="font-medium">{r.product}</p>
+                      <p className="flex flex-wrap items-center gap-2 font-medium">
+                        {r.product}
+                        {r.low && <Badge variant="warning">Low · alert at {r.level}</Badge>}
+                      </p>
                       <p className="text-xs text-muted-foreground">{r.description}</p>
                     </TableCell>
                     <TableCell>{r.color || "—"}</TableCell>
@@ -114,6 +132,11 @@ export default function StockPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        {isAdmin && (
+                          <Button variant="ghost" size="icon" aria-label={`Set alert level for ${r.product}`} title="Set alert level" onClick={() => setLevelKey(rowKey(r))}>
+                            <BellRing />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" aria-label={`Adjust stock for ${r.product}`} title="Adjust stock" onClick={() => setAdjusting(rowKey(r))}>
                           <SlidersHorizontal />
                         </Button>
@@ -176,12 +199,12 @@ export default function StockPage() {
   );
 }
 
-function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function Stat({ label, value, hint, tone }: { label: string; value: number; hint?: string; tone?: "warn" }) {
   return (
     <Card>
       <CardContent className="p-5">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
+        <p className={cn("mt-1 text-2xl font-semibold tabular-nums", tone === "warn" && "text-amber-600 dark:text-amber-400")}>{value}</p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>

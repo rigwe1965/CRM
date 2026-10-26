@@ -2,9 +2,11 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
   resolveInstalmentEmails,
+  resolveLowStock,
   resolveQuietLeads,
   resolveStageTasks,
   type InstalmentEmailsConfig,
+  type LowStockConfig,
   type QuietLeadsConfig,
   type StageTasksConfig,
 } from "@/lib/automations/config";
@@ -12,6 +14,12 @@ import {
 const STAGE_TASKS = "stage-tasks";
 const QUIET_LEADS = "quiet-leads";
 const INSTALMENT_EMAILS = "instalment-emails";
+const LOW_STOCK = "low-stock";
+
+export async function loadLowStock(tenantId: string): Promise<LowStockConfig> {
+  const row = await db.automationSetting.findUnique({ where: { tenantId_key: { tenantId, key: LOW_STOCK } } });
+  return resolveLowStock(row?.config);
+}
 
 export async function loadInstalmentEmails(tenantId: string): Promise<InstalmentEmailsConfig> {
   const row = await db.automationSetting.findUnique({ where: { tenantId_key: { tenantId, key: INSTALMENT_EMAILS } } });
@@ -31,7 +39,7 @@ export async function loadQuietLeads(tenantId: string): Promise<QuietLeadsConfig
 
 /** Saves whichever automations were sent (already validated) for one business and returns its full current settings. */
 export async function saveAutomations(
-  update: { stageTasks?: StageTasksConfig; quietLeads?: QuietLeadsConfig; instalmentEmails?: InstalmentEmailsConfig },
+  update: { stageTasks?: StageTasksConfig; quietLeads?: QuietLeadsConfig; instalmentEmails?: InstalmentEmailsConfig; lowStock?: LowStockConfig },
   updatedById: string,
   tenantId: string,
 ) {
@@ -44,5 +52,11 @@ export async function saveAutomations(
   if (update.stageTasks) await upsert(STAGE_TASKS, update.stageTasks);
   if (update.quietLeads) await upsert(QUIET_LEADS, update.quietLeads);
   if (update.instalmentEmails) await upsert(INSTALMENT_EMAILS, update.instalmentEmails);
-  return { stageTasks: await loadStageTasks(tenantId), quietLeads: await loadQuietLeads(tenantId), instalmentEmails: await loadInstalmentEmails(tenantId) };
+  if (update.lowStock) await upsert(LOW_STOCK, update.lowStock);
+  return {
+    stageTasks: await loadStageTasks(tenantId),
+    quietLeads: await loadQuietLeads(tenantId),
+    instalmentEmails: await loadInstalmentEmails(tenantId),
+    lowStock: await loadLowStock(tenantId),
+  };
 }

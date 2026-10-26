@@ -63,6 +63,13 @@ export const instalmentEmailsSchema = z
   });
 export type InstalmentEmailsConfig = z.infer<typeof instalmentEmailsSchema>;
 
+export const lowStockSchema = z.object({
+  enabled: z.boolean(),
+  /** A stock row is low at or below this many pieces unless it has its own level. 0 = no default level. */
+  defaultThreshold: z.number().int().min(0).max(100_000),
+});
+export type LowStockConfig = z.infer<typeof lowStockSchema>;
+
 /** Body of POST /api/admin/automations/sample-email: which sample, to whom, signed as whom. */
 export const sampleEmailSchema = z.object({
   to: z.email("Enter a valid email address"),
@@ -72,10 +79,10 @@ export const sampleEmailSchema = z.object({
 
 /** Body of PUT /api/admin/automations: send any of them. */
 export const automationsUpdateSchema = z
-  .object({ stageTasks: stageTasksSchema, quietLeads: quietLeadsSchema, instalmentEmails: instalmentEmailsSchema })
+  .object({ stageTasks: stageTasksSchema, quietLeads: quietLeadsSchema, instalmentEmails: instalmentEmailsSchema, lowStock: lowStockSchema })
   .partial()
   .refine(
-    (v) => v.stageTasks !== undefined || v.quietLeads !== undefined || v.instalmentEmails !== undefined,
+    (v) => v.stageTasks !== undefined || v.quietLeads !== undefined || v.instalmentEmails !== undefined || v.lowStock !== undefined,
     "Provide at least one automation to update",
   );
 
@@ -94,6 +101,7 @@ export const DEFAULT_STAGE_TASKS: StageTasksConfig = {
   },
 };
 export const DEFAULT_QUIET_LEADS: QuietLeadsConfig = { enabled: false, days: 7 };
+export const DEFAULT_LOW_STOCK: LowStockConfig = { enabled: false, defaultThreshold: 3 };
 /** Off, and in test mode: the first emails an admin sees are copies sent to themselves. */
 export const DEFAULT_INSTALMENT_EMAILS: InstalmentEmailsConfig = {
   enabled: false,
@@ -122,6 +130,12 @@ export function resolveQuietLeads(stored: unknown): QuietLeadsConfig {
   const s = (stored && typeof stored === "object" ? stored : {}) as Partial<QuietLeadsConfig>;
   const parsed = quietLeadsSchema.safeParse({ ...DEFAULT_QUIET_LEADS, ...s });
   return parsed.success ? parsed.data : DEFAULT_QUIET_LEADS;
+}
+
+export function resolveLowStock(stored: unknown): LowStockConfig {
+  const s = (stored && typeof stored === "object" ? stored : {}) as Partial<LowStockConfig>;
+  const parsed = lowStockSchema.safeParse({ ...DEFAULT_LOW_STOCK, ...s });
+  return parsed.success ? parsed.data : DEFAULT_LOW_STOCK;
 }
 
 export function resolveInstalmentEmails(stored: unknown, businessBrand?: string): InstalmentEmailsConfig {
