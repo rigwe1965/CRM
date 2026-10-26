@@ -7,6 +7,7 @@ const { db, sendReminderNow, reminderHistory } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
+vi.mock("@/lib/whatsapp", () => ({ whatsappConfigured: async () => false }));
 vi.mock("@/lib/automations/settings", () => ({ loadInstalmentEmails: async () => ({ mode: "LIVE" }) }));
 vi.mock("@/lib/automations/instalment-emails", () => ({ sendReminderNow, reminderHistory }));
 // Skip auth and rate limiting: this test is about who can see the deal and what is passed on.
@@ -27,14 +28,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.deal.findFirst.mockResolvedValue({ id: "d1", title: "Adaeze order", contact: { email: "ada@customer.test", emailOptOut: false, deletedAt: null } });
   reminderHistory.mockResolvedValue([]);
-  sendReminderNow.mockResolvedValue({ kind: "OVERDUE_1", test: false, to: "ada@customer.test" });
+  sendReminderNow.mockResolvedValue({ kind: "OVERDUE_1", test: false, channel: "EMAIL", to: "ada@customer.test" });
 });
 
 describe("/api/deals/:id/reminders", () => {
   it("only finds deals the caller may see, and says whether the customer can be emailed", async () => {
     const res = await GET(new Request("http://x.test/api/deals/d1/reminders"), ctx);
     expect(db.deal.findFirst.mock.calls[0][0].where).toMatchObject({ id: "d1", deletedAt: null, tenantId: "t1", ownerId: "u1" });
-    expect(await res.json()).toEqual({ data: { mode: "LIVE", canEmail: true, reminders: [] } });
+    expect(await res.json()).toEqual({ data: { mode: "LIVE", canEmail: true, canWhatsapp: false, reminders: [] } });
 
     db.deal.findFirst.mockResolvedValue({ id: "d1", title: "x", contact: { email: "ada@customer.test", emailOptOut: true, deletedAt: null } });
     expect((await (await GET(new Request("http://x.test/api/deals/d1/reminders"), ctx)).json()).data.canEmail).toBe(false);
@@ -54,6 +55,6 @@ describe("/api/deals/:id/reminders", () => {
   it("sends the reminder for that instalment as the caller", async () => {
     const res = await post({ instalmentId: "i1" });
     expect(res.status).toBe(201);
-    expect(sendReminderNow).toHaveBeenCalledWith(expect.objectContaining({ id: "u1", tenantId: "t1" }), "d1", "i1");
+    expect(sendReminderNow).toHaveBeenCalledWith(expect.objectContaining({ id: "u1", tenantId: "t1" }), "d1", "i1", expect.any(Date), "EMAIL");
   });
 });

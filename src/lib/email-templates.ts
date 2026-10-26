@@ -228,26 +228,30 @@ export type CustomerInstalmentMail = {
   testNote?: string;
 };
 
-/**
- * The automatic reminder a customer gets about an instalment: a friendly note before it is due, a polite
- * one after it is late, and a firmer second notice. It never states payment details (the owner replies
- * with those) and always leaves room for "I have already paid".
- */
 /** Words an admin can put in curly brackets in their own reminder wording. */
 export const WORDING_PLACEHOLDERS = ["name", "amount", "deal", "dueDate", "daysLate"] as const;
 
 /** Fills {name}, {amount}, {deal}, {dueDate} and {daysLate}; any other {word} is left as written. */
 function fillWording(text: string, vars: Record<(typeof WORDING_PLACEHOLDERS)[number], string>): string {
-  return text.replace(/{(name|amount|deal|dueDate|daysLate)}/g, (_m, k: keyof typeof vars) => vars[k]);
+  return text.replace(/\{(name|amount|deal|dueDate|daysLate)\}/g, (_m, k: keyof typeof vars) => vars[k]);
 }
 
-export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
-  let amt: string;
+/** An amount with its currency symbol, e.g. $100.00. */
+export function formatAmount(amount: number, currency: string): string {
   try {
-    amt = new Intl.NumberFormat("en-US", { style: "currency", currency: d.currency }).format(d.amountDue);
+    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
   } catch {
-    amt = `${d.amountDue} ${d.currency}`;
+    return `${amount} ${currency}`;
   }
+}
+
+/**
+ * The automatic reminder a customer gets about an instalment: a friendly note before it is due, a polite
+ * one after it is late, and a firmer second notice. It never states payment details (the owner replies
+ * with those) and always leaves room for "I have already paid".
+ */
+export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
+  const amt = formatAmount(d.amountDue, d.currency);
   const date = d.dueDate.toISOString().slice(0, 10);
   const deal = oneLine(d.dealTitle);
   const hi = `Hi ${oneLine(d.firstName)},`;

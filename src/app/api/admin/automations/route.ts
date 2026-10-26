@@ -1,7 +1,7 @@
 import { ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { automationsUpdateSchema } from "@/lib/automations/config";
-import { planInstalmentEmails } from "@/lib/automations/instalment-emails";
+import { planInstalmentEmails, planInstalmentWhatsapps } from "@/lib/automations/instalment-emails";
 import { countLowStock } from "@/lib/automations/low-stock";
 import { countQuietLeads } from "@/lib/automations/quiet-leads";
 import { loadInstalmentEmails, loadLowStock, loadQuietLeads, loadStageTasks, saveAutomations } from "@/lib/automations/settings";
@@ -16,12 +16,13 @@ async function view(tenantId: string) {
     loadLowStock(tenantId),
   ]);
   // What each daily automation would do on its next run, so switching one on holds no surprise.
-  const [quietLeadsWouldCreate, planned, lowStockNow] = await Promise.all([
+  const [quietLeadsWouldCreate, planned, plannedWhatsapps, lowStockNow] = await Promise.all([
     countQuietLeads(tenantId, quietLeads.days),
     planInstalmentEmails(tenantId, instalmentEmails),
+    planInstalmentWhatsapps(tenantId, instalmentEmails),
     countLowStock(tenantId, lowStock.defaultThreshold),
   ]);
-  return { stageTasks, quietLeads, instalmentEmails, lowStock, quietLeadsWouldCreate, instalmentEmailsWouldSend: planned.length, lowStockNow };
+  return { stageTasks, quietLeads, instalmentEmails, lowStock, quietLeadsWouldCreate, instalmentEmailsWouldSend: planned.length, instalmentWhatsappsWouldSend: plannedWhatsapps.length, lowStockNow };
 }
 
 /** GET /api/admin/automations: current settings (defaults are all switched off) and a preview count. */

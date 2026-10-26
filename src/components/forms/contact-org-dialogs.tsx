@@ -70,6 +70,7 @@ function ContactForm({
     leadStatus: (contact?.leadStatus ?? "NEW") as LeadStatus,
     organizationId: (contact?.organizationId ?? defaults?.organizationId ?? null) as string | null,
     emailOptOut: contact?.emailOptOut ?? false,
+    whatsappOptIn: contact?.whatsappOptIn ?? false,
     tagIds: (contact?.tags ?? []).map((t) => t.tag.id),
   });
   const set = <K extends keyof typeof v>(k: K, val: (typeof v)[K]) => setV((s) => ({ ...s, [k]: val }));
@@ -102,6 +103,7 @@ function ContactForm({
             leadStatus: isLeadish ? v.leadStatus : null,
             organizationId: v.organizationId,
             emailOptOut: v.emailOptOut,
+            whatsappOptIn: v.whatsappOptIn,
             tagIds: v.tagIds,
           });
         });
@@ -209,6 +211,13 @@ function ContactForm({
         <span>
           Don&apos;t send automatic emails to this contact
           <span className="block text-xs text-muted-foreground">Stops automatic payment reminders. Emails you send by hand are not affected.</span>
+        </span>
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <Checkbox className="mt-0.5" checked={v.whatsappOptIn} onCheckedChange={(c) => set("whatsappOptIn", c === true)} />
+        <span>
+          This contact agreed to receive WhatsApp messages
+          <span className="block text-xs text-muted-foreground">Needed before automatic payment reminders are sent on WhatsApp. Only tick it if they said yes.</span>
         </span>
       </label>
     </FormShell>

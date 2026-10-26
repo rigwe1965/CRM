@@ -188,7 +188,7 @@ describe("running it", () => {
     expect(mail.subject).toBe("[TEST] Second reminder: $100.00 is overdue");
     expect(mail.text).toContain("This would have gone to Adaeze Okafor <ada@customer.test>");
     expect(JSON.stringify(mail)).not.toContain('"to":"ada@customer.test"');
-    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: true, recipient: "boss@example.com" } });
+    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: true, channel: "EMAIL", recipient: "boss@example.com" } });
     expect(db.activity.create).not.toHaveBeenCalled();
     expect(db.task.create).not.toHaveBeenCalled();
   });
@@ -199,7 +199,7 @@ describe("running it", () => {
     const mail = send.mock.calls[0][0];
     expect(mail).toMatchObject({ to: "ada@customer.test", replyTo: "sam@shop.test", from: expect.stringContaining('"Ivycandy Hair"') });
     expect(mail.subject).toBe("Second reminder: $100.00 is overdue");
-    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: false, recipient: "ada@customer.test" } });
+    expect(db.instalmentReminder.create).toHaveBeenCalledWith({ data: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: false, channel: "EMAIL", recipient: "ada@customer.test" } });
     expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ tenantId: "t1", type: "EMAIL", authorId: "owner1", contactId: "c1", dealId: "d1" });
     expect(db.task.create.mock.calls[0][0].data).toMatchObject({
       title: "Call Adaeze Okafor: payment is overdue", priority: "HIGH", assigneeId: "owner1", automationKey: "overdue-call:i1",
@@ -272,9 +272,9 @@ describe("running it", () => {
       owner: { isActive: true },
       contact: { deletedAt: null, email: { not: null }, emailOptOut: false },
     });
-    expect(q.select.reminders.where).toEqual({ test: true });
+    expect(q.select.reminders.where).toEqual({ test: true, channel: "EMAIL" });
     await planInstalmentEmails("t1", { ...DEFAULT_INSTALMENT_EMAILS, ...live }, NOW);
-    expect(db.instalment.findMany.mock.calls[1][0].select.reminders.where).toEqual({ test: false });
+    expect(db.instalment.findMany.mock.calls[1][0].select.reminders.where).toEqual({ test: false, channel: "EMAIL" });
   });
 
   it("caps one run", async () => {
@@ -318,14 +318,14 @@ describe("sending a reminder now", () => {
 
   it("works with the daily automation off: emails the customer, links the payer, logs it and refreshes the record", async () => {
     saved(live);
-    expect(await sendReminderNow(user, "d1", "i1", NOW)).toEqual({ kind: "OVERDUE_2", test: false, to: "ada@customer.test" });
+    expect(await sendReminderNow(user, "d1", "i1", NOW)).toEqual({ kind: "OVERDUE_2", test: false, channel: "EMAIL", to: "ada@customer.test" });
     expect(db.instalment.findFirst.mock.calls[0][0].where).toMatchObject({ id: "i1", dealId: "d1", tenantId: "t1" });
     expect(send.mock.calls[0][0]).toMatchObject({ to: "ada@customer.test", replyTo: "sam@shop.test" });
     expect(send.mock.calls[0][0].text).toContain("https://buy.stripe.test/x");
     expect(payLink.mock.calls[0][0]).toEqual({ id: "u9", tenantId: "t1", email: "sam@shop.test" });
     expect(db.instalmentReminder.upsert.mock.calls[0][0]).toMatchObject({
-      where: { instalmentId_kind_test: { instalmentId: "i1", kind: "OVERDUE_2", test: false } },
-      create: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: false, recipient: "ada@customer.test" },
+      where: { instalmentId_kind_test_channel: { instalmentId: "i1", kind: "OVERDUE_2", test: false, channel: "EMAIL" } },
+      create: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: false, channel: "EMAIL", recipient: "ada@customer.test" },
     });
     expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ authorId: "u9", contactId: "c1", dealId: "d1" });
     expect(db.task.create).not.toHaveBeenCalled(); // the person pressing the button is the follow-up
@@ -341,7 +341,7 @@ describe("sending a reminder now", () => {
 
   it("test mode: goes to the test address, creates no link and logs nothing on the customer", async () => {
     saved(test);
-    expect(await sendReminderNow(user, "d1", "i1", NOW)).toEqual({ kind: "OVERDUE_2", test: true, to: "boss@example.com" });
+    expect(await sendReminderNow(user, "d1", "i1", NOW)).toEqual({ kind: "OVERDUE_2", test: true, channel: "EMAIL", to: "boss@example.com" });
     expect(send.mock.calls[0][0].to).toBe("boss@example.com");
     expect(payLink).not.toHaveBeenCalled();
     expect(db.instalmentReminder.upsert.mock.calls[0][0].create).toMatchObject({ test: true, recipient: "boss@example.com" });
@@ -388,10 +388,10 @@ describe("sending a reminder now", () => {
 
   it("lists a deal's reminders newest first, scoped to the business and the deal", async () => {
     db.instalmentReminder.findMany.mockResolvedValue([
-      { id: "r1", kind: "OVERDUE_1", test: false, recipient: "ada@customer.test", sentAt: NOW, instalment: { position: 1, dueDate: d("2026-11-03") } },
+      { id: "r1", kind: "OVERDUE_1", test: false, channel: "EMAIL", recipient: "ada@customer.test", sentAt: NOW, instalment: { position: 1, dueDate: d("2026-11-03") } },
     ]);
     expect(await reminderHistory("t1", "d1")).toEqual([
-      { id: "r1", kind: "OVERDUE_1", test: false, recipient: "ada@customer.test", sentAt: NOW, position: 1, dueDate: d("2026-11-03") },
+      { id: "r1", kind: "OVERDUE_1", test: false, channel: "EMAIL", recipient: "ada@customer.test", sentAt: NOW, position: 1, dueDate: d("2026-11-03") },
     ]);
     const q = db.instalmentReminder.findMany.mock.calls[0][0];
     expect(q.where).toEqual({ tenantId: "t1", instalment: { tenantId: "t1", dealId: "d1" } });

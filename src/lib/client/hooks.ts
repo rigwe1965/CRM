@@ -366,7 +366,7 @@ export function useReminders(dealId: string) {
 }
 
 export const useSendReminder = (dealId: string) =>
-  usePaymentMutation((instalmentId: string) => request("POST", `/api/deals/${dealId}/reminders`, { instalmentId }));
+  usePaymentMutation((v: { instalmentId: string; channel: "EMAIL" | "WHATSAPP" }) => request("POST", `/api/deals/${dealId}/reminders`, v));
 
 export const useSaveSchedule = (dealId: string) =>
   usePaymentMutation((instalments: { dueDate: string; amount: number }[]) =>

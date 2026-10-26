@@ -303,33 +303,62 @@ function RemindersSection({ deal, view }: { deal: Deal; view: PaymentsView }) {
             <p className="text-xs text-muted-foreground">Reminder emails are in test mode: they go to your test address, not to the customer. An admin switches them to Live in Settings → Automations.</p>
           )}
           {!data.canEmail && <p className="text-xs text-muted-foreground">This customer has no email address, or has asked not to be emailed.</p>}
-          {unpaid.length > 0 && data.canEmail && (
+          {!data.canWhatsapp && (
+            <p className="text-xs text-muted-foreground">WhatsApp reminders need a WhatsApp-ready phone number, the customer&apos;s OK to WhatsApp (tick it on their contact), and WhatsApp set up in Settings → Integrations.</p>
+          )}
+          {unpaid.length > 0 && (data.canEmail || data.canWhatsapp) && (
             <ul className="divide-y rounded-md border">
               {unpaid.map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                   <span>
                     <span className="text-muted-foreground">#{i.position}</span> · {dateOnly(i.dueDate)} · <span className="tabular-nums">{cur(i.amount - i.covered)}</span>
                   </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={send.isPending}
-                    onClick={() =>
-                      send.mutate(i.id, {
-                        onSuccess: () => toast.success(data.mode === "TEST" ? "Test reminder sent to your test address" : "Reminder emailed to the customer"),
-                        onError: (e) => toast.error(errorMessage(e)),
-                      })
-                    }
-                  >
-                    <Mail /> Send reminder now
-                  </Button>
+                  <span className="flex flex-wrap justify-end gap-2">
+                    {data.canEmail && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={send.isPending}
+                        onClick={() =>
+                          send.mutate(
+                            { instalmentId: i.id, channel: "EMAIL" },
+                            {
+                              onSuccess: () => toast.success(data.mode === "TEST" ? "Test reminder sent to your test address" : "Reminder emailed to the customer"),
+                              onError: (e) => toast.error(errorMessage(e)),
+                            },
+                          )
+                        }
+                      >
+                        <Mail /> Send reminder now
+                      </Button>
+                    )}
+                    {data.canWhatsapp && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={send.isPending}
+                        onClick={() =>
+                          send.mutate(
+                            { instalmentId: i.id, channel: "WHATSAPP" },
+                            {
+                              onSuccess: () => toast.success(data.mode === "TEST" ? "Test WhatsApp reminder sent to your test number" : "Reminder sent on WhatsApp"),
+                              onError: (e) => toast.error(errorMessage(e)),
+                            },
+                          )
+                        }
+                      >
+                        <MessageCircle /> Send on WhatsApp
+                      </Button>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
           {data.reminders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No reminder emails sent yet.</p>
+            <p className="text-sm text-muted-foreground">No reminders sent yet.</p>
           ) : (
             <ul className="divide-y rounded-md border">
               {data.reminders.map((r) => (
@@ -339,7 +368,7 @@ function RemindersSection({ deal, view }: { deal: Deal; view: PaymentsView }) {
                       {REMINDER_LABEL[r.kind]} · instalment #{r.position}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {dateOnly(r.sentAt)} · to {r.recipient}
+                      {dateOnly(r.sentAt)} · {r.channel === "WHATSAPP" ? "WhatsApp" : "email"} to {r.recipient}
                     </p>
                   </div>
                   {r.test && <Badge variant="secondary">Test</Badge>}

@@ -106,6 +106,7 @@ const contactFields = z.object({
   postalCode: text(20),
   country: text(100),
   emailOptOut: z.boolean().optional(),
+  whatsappOptIn: z.boolean().optional(),
   /** The contact's tags, as a whole: the list replaces whatever it had. */
   tagIds: z.array(id).max(20).optional(),
   organizationId: id.nullish(),
@@ -365,6 +366,7 @@ export const createPaymentLinkSchema = z.object({
 
 export const sendReminderSchema = z.object({
   instalmentId: z.string().trim().min(1, "Required").max(64),
+  channel: z.enum(["EMAIL", "WHATSAPP"]).default("EMAIL"),
 });
 
 export const createPaymentSchema = z.object({

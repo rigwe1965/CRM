@@ -149,7 +149,7 @@ function QuietLeadsCard({ initial, wouldCreate }: { initial: QuietLeadsConfig; w
   );
 }
 
-function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmailsConfig; wouldSend: number }) {
+function InstalmentEmailsCard({ initial, wouldSend, whatsappWouldSend }: { initial: InstalmentEmailsConfig; wouldSend: number; whatsappWouldSend: number }) {
   const save = useSaveAutomations();
   const sample = useSendSampleEmail();
   const [sampleKind, setSampleKind] = useState<"UPCOMING" | "OVERDUE_1" | "OVERDUE_2">("UPCOMING");
@@ -158,6 +158,8 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
   const num = (k: "daysBefore" | "firstOverdueDays" | "secondOverdueDays", min: number, max: number) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setDraft((d) => ({ ...d, [k]: clampInt(e.target.value, min, max) }));
   const live = draft.mode === "LIVE";
+  const wa = draft.whatsapp;
+  const setWa = (part: Partial<typeof wa>) => setDraft((d) => ({ ...d, whatsapp: { ...d.whatsapp, ...part } }));
   const own = draft.wording[sampleKind];
   const setOwn = (part: Partial<typeof own>) => setDraft((d) => ({ ...d, wording: { ...d.wording, [sampleKind]: { ...d.wording[sampleKind], ...part } } }));
 
@@ -230,6 +232,41 @@ function InstalmentEmailsCard({ initial, wouldSend }: { initial: InstalmentEmail
           </Select>
           <Input aria-label="Your subject" placeholder="Built-in subject" maxLength={150} value={own.subject} onChange={(e) => setOwn({ subject: e.target.value })} />
           <Textarea aria-label="Your message" placeholder="Built-in message" rows={5} maxLength={2000} value={own.message} onChange={(e) => setOwn({ message: e.target.value })} />
+        </div>
+        <div className="space-y-3 rounded-md border p-3">
+          <SwitchRow checked={wa.enabled} onChange={(enabled) => setWa({ enabled })} label="Also send these reminders on WhatsApp" />
+          <p className="text-xs text-muted-foreground">
+            Sent on the same days as the emails, only to customers whose contact has &quot;agreed to receive WhatsApp messages&quot; ticked and a WhatsApp-ready phone number. WhatsApp only lets a business start a conversation with a message template Meta has approved, so create the three templates in Meta first (the steps and wording are in HANDOVER.md) and enter their names below. In test mode every message goes to the test number.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium">{live ? "WhatsApp test number" : "Send WhatsApp tests to"}</span>
+              <Input placeholder="+2348012345678" value={wa.testPhone} onChange={(e) => setWa({ testPhone: e.target.value })} />
+            </label>
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium">Template language</span>
+              <Input placeholder="en" value={wa.language} maxLength={6} onChange={(e) => setWa({ language: e.target.value })} />
+            </label>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(
+              [
+                ["UPCOMING", "Template: before it is due"],
+                ["OVERDUE_1", "Template: first overdue notice"],
+                ["OVERDUE_2", "Template: second overdue notice"],
+              ] as const
+            ).map(([k, label]) => (
+              <label key={k} className="space-y-1.5 text-sm">
+                <span className="font-medium">{label}</span>
+                <Input aria-label={label} value={wa.templates[k]} maxLength={200} onChange={(e) => setWa({ templates: { ...wa.templates, [k]: e.target.value } })} />
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {initial.whatsapp.enabled
+              ? `On the next daily run, ${whatsappWouldSend} WhatsApp message${whatsappWouldSend === 1 ? "" : "s"} would be sent${initial.mode === "TEST" ? " to your test number" : " to customers"}.`
+              : `If you switch WhatsApp on with the saved settings, the first run would send ${whatsappWouldSend} message${whatsappWouldSend === 1 ? "" : "s"}.`}
+          </p>
         </div>
         <div className="space-y-2 rounded-md border p-3">
           <p className="text-sm font-medium">Check the wording now</p>
@@ -345,7 +382,7 @@ function AutomationsForms({ data }: { data: AutomationsView }) {
     <div className="space-y-6">
       <StageTasksCard key={JSON.stringify(data.stageTasks)} initial={data.stageTasks} />
       <QuietLeadsCard key={JSON.stringify(data.quietLeads)} initial={data.quietLeads} wouldCreate={data.quietLeadsWouldCreate} />
-      <InstalmentEmailsCard key={JSON.stringify(data.instalmentEmails)} initial={data.instalmentEmails} wouldSend={data.instalmentEmailsWouldSend} />
+      <InstalmentEmailsCard key={JSON.stringify(data.instalmentEmails)} initial={data.instalmentEmails} wouldSend={data.instalmentEmailsWouldSend} whatsappWouldSend={data.instalmentWhatsappsWouldSend} />
       <LowStockCard key={JSON.stringify(data.lowStock)} initial={data.lowStock} lowNow={data.lowStockNow} />
     </div>
   );

@@ -292,6 +292,8 @@ model Contact {
   phoneE164      String?
   // When true, no automatic emails (such as instalment reminders) are sent to this contact.
   emailOptOut    Boolean     @default(false)
+  // When true, the customer has agreed to WhatsApp messages from the business (payment reminders). Off until someone records it.
+  whatsappOptIn  Boolean     @default(false)
   title          String?
   type           ContactType @default(LEAD)
   leadStatus     LeadStatus? @default(NEW)
@@ -696,12 +698,14 @@ model InstalmentReminder {
   kind         InstalmentReminderKind
   // True for emails sent to the admin in test mode; kept apart so going live still sends the real ones.
   test         Boolean                @default(false)
+  // EMAIL or WHATSAPP: each channel is tracked on its own.
+  channel      String                 @default("EMAIL")
   recipient    String
   sentAt       DateTime               @default(now())
 
   instalment Instalment @relation(fields: [instalmentId], references: [id], onDelete: Cascade)
 
-  @@unique([instalmentId, kind, test])
+  @@unique([instalmentId, kind, test, channel])
   @@index([instalmentId])
   @@index([tenantId])
 }

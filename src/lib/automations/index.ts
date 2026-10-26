@@ -1,6 +1,6 @@
 import { platformDb } from "@/lib/platform-db";
 import { withTenant } from "@/lib/tenant-context";
-import { runInstalmentEmails } from "@/lib/automations/instalment-emails";
+import { runInstalmentEmails, runInstalmentWhatsapps } from "@/lib/automations/instalment-emails";
 import { runLowStockAlerts } from "@/lib/automations/low-stock";
 import { runQuietLeadNudges } from "@/lib/automations/quiet-leads";
 
@@ -26,6 +26,12 @@ export async function runDailyAutomations(now = new Date()) {
       tasks: sum((r) => r.instalmentEmails.tasks),
       test: perTenant.every((r) => r.instalmentEmails.test),
     },
+    instalmentWhatsapps: {
+      ok: perTenant.every((r) => r.instalmentWhatsapps.ok),
+      sent: sum((r) => r.instalmentWhatsapps.sent),
+      failed: sum((r) => r.instalmentWhatsapps.failed),
+      tasks: sum((r) => r.instalmentWhatsapps.tasks),
+    },
     lowStock: { ok: perTenant.every((r) => r.lowStock.ok), alerted: sum((r) => r.lowStock.alerted), failed: sum((r) => r.lowStock.failed) },
   };
 }
@@ -41,6 +47,7 @@ async function runTenantAutomations(tenantId: string, now: Date) {
   };
   const quietLeads = await attempt("quiet leads", { created: 0 }, () => runQuietLeadNudges(tenantId, now));
   const instalmentEmails = await attempt("instalment emails", { sent: 0, failed: 0, tasks: 0, test: true }, () => runInstalmentEmails(tenantId, now));
+  const instalmentWhatsapps = await attempt("instalment whatsapps", { sent: 0, failed: 0, tasks: 0, test: true }, () => runInstalmentWhatsapps(tenantId, now));
   const lowStock = await attempt("low stock", { alerted: 0, failed: 0 }, () => runLowStockAlerts(tenantId));
-  return { ok: quietLeads.ok && instalmentEmails.ok && lowStock.ok, quietLeads, instalmentEmails, lowStock };
+  return { ok: quietLeads.ok && instalmentEmails.ok && instalmentWhatsapps.ok && lowStock.ok, quietLeads, instalmentEmails, instalmentWhatsapps, lowStock };
 }

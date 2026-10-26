@@ -4,11 +4,17 @@ import { ApiError } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import type { InstalmentEmailsConfig } from "@/lib/automations/config";
 import { loadInstalmentEmails } from "@/lib/automations/settings";
-import { customerInstalmentEmail } from "@/lib/email-templates";
+import { customerInstalmentEmail, formatAmount } from "@/lib/email-templates";
 import { appUrl, trySendMail } from "@/lib/mail";
 import { reminderPayLink } from "@/lib/payment-links";
 import { senderFor } from "@/lib/sender";
 import { summarize } from "@/lib/payments";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
+import { sendWhatsAppTemplate, whatsappConfigured } from "@/lib/whatsapp";
+
+export type ReminderChannel = "EMAIL" | "WHATSAPP";
+/** Said in a template's last parameter when no pay link can be made, so the line still reads well. */
+const NO_PAY_LINK_TEXT = "just reply to this message";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Instalments overdue for longer than this are left to people: an ancient debt should not get a robot email. */
@@ -52,8 +58,10 @@ export function pickReminder(opts: {
 }
 
 export type PlannedEmail = {
+  channel: ReminderChannel;
   instalmentId: string;
   kind: InstalmentReminderKind;
+  /** The email address, or for WhatsApp the phone number in international form. */
   to: string;
   firstName: string;
   customerName: string;
@@ -69,11 +77,11 @@ export type PlannedEmail = {
 };
 
 /** What the planner and the "send now" button both read about an instalment. */
-const reminderSelect = (test: boolean) =>
+const reminderSelect = (test: boolean, channel: ReminderChannel) =>
   ({
     id: true,
     dueDate: true,
-    reminders: { where: { test }, select: { kind: true, sentAt: true } },
+    reminders: { where: { test, channel }, select: { kind: true, sentAt: true } },
     deal: {
       select: {
         id: true,
@@ -84,13 +92,14 @@ const reminderSelect = (test: boolean) =>
         ownerId: true,
         owner: { select: { email: true } },
         contactId: true,
-        contact: { select: { firstName: true, lastName: true, email: true, emailOptOut: true, deletedAt: true } },
+        contact: { select: { firstName: true, lastName: true, email: true, emailOptOut: true, phoneE164: true, whatsappOptIn: true, deletedAt: true } },
         payments: { select: { amount: true } },
         instalments: { select: { id: true, position: true, dueDate: true, amount: true } },
       },
     },
   }) satisfies Prisma.InstalmentSelect;
 type Row = Prisma.InstalmentGetPayload<{ select: ReturnType<typeof reminderSelect> }>;
+const addressOf = (c: Row["deal"]["contact"], channel: ReminderChannel) => (channel === "EMAIL" ? c?.email : c?.phoneE164) ?? null;
 
 /** What is still unpaid on one instalment once the deal's payments are applied oldest-first. */
 function amountDueOf(inst: Row): number {
@@ -100,13 +109,15 @@ function amountDueOf(inst: Row): number {
   return status ? Math.round((status.amount - status.covered) * 100) / 100 : 0;
 }
 
-function toPlanned(inst: Row, kind: InstalmentReminderKind, amountDue: number, today: Date): PlannedEmail | null {
+function toPlanned(inst: Row, kind: InstalmentReminderKind, amountDue: number, today: Date, channel: ReminderChannel = "EMAIL"): PlannedEmail | null {
   const { deal } = inst;
-  if (!deal.contact?.email || !deal.contactId) return null;
+  const to = addressOf(deal.contact, channel);
+  if (!to || !deal.contact || !deal.contactId) return null;
   return {
+    channel,
     instalmentId: inst.id,
     kind,
-    to: deal.contact.email,
+    to,
     firstName: deal.contact.firstName,
     customerName: `${deal.contact.firstName} ${deal.contact.lastName}`,
     dealId: deal.id,
@@ -126,7 +137,16 @@ function toPlanned(inst: Row, kind: InstalmentReminderKind, amountDue: number, t
  * Skips lost and deleted deals, inactive owners, deleted contacts, contacts with no email address and
  * contacts who opted out. Test-mode and live reminders are tracked separately.
  */
-export async function planInstalmentEmails(tenantId: string, config: InstalmentEmailsConfig, now = new Date()): Promise<PlannedEmail[]> {
+export function planInstalmentEmails(tenantId: string, config: InstalmentEmailsConfig, now = new Date()): Promise<PlannedEmail[]> {
+  return planReminders(tenantId, config, "EMAIL", now);
+}
+
+/** Same as the email plan, for WhatsApp: only customers with a valid number who agreed to WhatsApp messages. */
+export function planInstalmentWhatsapps(tenantId: string, config: InstalmentEmailsConfig, now = new Date()): Promise<PlannedEmail[]> {
+  return planReminders(tenantId, config, "WHATSAPP", now);
+}
+
+async function planReminders(tenantId: string, config: InstalmentEmailsConfig, channel: ReminderChannel, now: Date): Promise<PlannedEmail[]> {
   const test = config.mode === "TEST";
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const rows = await db.instalment.findMany({
@@ -141,10 +161,10 @@ export async function planInstalmentEmails(tenantId: string, config: InstalmentE
         deletedAt: null,
         stage: { not: "CLOSED_LOST" },
         owner: { isActive: true },
-        contact: { deletedAt: null, email: { not: null }, emailOptOut: false },
+        contact: channel === "EMAIL" ? { deletedAt: null, email: { not: null }, emailOptOut: false } : { deletedAt: null, phoneE164: { not: null }, whatsappOptIn: true },
       },
     },
-    select: reminderSelect(test),
+    select: reminderSelect(test, channel),
     orderBy: { dueDate: "asc" },
     take: 500,
   });
@@ -153,7 +173,7 @@ export async function planInstalmentEmails(tenantId: string, config: InstalmentE
   for (const inst of rows) {
     const amountDue = amountDueOf(inst);
     const kind = pickReminder({ dueDate: inst.dueDate, today, amountDue, config, sent: inst.reminders.map((r) => r.kind) });
-    const email = kind && toPlanned(inst, kind, amountDue, today);
+    const email = kind && toPlanned(inst, kind, amountDue, today, channel);
     if (email) planned.push(email);
   }
   return planned;
@@ -209,12 +229,12 @@ async function sendOne(
   try {
     if (manual) {
       await db.instalmentReminder.upsert({
-        where: { instalmentId_kind_test: { instalmentId: p.instalmentId, kind: p.kind, test } },
-        create: { tenantId, instalmentId: p.instalmentId, kind: p.kind, test, recipient: to },
+        where: { instalmentId_kind_test_channel: { instalmentId: p.instalmentId, kind: p.kind, test, channel: "EMAIL" } },
+        create: { tenantId, instalmentId: p.instalmentId, kind: p.kind, test, channel: "EMAIL", recipient: to },
         update: { recipient: to, sentAt: new Date() },
       });
     } else {
-      await db.instalmentReminder.create({ data: { tenantId, instalmentId: p.instalmentId, kind: p.kind, test, recipient: to } });
+      await db.instalmentReminder.create({ data: { tenantId, instalmentId: p.instalmentId, kind: p.kind, test, channel: "EMAIL", recipient: to } });
     }
     if (!test) {
       await db.activity.create({
@@ -227,6 +247,109 @@ async function sendOne(
     console.error("[automation] instalment email bookkeeping failed", p.instalmentId, e);
   }
   return { sent: true, tasks };
+}
+
+/**
+ * The template parameters, in order: {{1}} first name, {{2}} amount, {{3}} due date, {{4}} the pay link (or a
+ * short line to reply instead). Every approved template uses these four, so one body fits every notice.
+ */
+export function whatsappParams(p: Pick<PlannedEmail, "firstName" | "amountDue" | "currency" | "dueDate">, payUrl?: string): string[] {
+  return [p.firstName, formatAmount(p.amountDue, p.currency), p.dueDate.toISOString().slice(0, 10), payUrl || NO_PAY_LINK_TEXT];
+}
+
+/**
+ * WhatsApp copy of sendOne: sends the approved template for the notice, records it per channel, and (live
+ * only) logs a WhatsApp activity. Test mode sends the same template to the test number and records nothing
+ * on the customer. A failed send records nothing, so the next run retries. A daily-cap refusal propagates.
+ */
+async function sendOneWhatsapp(
+  tenantId: string,
+  config: InstalmentEmailsConfig,
+  p: PlannedEmail,
+  by: { id: string; email: string },
+  manual: boolean,
+): Promise<{ sent: boolean; tasks: number }> {
+  const wa = config.whatsapp;
+  const test = config.mode === "TEST";
+  const to = test ? wa.testPhone : p.to;
+  await assertUnderDailyCap(tenantId, "whatsapp");
+  const payUrl = test
+    ? PAY_LINK_PREVIEW
+    : ((await reminderPayLink({ id: by.id, tenantId, email: by.email }, { id: p.dealId, title: p.dealTitle }, p.amountDue, p.currency, appUrl())) ?? undefined);
+  const params = whatsappParams(p, payUrl);
+  let messageId: string;
+  try {
+    messageId = await sendWhatsAppTemplate(tenantId, to, wa.templates[p.kind], wa.language, params);
+  } catch (e) {
+    console.error("[automation] whatsapp reminder failed", p.instalmentId, e instanceof Error ? e.message : e);
+    return { sent: false, tasks: 0 };
+  }
+
+  let tasks = 0;
+  try {
+    const key = { instalmentId: p.instalmentId, kind: p.kind, test, channel: "WHATSAPP" };
+    if (manual) {
+      await db.instalmentReminder.upsert({
+        where: { instalmentId_kind_test_channel: key },
+        create: { tenantId, ...key, recipient: to },
+        update: { recipient: to, sentAt: new Date() },
+      });
+    } else {
+      await db.instalmentReminder.create({ data: { tenantId, ...key, recipient: to } });
+    }
+    if (!test) {
+      await db.activity.create({
+        data: {
+          tenantId,
+          type: "WHATSAPP",
+          direction: "OUT",
+          subject: "Payment reminder",
+          body: `Payment reminder (${wa.templates[p.kind]}): ${params[1]} due ${params[2]}`,
+          externalId: messageId,
+          authorId: by.id,
+          contactId: p.contactId,
+          dealId: p.dealId,
+        },
+      });
+      if (p.kind === "OVERDUE_2" && !manual) tasks = await createCallTask(tenantId, p);
+    }
+  } catch (e) {
+    console.error("[automation] whatsapp reminder bookkeeping failed", p.instalmentId, e);
+  }
+  return { sent: true, tasks };
+}
+
+/** The daily WhatsApp run for one business: sends the reminders due today to customers who opted in. */
+export async function runInstalmentWhatsapps(tenantId: string, now = new Date()) {
+  const config = await loadInstalmentEmails(tenantId);
+  const result = { sent: 0, failed: 0, tasks: 0, test: config.mode === "TEST" };
+  if (!config.whatsapp.enabled || !(await whatsappConfigured(tenantId))) return result;
+
+  const plan = (await planInstalmentWhatsapps(tenantId, config, now)).slice(0, EMAIL_RUN_LIMIT);
+  for (const p of plan) {
+    try {
+      const r = await sendOneWhatsapp(tenantId, config, p, { id: p.ownerId, email: "automation" }, false);
+      if (r.sent) result.sent++;
+      else result.failed++;
+      result.tasks += r.tasks;
+    } catch (e) {
+      // The plan's daily WhatsApp allowance is used up: stop, and the rest go out on the next run.
+      if ((e as { code?: string }).code === "USAGE_LIMIT") break;
+      throw e;
+    }
+  }
+
+  if (result.sent || result.failed) {
+    await audit(
+      { email: "automation", tenantId },
+      {
+        action: "automation.instalment_whatsapps",
+        entity: "deal",
+        summary: `${result.sent} sent${result.test ? " (test mode, to the test number)" : ""}, ${result.failed} failed, ${result.tasks} call task${result.tasks === 1 ? "" : "s"}`,
+      },
+    );
+  }
+  return result;
 }
 
 /** The daily run: every reminder that is due today, for one business. */
@@ -269,22 +392,30 @@ export async function sendReminderNow(
   dealId: string,
   instalmentId: string,
   now = new Date(),
+  channel: ReminderChannel = "EMAIL",
 ) {
   const { tenantId } = user;
   const config = await loadInstalmentEmails(tenantId);
   const test = config.mode === "TEST";
-  if (test && !config.testEmail) {
-    throw new ApiError(422, "Reminder emails are in test mode and no test address is set. Set one in Settings → Automations, or switch to Live to email customers.", "REMINDERS_NOT_LIVE");
+  const wa = channel === "WHATSAPP";
+  if (test && !(wa ? config.whatsapp.testPhone : config.testEmail)) {
+    throw new ApiError(422, `Reminders are in test mode and no test ${wa ? "WhatsApp number" : "address"} is set. Set one in Settings → Automations, or switch to Live to message customers.`, "REMINDERS_NOT_LIVE");
   }
+  if (wa && !(await whatsappConfigured(tenantId))) throw new ApiError(409, "WhatsApp is not set up for this business yet (Settings → Integrations).", "NOT_CONFIGURED");
   const inst = await db.instalment.findFirst({
     where: { id: instalmentId, dealId, tenantId, deal: { tenantId, deletedAt: null } },
-    select: reminderSelect(test),
+    select: reminderSelect(test, channel),
   });
   if (!inst) throw new ApiError(404, "Instalment not found", "NOT_FOUND");
   const { contact } = inst.deal;
   if (inst.deal.stage === "CLOSED_LOST") throw new ApiError(422, "This deal is lost, so no reminders are sent.", "DEAL_LOST");
-  if (!contact || contact.deletedAt || !contact.email) throw new ApiError(422, "This customer has no email address.", "NO_EMAIL");
-  if (contact.emailOptOut) throw new ApiError(422, "This customer has asked not to receive automatic emails.", "OPTED_OUT");
+  if (wa) {
+    if (!contact || contact.deletedAt || !contact.phoneE164) throw new ApiError(422, "This customer has no WhatsApp-ready phone number (international form, +49...).", "NO_PHONE");
+    if (!contact.whatsappOptIn) throw new ApiError(422, "This customer has not agreed to WhatsApp messages. Tick it on their contact once they have.", "NOT_OPTED_IN");
+  } else {
+    if (!contact || contact.deletedAt || !contact.email) throw new ApiError(422, "This customer has no email address.", "NO_EMAIL");
+    if (contact.emailOptOut) throw new ApiError(422, "This customer has asked not to receive automatic emails.", "OPTED_OUT");
+  }
   const amountDue = amountDueOf(inst);
   if (amountDue <= 0) throw new ApiError(422, "This instalment is already paid.", "NOTHING_DUE");
   if (inst.reminders.some((r) => now.getTime() - r.sentAt.getTime() < MANUAL_RESEND_MS)) {
@@ -294,12 +425,13 @@ export async function sendReminderNow(
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const late = utcDay(today) - utcDay(inst.dueDate);
   const kind: InstalmentReminderKind = late >= config.secondOverdueDays ? "OVERDUE_2" : late >= config.firstOverdueDays ? "OVERDUE_1" : "UPCOMING";
-  const planned = toPlanned(inst, kind, amountDue, today);
-  if (!planned) throw new ApiError(422, "This customer has no email address.", "NO_EMAIL");
+  const planned = toPlanned(inst, kind, amountDue, today, channel);
+  if (!planned) throw new ApiError(422, wa ? "This customer has no WhatsApp-ready phone number." : "This customer has no email address.", wa ? "NO_PHONE" : "NO_EMAIL");
 
-  const r = await sendOne(tenantId, config, planned, { id: user.id, email: user.email ?? "" }, true);
-  if (!r.sent) throw new ApiError(502, "The email could not be sent. Please try again.", "EMAIL_FAILED");
-  return { kind, test, to: test ? config.testEmail : planned.to };
+  const by = { id: user.id, email: user.email ?? "" };
+  const r = wa ? await sendOneWhatsapp(tenantId, config, planned, by, true) : await sendOne(tenantId, config, planned, by, true);
+  if (!r.sent) throw new ApiError(502, `The ${wa ? "WhatsApp message" : "email"} could not be sent. Please try again.`, wa ? "WHATSAPP_ERROR" : "EMAIL_FAILED");
+  return { kind, test, channel, to: test ? (wa ? config.whatsapp.testPhone : config.testEmail) : planned.to };
 }
 
 /** Reminder emails sent about a deal's instalments, newest first, for the deal's Payments screen. */
@@ -308,12 +440,13 @@ export async function reminderHistory(tenantId: string, dealId: string) {
     where: { tenantId, instalment: { tenantId, dealId } },
     orderBy: { sentAt: "desc" },
     take: 50,
-    select: { id: true, kind: true, test: true, recipient: true, sentAt: true, instalment: { select: { position: true, dueDate: true } } },
+    select: { id: true, kind: true, test: true, channel: true, recipient: true, sentAt: true, instalment: { select: { position: true, dueDate: true } } },
   });
   return rows.map((r) => ({
     id: r.id,
     kind: r.kind,
     test: r.test,
+    channel: r.channel,
     recipient: r.recipient,
     sentAt: r.sentAt,
     position: r.instalment.position,

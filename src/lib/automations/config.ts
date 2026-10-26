@@ -48,6 +48,25 @@ export type ReminderWording = z.infer<typeof reminderWordingSchema>;
 const BLANK_WORDING: ReminderWording = { subject: "", message: "" };
 export const DEFAULT_WORDING = { UPCOMING: BLANK_WORDING, OVERDUE_1: BLANK_WORDING, OVERDUE_2: BLANK_WORDING };
 
+const templateName = z.string().trim().regex(/^[a-z0-9_]{1,200}$/, "Use lowercase letters, numbers and underscores, as in Meta");
+
+/** Payment reminders over WhatsApp. They use message templates approved by Meta, named here. */
+export const whatsappRemindersSchema = z.object({
+  enabled: z.boolean(),
+  /** Meta's language code for the templates, such as en or en_GB. */
+  language: z.string().trim().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/, "Use a code such as en or en_GB"),
+  /** Test mode sends to this number instead of the customer (international form, +49...). */
+  testPhone: z.union([z.literal(""), z.string().trim().regex(/^\+[1-9]\d{6,14}$/, "Use the international form, such as +2348012345678")]),
+  templates: z.object({ UPCOMING: templateName, OVERDUE_1: templateName, OVERDUE_2: templateName }),
+});
+export type WhatsappRemindersConfig = z.infer<typeof whatsappRemindersSchema>;
+export const DEFAULT_WHATSAPP_REMINDERS: WhatsappRemindersConfig = {
+  enabled: false,
+  language: "en",
+  testPhone: "",
+  templates: { UPCOMING: "payment_reminder_upcoming", OVERDUE_1: "payment_reminder_overdue", OVERDUE_2: "payment_reminder_final" },
+};
+
 export const instalmentEmailsSchema = z
   .object({
     enabled: z.boolean(),
@@ -65,6 +84,8 @@ export const instalmentEmailsSchema = z
     wording: z
       .object({ UPCOMING: reminderWordingSchema.default(BLANK_WORDING), OVERDUE_1: reminderWordingSchema.default(BLANK_WORDING), OVERDUE_2: reminderWordingSchema.default(BLANK_WORDING) })
       .default(DEFAULT_WORDING),
+    /** WhatsApp copies of the same notices, to customers who opted in. A saved setting without it stays off. */
+    whatsapp: whatsappRemindersSchema.default(DEFAULT_WHATSAPP_REMINDERS),
   })
   .superRefine((v, ctx) => {
     if (v.secondOverdueDays <= v.firstOverdueDays) {
@@ -72,6 +93,9 @@ export const instalmentEmailsSchema = z
     }
     if (v.enabled && v.mode === "TEST" && v.testEmail === "") {
       ctx.addIssue({ code: "custom", path: ["testEmail"], message: "Enter the address that should receive the test emails" });
+    }
+    if (v.whatsapp.enabled && v.mode === "TEST" && v.whatsapp.testPhone === "") {
+      ctx.addIssue({ code: "custom", path: ["whatsapp", "testPhone"], message: "Enter the WhatsApp number that should receive the test messages" });
     }
   });
 export type InstalmentEmailsConfig = z.infer<typeof instalmentEmailsSchema>;
@@ -127,6 +151,7 @@ export const DEFAULT_INSTALMENT_EMAILS: InstalmentEmailsConfig = {
   firstOverdueDays: 1,
   secondOverdueDays: 7,
   wording: DEFAULT_WORDING,
+  whatsapp: DEFAULT_WHATSAPP_REMINDERS,
 };
 
 /** Saved settings laid over the defaults; anything missing or invalid falls back to the defaults. */

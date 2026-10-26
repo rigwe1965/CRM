@@ -128,6 +128,34 @@ export async function canReplyFreely(tenantId: string, contactId: string, now = 
   return !!last && now.getTime() - last.occurredAt.getTime() < REPLY_WINDOW_MS;
 }
 
+/**
+ * Sends an approved message template (the only thing Meta allows outside the 24-hour window). `params` fill
+ * {{1}}, {{2}}... in the template body in order. Returns Meta's message id; throws with Meta's reason.
+ */
+export async function sendWhatsAppTemplate(tenantId: string, toE164: string, name: string, language: string, params: string[]): Promise<string> {
+  const found = await getIntegration(tenantId, "WHATSAPP");
+  if (!found) throw new Error("WhatsApp is not set up for this business");
+  const { accessToken, phoneNumberId } = found.settings;
+  const version = process.env.WHATSAPP_API_VERSION || "v23.0";
+  // Meta refuses empty parameters, newlines and long runs of spaces inside a parameter.
+  const parameters = params.map((p) => ({ type: "text", text: p.replace(/\s+/g, " ").trim().slice(0, 1000) || "-" }));
+  const res = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: toE164.replace(/\D/g, ""),
+      type: "template",
+      template: { name, language: { code: language }, components: parameters.length ? [{ type: "body", parameters }] : [] },
+    }),
+    cache: "no-store",
+  });
+  const json = (await res.json().catch(() => ({}))) as { messages?: { id?: string }[]; error?: { message?: string } };
+  const id = json.messages?.[0]?.id;
+  if (!res.ok || !id) throw new Error(json.error?.message ?? `WhatsApp refused the message (${res.status})`);
+  return id;
+}
+
 /** Sends a free-text WhatsApp message. Returns Meta's message id. Throws with Meta's reason when it refuses. */
 export async function sendWhatsAppText(tenantId: string, toE164: string, body: string): Promise<string> {
   const found = await getIntegration(tenantId, "WHATSAPP");

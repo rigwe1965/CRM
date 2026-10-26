@@ -46,6 +46,7 @@ export type Contact = {
   phone: string | null;
   phoneE164: string | null;
   emailOptOut: boolean;
+  whatsappOptIn: boolean;
   title: string | null;
   type: ContactType;
   leadStatus: LeadStatus | null;
@@ -161,6 +162,12 @@ export type InstalmentEmailsConfig = {
   firstOverdueDays: number;
   secondOverdueDays: number;
   wording: Record<"UPCOMING" | "OVERDUE_1" | "OVERDUE_2", ReminderWording>;
+  whatsapp: {
+    enabled: boolean;
+    language: string;
+    testPhone: string;
+    templates: Record<"UPCOMING" | "OVERDUE_1" | "OVERDUE_2", string>;
+  };
 };
 export type AutomationsView = {
   stageTasks: StageTasksConfig;
@@ -173,6 +180,8 @@ export type AutomationsView = {
   lowStockNow: number;
   /** Customer emails that would go out on the next daily run (to the test address in test mode). */
   instalmentEmailsWouldSend: number;
+  /** WhatsApp reminders the next daily run would send (customers who opted in). */
+  instalmentWhatsappsWouldSend: number;
 };
 
 export type PaymentLinkStatus = "PENDING" | "PAID" | "CANCELLED" | "REFUND_NEEDED";
@@ -197,13 +206,14 @@ export type InstalmentReminder = {
   id: string;
   kind: ReminderKind;
   test: boolean;
+  channel: "EMAIL" | "WHATSAPP";
   recipient: string;
   sentAt: string;
   position: number;
   dueDate: string;
 };
 
-export type RemindersView = { mode: "TEST" | "LIVE"; canEmail: boolean; reminders: InstalmentReminder[] };
+export type RemindersView = { mode: "TEST" | "LIVE"; canEmail: boolean; canWhatsapp: boolean; reminders: InstalmentReminder[] };
 
 export type InstalmentStatus = {
   id: string;
