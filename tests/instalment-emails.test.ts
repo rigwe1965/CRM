@@ -1,23 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, audit, send } = vi.hoisted(() => ({
+const { db, audit, send, payLink } = vi.hoisted(() => ({
   db: {
     tenant: { findFirst: vi.fn(async () => ({ name: "Test Co", brandName: null })) },
     automationSetting: { findUnique: vi.fn() },
-    instalment: { findMany: vi.fn() },
-    instalmentReminder: { create: vi.fn() },
+    instalment: { findMany: vi.fn(), findFirst: vi.fn() },
+    instalmentReminder: { create: vi.fn(), upsert: vi.fn(), findMany: vi.fn() },
     activity: { create: vi.fn() },
     task: { findFirst: vi.fn(), create: vi.fn() },
   },
   audit: vi.fn(),
   send: vi.fn(),
+  payLink: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/audit", () => ({ audit }));
-vi.mock("@/lib/mail", async (orig) => ({ ...(await orig<typeof import("@/lib/mail")>()), trySendMail: send }));
+vi.mock("@/lib/mail", async (orig) => ({ ...(await orig<typeof import("@/lib/mail")>()), trySendMail: send, appUrl: () => "https://crm.test" }));
+vi.mock("@/lib/payment-links", () => ({ reminderPayLink: payLink }));
 
 import { DEFAULT_INSTALMENT_EMAILS, instalmentEmailsSchema, resolveInstalmentEmails } from "@/lib/automations/config";
-import { EMAIL_RUN_LIMIT, MAX_OVERDUE_DAYS, pickReminder, planInstalmentEmails, runInstalmentEmails } from "@/lib/automations/instalment-emails";
+import {
+  EMAIL_RUN_LIMIT,
+  MANUAL_RESEND_MS,
+  MAX_OVERDUE_DAYS,
+  PAY_LINK_PREVIEW,
+  pickReminder,
+  planInstalmentEmails,
+  reminderHistory,
+  runInstalmentEmails,
+  sendReminderNow,
+} from "@/lib/automations/instalment-emails";
 import { customerInstalmentEmail } from "@/lib/email-templates";
 
 const d = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -108,6 +120,19 @@ describe("customerInstalmentEmail", () => {
     expect(m.subject).not.toMatch(/[\r\n]/);
   });
 
+  it("adds a pay button and link only for a secure link", () => {
+    const m = customerInstalmentEmail({ ...base, kind: "OVERDUE_1", daysLate: 1, payUrl: "https://buy.stripe.test/x?a=1&b=2" });
+    expect(m.text).toContain("You can pay securely online here:\nhttps://buy.stripe.test/x?a=1&b=2");
+    expect(m.text).toMatch(/Ivycandy Hair$/);
+    expect(m.html).toContain('href="https://buy.stripe.test/x?a=1&amp;b=2"');
+    expect(m.html).toContain("Pay now");
+    for (const bad of [undefined, "http://insecure.test/x", 'https://x.test/"onclick="y', "javascript:alert(1)"]) {
+      const n = customerInstalmentEmail({ ...base, kind: "UPCOMING", payUrl: bad });
+      expect(n.text).not.toContain("pay securely");
+      expect(n.html).not.toContain("Pay now");
+    }
+  });
+
   it("shows the test note only when given", () => {
     expect(customerInstalmentEmail({ ...base, kind: "UPCOMING" }).text).not.toContain("TEST MODE");
     const t = customerInstalmentEmail({ ...base, kind: "UPCOMING", testNote: "This would have gone to Ada <a@x.test>." });
@@ -146,6 +171,7 @@ describe("running it", () => {
     db.instalment.findMany.mockResolvedValue([row()]);
     db.task.findFirst.mockResolvedValue(null);
     send.mockResolvedValue(true);
+    payLink.mockResolvedValue(null);
   });
 
   it("does nothing while off", async () => {
@@ -179,6 +205,35 @@ describe("running it", () => {
       title: "Call Adaeze Okafor: payment is overdue", priority: "HIGH", assigneeId: "owner1", automationKey: "overdue-call:i1",
     });
     expect(audit).toHaveBeenCalledWith({ email: "automation", tenantId: "t1" }, expect.objectContaining({ action: "automation.instalment_emails" }));
+  });
+
+  it("live mode: puts a secure pay link for the amount due in the email, made as the deal owner", async () => {
+    saved(live);
+    payLink.mockResolvedValue("https://buy.stripe.test/x");
+    await runInstalmentEmails("t1", NOW);
+    expect(payLink).toHaveBeenCalledWith(
+      { id: "owner1", tenantId: "t1", email: "automation" },
+      { id: "d1", title: "Adaeze order" },
+      100,
+      "USD",
+      "https://crm.test",
+    );
+    expect(send.mock.calls[0][0].text).toContain("https://buy.stripe.test/x");
+    expect(send.mock.calls[0][0].html).toContain("Pay now");
+  });
+
+  it("live mode: still sends the reminder, without a link, when no link could be made", async () => {
+    saved(live);
+    expect(await runInstalmentEmails("t1", NOW)).toMatchObject({ sent: 1, failed: 0 });
+    expect(send.mock.calls[0][0].text).not.toContain("pay securely");
+  });
+
+  it("test mode: shows a placeholder button and creates no payment link", async () => {
+    saved(test);
+    await runInstalmentEmails("t1", NOW);
+    expect(payLink).not.toHaveBeenCalled();
+    expect(send.mock.calls[0][0].text).toContain(PAY_LINK_PREVIEW);
+    expect(send.mock.calls[0][0].text).toContain("only a placeholder");
   });
 
   it("makes no second call task while one is open", async () => {
@@ -226,5 +281,120 @@ describe("running it", () => {
     saved(live);
     db.instalment.findMany.mockResolvedValue(Array.from({ length: EMAIL_RUN_LIMIT + 25 }, (_, n) => row({ id: `i${n}` }, { instalments: [{ id: `i${n}`, position: 1, dueDate: d("2026-11-03"), amount: 100 }], amount: 100 })));
     expect((await runInstalmentEmails("t1", NOW)).sent).toBe(EMAIL_RUN_LIMIT);
+  });
+});
+
+describe("sending a reminder now", () => {
+  const live = { enabled: false, mode: "LIVE" as const, testEmail: "", brandName: "Ivycandy Hair" };
+  const test = { enabled: false, mode: "TEST" as const, testEmail: "boss@example.com", brandName: "Ivycandy Hair" };
+  const saved = (config: unknown) => db.automationSetting.findUnique.mockResolvedValue({ key: "instalment-emails", config });
+  const user = { id: "u9", email: "sam@shop.test", tenantId: "t1" };
+
+  // The same $300 deal as above; instalment i1 ($100) is 7 days late on NOW.
+  const row = (over: Record<string, unknown> = {}, dealOver: Record<string, unknown> = {}, contactOver: Record<string, unknown> = {}) => ({
+    id: "i1",
+    dueDate: d("2026-11-03"),
+    reminders: [],
+    deal: {
+      id: "d1", title: "Adaeze order", amount: 300, currency: "USD", stage: "NEGOTIATION", ownerId: "owner1", owner: { email: "sam@shop.test" }, contactId: "c1",
+      contact: { firstName: "Adaeze", lastName: "Okafor", email: "ada@customer.test", emailOptOut: false, deletedAt: null, ...contactOver },
+      payments: [],
+      instalments: [
+        { id: "i1", position: 1, dueDate: d("2026-11-03"), amount: 100 },
+        { id: "i2", position: 2, dueDate: d("2026-12-03"), amount: 100 },
+      ],
+      ...dealOver,
+    },
+    ...over,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    db.automationSetting.findUnique.mockResolvedValue(null);
+    db.instalment.findFirst.mockResolvedValue(row());
+    send.mockResolvedValue(true);
+    payLink.mockResolvedValue("https://buy.stripe.test/x");
+  });
+
+  it("works with the daily automation off: emails the customer, links the payer, logs it and refreshes the record", async () => {
+    saved(live);
+    expect(await sendReminderNow(user, "d1", "i1", NOW)).toEqual({ kind: "OVERDUE_2", test: false, to: "ada@customer.test" });
+    expect(db.instalment.findFirst.mock.calls[0][0].where).toMatchObject({ id: "i1", dealId: "d1", tenantId: "t1" });
+    expect(send.mock.calls[0][0]).toMatchObject({ to: "ada@customer.test", replyTo: "sam@shop.test" });
+    expect(send.mock.calls[0][0].text).toContain("https://buy.stripe.test/x");
+    expect(payLink.mock.calls[0][0]).toEqual({ id: "u9", tenantId: "t1", email: "sam@shop.test" });
+    expect(db.instalmentReminder.upsert.mock.calls[0][0]).toMatchObject({
+      where: { instalmentId_kind_test: { instalmentId: "i1", kind: "OVERDUE_2", test: false } },
+      create: { tenantId: "t1", instalmentId: "i1", kind: "OVERDUE_2", test: false, recipient: "ada@customer.test" },
+    });
+    expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ authorId: "u9", contactId: "c1", dealId: "d1" });
+    expect(db.task.create).not.toHaveBeenCalled(); // the person pressing the button is the follow-up
+  });
+
+  it("picks the notice from how late it is", async () => {
+    saved(live);
+    db.instalment.findFirst.mockResolvedValue(row({ dueDate: d("2026-11-09") }));
+    expect((await sendReminderNow(user, "d1", "i1", NOW)).kind).toBe("OVERDUE_1");
+    db.instalment.findFirst.mockResolvedValue(row({ dueDate: d("2026-12-03") }));
+    expect((await sendReminderNow(user, "d1", "i1", NOW)).kind).toBe("UPCOMING");
+  });
+
+  it("test mode: goes to the test address, creates no link and logs nothing on the customer", async () => {
+    saved(test);
+    expect(await sendReminderNow(user, "d1", "i1", NOW)).toEqual({ kind: "OVERDUE_2", test: true, to: "boss@example.com" });
+    expect(send.mock.calls[0][0].to).toBe("boss@example.com");
+    expect(payLink).not.toHaveBeenCalled();
+    expect(db.instalmentReminder.upsert.mock.calls[0][0].create).toMatchObject({ test: true, recipient: "boss@example.com" });
+    expect(db.activity.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses in test mode with no test address, so nothing can reach a customer by mistake", async () => {
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ status: 422, code: "REMINDERS_NOT_LIVE" });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("refuses a missing instalment, a lost deal, no email, an opt-out and an instalment already paid", async () => {
+    saved(live);
+    db.instalment.findFirst.mockResolvedValue(null);
+    await expect(sendReminderNow(user, "d1", "nope", NOW)).rejects.toMatchObject({ status: 404 });
+    db.instalment.findFirst.mockResolvedValue(row({}, { stage: "CLOSED_LOST" }));
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ code: "DEAL_LOST" });
+    db.instalment.findFirst.mockResolvedValue(row({}, {}, { email: null }));
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ code: "NO_EMAIL" });
+    db.instalment.findFirst.mockResolvedValue(row({}, {}, { emailOptOut: true }));
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ code: "OPTED_OUT" });
+    db.instalment.findFirst.mockResolvedValue(row({}, { payments: [{ amount: 100 }] }));
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ code: "NOTHING_DUE" });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("refuses a repeat within an hour, then allows it", async () => {
+    saved(live);
+    const at = (ms: number) => new Date(NOW.getTime() - ms);
+    db.instalment.findFirst.mockResolvedValue(row({ reminders: [{ kind: "OVERDUE_1", sentAt: at(MANUAL_RESEND_MS - 1000) }] }));
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ status: 429, code: "RECENTLY_SENT" });
+    expect(send).not.toHaveBeenCalled();
+    db.instalment.findFirst.mockResolvedValue(row({ reminders: [{ kind: "OVERDUE_1", sentAt: at(MANUAL_RESEND_MS + 1000) }] }));
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).resolves.toMatchObject({ kind: "OVERDUE_2" });
+  });
+
+  it("records nothing and reports an error when the provider rejects the email", async () => {
+    saved(live);
+    send.mockResolvedValue(false);
+    await expect(sendReminderNow(user, "d1", "i1", NOW)).rejects.toMatchObject({ status: 502, code: "EMAIL_FAILED" });
+    expect(db.instalmentReminder.upsert).not.toHaveBeenCalled();
+    expect(db.activity.create).not.toHaveBeenCalled();
+  });
+
+  it("lists a deal's reminders newest first, scoped to the business and the deal", async () => {
+    db.instalmentReminder.findMany.mockResolvedValue([
+      { id: "r1", kind: "OVERDUE_1", test: false, recipient: "ada@customer.test", sentAt: NOW, instalment: { position: 1, dueDate: d("2026-11-03") } },
+    ]);
+    expect(await reminderHistory("t1", "d1")).toEqual([
+      { id: "r1", kind: "OVERDUE_1", test: false, recipient: "ada@customer.test", sentAt: NOW, position: 1, dueDate: d("2026-11-03") },
+    ]);
+    const q = db.instalmentReminder.findMany.mock.calls[0][0];
+    expect(q.where).toEqual({ tenantId: "t1", instalment: { tenantId: "t1", dealId: "d1" } });
+    expect(q.orderBy).toEqual({ sentAt: "desc" });
   });
 });

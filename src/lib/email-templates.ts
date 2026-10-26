@@ -220,6 +220,8 @@ export type CustomerInstalmentMail = {
   dueDate: Date;
   daysLate: number;
   kind: "UPCOMING" | "OVERDUE_1" | "OVERDUE_2";
+  /** A secure online payment link for this amount. Only https links are shown. */
+  payUrl?: string;
   /** Test mode only: who would really have received this. Shown at the top of the email. */
   testNote?: string;
 };
@@ -241,6 +243,7 @@ export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
   const hi = `Hi ${oneLine(d.firstName)},`;
   const bye = `Thank you,\n${d.brand}`;
   const reply = "If you have any questions, just reply to this email.";
+  const payUrl = d.payUrl && /^https:\/\/[^\s"'<>]+$/.test(d.payUrl) ? d.payUrl : null;
 
   let subject: string;
   let title: string;
@@ -248,24 +251,25 @@ export function customerInstalmentEmail(d: CustomerInstalmentMail): Rendered {
   if (d.kind === "UPCOMING") {
     subject = `Payment reminder: ${amt} due ${date}`;
     title = "Payment reminder";
-    body = `${hi}\n\nThis is a friendly reminder that your next instalment of ${amt} for "${deal}" is due on ${date}.\n\nIf you have already paid, thank you, and please ignore this message. ${reply}\n\n${bye}`;
+    body = `${hi}\n\nThis is a friendly reminder that your next instalment of ${amt} for "${deal}" is due on ${date}.\n\nIf you have already paid, thank you, and please ignore this message. ${reply}`;
   } else if (d.kind === "OVERDUE_1") {
     subject = `Your payment of ${amt} was due on ${date}`;
     title = "Payment overdue";
-    body = `${hi}\n\nWe have not yet received your instalment of ${amt} for "${deal}", which was due on ${date}.\n\nIf you have already paid, thank you, and please let us know so we can check. Otherwise, please arrange the payment as soon as you can. If anything is in the way, reply to this email and we will help.\n\n${bye}`;
+    body = `${hi}\n\nWe have not yet received your instalment of ${amt} for "${deal}", which was due on ${date}.\n\nIf you have already paid, thank you, and please let us know so we can check. Otherwise, please arrange the payment as soon as you can. If anything is in the way, reply to this email and we will help.`;
   } else {
     subject = `Second reminder: ${amt} is overdue`;
     title = "Payment overdue";
-    body = `${hi}\n\nYour instalment of ${amt} for "${deal}" is now ${d.daysLate} days overdue (it was due on ${date}).\n\nPlease arrange the payment, or reply to this email to tell us when we can expect it. If you have already paid, please send us the details so we can match it to your order.\n\n${bye}`;
+    body = `${hi}\n\nYour instalment of ${amt} for "${deal}" is now ${d.daysLate} days overdue (it was due on ${date}).\n\nPlease arrange the payment, or reply to this email to tell us when we can expect it. If you have already paid, please send us the details so we can match it to your order.`;
   }
 
   const note = d.testNote ? `[TEST MODE] ${d.testNote}` : "";
+  const text = `${body}\n\n${payUrl ? `You can pay securely online here:\n${payUrl}\n\n` : ""}${bye}`;
   return {
     subject: oneLine(subject),
-    text: note ? `${note}\n\n${body}` : body,
+    text: note ? `${note}\n\n${text}` : text,
     html: layout(
       title,
-      `${note ? `<p style="margin:0 0 14px;padding:8px 10px;background:#fef3c7;border-radius:6px;font-size:13px">${esc(note)}</p>` : ""}${textToHtml(body)}`,
+      `${note ? `<p style="margin:0 0 14px;padding:8px 10px;background:#fef3c7;border-radius:6px;font-size:13px">${esc(note)}</p>` : ""}${textToHtml(body)}${payUrl ? button(esc(payUrl), "Pay now") : ""}${textToHtml(bye)}`,
       d.brand,
     ),
   };

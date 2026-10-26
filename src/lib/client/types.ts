@@ -184,6 +184,20 @@ export type PaymentLink = {
 
 export type PaymentLinksView = { configured: boolean; links: PaymentLink[] };
 
+export type ReminderKind = "UPCOMING" | "OVERDUE_1" | "OVERDUE_2";
+
+export type InstalmentReminder = {
+  id: string;
+  kind: ReminderKind;
+  test: boolean;
+  recipient: string;
+  sentAt: string;
+  position: number;
+  dueDate: string;
+};
+
+export type RemindersView = { mode: "TEST" | "LIVE"; canEmail: boolean; reminders: InstalmentReminder[] };
+
 export type InstalmentStatus = {
   id: string;
   position: number;

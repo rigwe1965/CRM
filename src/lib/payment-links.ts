@@ -5,7 +5,7 @@ import { platformDb } from "@/lib/platform-db";
 import { withTenant } from "@/lib/tenant-context";
 import { ApiError } from "@/lib/api";
 import { audit } from "@/lib/audit";
-import { ONLINE_CURRENCIES, stripe, toMinorUnits } from "@/lib/stripe";
+import { ONLINE_CURRENCIES, stripe, stripeConfigured, toMinorUnits } from "@/lib/stripe";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -107,6 +107,40 @@ export async function createPaymentLink(
     await db.paymentLink.update({ where: { id: link.id, tenantId: user.tenantId }, data: { status: "CANCELLED" } }).catch(() => undefined);
     console.error("stripe payment link failed", e instanceof Error ? e.message : e);
     throw new ApiError(502, "The payment link could not be created. Please try again.", "PAYMENT_PROVIDER_FAILED");
+  }
+}
+
+/**
+ * The pay link for a reminder email about one instalment: the deal's open link for exactly that amount if
+ * there is one (so repeated reminders never pile up links that each reserve part of the balance), otherwise
+ * a new one. Never throws: without online payment (no Stripe keys, a currency Stripe is not used for, a
+ * Stripe error, an amount the open links already cover) it returns null and the reminder goes out without a link.
+ */
+export async function reminderPayLink(
+  user: { id: string; tenantId: string; email?: string | null },
+  deal: { id: string; title: string },
+  amountDue: number,
+  currency: string,
+  baseUrl: string,
+): Promise<string | null> {
+  if (!(ONLINE_CURRENCIES as readonly string[]).includes(currency) || amountDue <= 0) return null;
+  try {
+    if (!(await stripeConfigured(user.tenantId))) return null;
+    const open = await db.paymentLink.findFirst({
+      where: { tenantId: user.tenantId, dealId: deal.id, status: "PENDING", currency, amount: amountDue, url: { not: null } },
+      select: { url: true },
+      orderBy: { createdAt: "desc" },
+    });
+    if (open?.url) return open.url;
+    const link = await createPaymentLink(user, deal, { amount: amountDue, note: "Payment reminder" }, baseUrl);
+    await audit(
+      { id: user.id, email: user.email || "automation", tenantId: user.tenantId },
+      { action: "payment_link.created", entity: "deal", entityId: deal.id, summary: `${link.amount} ${link.currency} (reminder)`, data: { linkId: link.id, amount: Number(link.amount) } },
+    );
+    return link.url;
+  } catch (e) {
+    console.error("[automation] reminder pay link skipped", deal.id, e instanceof Error ? e.message : e);
+    return null;
   }
 }
 

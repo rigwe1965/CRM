@@ -363,6 +363,10 @@ export const createPaymentLinkSchema = z.object({
   note: text(200),
 });
 
+export const sendReminderSchema = z.object({
+  instalmentId: z.string().trim().min(1, "Required").max(64),
+});
+
 export const createPaymentSchema = z.object({
   amount: amount.refine((n) => n > 0, "Must be more than 0"),
   paidAt: isoDate,

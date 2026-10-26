@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, RemindersView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -357,6 +357,16 @@ export const useCreatePaymentLink = (dealId: string) =>
 
 export const useCancelPaymentLink = (dealId: string) =>
   usePaymentMutation((linkId: string) => request("DELETE", `/api/deals/${dealId}/payment-links/${linkId}`));
+
+export function useReminders(dealId: string) {
+  return useQuery({
+    queryKey: ["deals", "reminders", dealId],
+    queryFn: async () => (await request<{ data: RemindersView }>("GET", `/api/deals/${dealId}/reminders`)).data,
+  });
+}
+
+export const useSendReminder = (dealId: string) =>
+  usePaymentMutation((instalmentId: string) => request("POST", `/api/deals/${dealId}/reminders`, { instalmentId }));
 
 export const useSaveSchedule = (dealId: string) =>
   usePaymentMutation((instalments: { dueDate: string; amount: number }[]) =>

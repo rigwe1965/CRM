@@ -24,11 +24,13 @@ import {
   useItem,
   usePaymentLinks,
   usePayments,
+  useReminders,
   useSave,
   useSaveSchedule,
   useSendContactEmail,
+  useSendReminder,
 } from "@/lib/client/hooks";
-import type { Activity, Contact, Deal, InstalmentStatus, PaymentLink, PaymentMethod, PaymentsView } from "@/lib/client/types";
+import type { Activity, Contact, Deal, InstalmentStatus, PaymentLink, PaymentMethod, PaymentsView, ReminderKind } from "@/lib/client/types";
 import { whatsappUrl } from "@/lib/client/whatsapp";
 import { cn } from "@/lib/utils";
 import { nullable, useFormState } from "./form-kit";
@@ -280,6 +282,77 @@ function PaymentLinksSection({ deal, view }: { deal: Deal; view: PaymentsView })
   );
 }
 
+const REMINDER_LABEL: Record<ReminderKind, string> = { UPCOMING: "Due soon", OVERDUE_1: "Overdue", OVERDUE_2: "Second overdue" };
+
+function RemindersSection({ deal, view }: { deal: Deal; view: PaymentsView }) {
+  const { data, isLoading, error } = useReminders(deal.id);
+  const send = useSendReminder(deal.id);
+  const unpaid = view.instalments.filter((i) => i.covered < i.amount);
+  const cur = (n: number) => money(n, view.currency);
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold">Payment reminders</h3>
+      {isLoading ? (
+        <Skeleton className="h-12" />
+      ) : error || !data ? (
+        <p className="text-sm text-destructive">Could not load reminders.</p>
+      ) : (
+        <>
+          {data.mode === "TEST" && (
+            <p className="text-xs text-muted-foreground">Reminder emails are in test mode: they go to your test address, not to the customer. An admin switches them to Live in Settings → Automations.</p>
+          )}
+          {!data.canEmail && <p className="text-xs text-muted-foreground">This customer has no email address, or has asked not to be emailed.</p>}
+          {unpaid.length > 0 && data.canEmail && (
+            <ul className="divide-y rounded-md border">
+              {unpaid.map((i) => (
+                <li key={i.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span>
+                    <span className="text-muted-foreground">#{i.position}</span> · {dateOnly(i.dueDate)} · <span className="tabular-nums">{cur(i.amount - i.covered)}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={send.isPending}
+                    onClick={() =>
+                      send.mutate(i.id, {
+                        onSuccess: () => toast.success(data.mode === "TEST" ? "Test reminder sent to your test address" : "Reminder emailed to the customer"),
+                        onError: (e) => toast.error(errorMessage(e)),
+                      })
+                    }
+                  >
+                    <Mail /> Send reminder now
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {data.reminders.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No reminder emails sent yet.</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {data.reminders.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {REMINDER_LABEL[r.kind]} · instalment #{r.position}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {dateOnly(r.sentAt)} · to {r.recipient}
+                    </p>
+                  </div>
+                  {r.test && <Badge variant="secondary">Test</Badge>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
   const dealId = deal.id;
   const cur = (n: number) => money(n, view.currency);
@@ -341,6 +414,8 @@ function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
       </section>
 
       <PaymentLinksSection deal={deal} view={view} />
+
+      {view.instalments.length > 0 && <RemindersSection deal={deal} view={view} />}
 
       <ScheduleSection dealId={dealId} view={view} />
     </div>

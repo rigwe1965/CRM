@@ -19,6 +19,7 @@ import {
   invoiceListQuery,
   organizationListQuery,
   scheduleSchema,
+  sendReminderSchema,
   taskListQuery,
   updateActivitySchema,
   sendContactEmailSchema,
@@ -102,6 +103,8 @@ const OPERATIONS: Op[] = [
   { method: "get", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Online payment links for a deal", description: "Returns `{ configured, links }`. `configured` is false until the Stripe keys are set." },
   { method: "post", path: "/deals/{id}/payment-links", tag: "Payments", summary: "Create a Stripe payment link", description: "Amount defaults to everything left to collect and cannot exceed it; open links count as collected. USD and EUR deals only (422 CURRENCY_NOT_SUPPORTED). 503 PAYMENTS_NOT_CONFIGURED without Stripe keys, 502 PAYMENT_PROVIDER_FAILED if Stripe rejects it. When the customer pays, Stripe calls the webhook and a DIGITAL payment is recorded automatically.", body: createPaymentLinkSchema, success: 201 },
   { method: "delete", path: "/deals/{id}/payment-links/{linkId}", tag: "Payments", summary: "Cancel an open payment link", description: "Switches the link off at Stripe. 409 LINK_NOT_OPEN if it was already paid or closed. Returns the updated `{ configured, links }`." },
+  { method: "get", path: "/deals/{id}/reminders", tag: "Payments", summary: "Payment reminder emails sent for a deal", description: "Returns `{ mode, canEmail, reminders }`, newest first. `mode` is TEST (emails go to the admin's test address) or LIVE (to the customer). `canEmail` is false when the customer has no email address or has opted out." },
+  { method: "post", path: "/deals/{id}/reminders", tag: "Payments", summary: "Send a payment reminder for one instalment now", description: "The notice follows how late the instalment is. In TEST mode it goes to the test address, not the customer. 422 if the instalment is paid, the deal is lost, the customer has no email or has opted out; 429 RECENTLY_SENT within an hour of the last reminder for it. Returns the updated `{ mode, canEmail, reminders }`.", body: sendReminderSchema, success: 201 },
   { method: "put", path: "/deals/{id}/schedule", tag: "Payments", summary: "Replace the instalment schedule", description: "Send an empty `instalments` list to clear it. Returns the updated payments view. 422 if the instalments total more than the deal amount.", body: scheduleSchema },
   // Stock
   { method: "get", path: "/stock", tag: "Stock", summary: "Stock on hand per product, colour and length", description: "On hand = pieces bought (lines of SENT and PAID invoices) - pieces sold (items on PROPOSAL, NEGOTIATION and CLOSED_WON deals) + manual adjustments, matched case-insensitively on product, colour and length. Each row lists its adjustments and the invoices it came from. `unmatched` lists sold items that matched no invoice line." },
