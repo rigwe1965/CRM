@@ -9,7 +9,7 @@ Think of a **lemonade stand**. You **buy** lemons (money goes out) and **sell** 
 Ivycandy Hair buys hair from suppliers in Asia and sells it to customers, who mostly pay in instalments. The CRM is an organised notebook that never forgets and does the maths:
 
 | In the business | Where it lives in the CRM |
-|---|---|
+| --- | --- |
 | A person who buys or asks | **Contacts** |
 | A shop or company | **Companies** |
 | A sale, with the hair ordered | **Deals** (with line items) |
@@ -35,6 +35,7 @@ Ivycandy Hair buys hair from suppliers in Asia and sells it to customers, who mo
 Running example: **Adaeze Okafor**, Eisenbahnstr. 7, 79576 Weil am Rhein, Germany, phone +4915906462275. She bought Bounce Curl 12" and Pixie Curl 16", total $300.
 
 ### 3.1 Add a customer (Contacts)
+
 1. Go to **Contacts**, then **New contact**.
 2. Fill in name, phone and email. Set type to **Customer**.
 3. Fill in the **address** fields (street, city, state, postal code, country).
@@ -43,6 +44,7 @@ Running example: **Adaeze Okafor**, Eisenbahnstr. 7, 79576 Weil am Rhein, German
 *Example:* Adaeze is saved with her German address. It shows on her contact page.
 
 ### 3.2 Register a sale (Deals)
+
 1. Go to **Deals**, then **New deal**. Pick the contact.
 2. Under **Items**, add one line per product: product, colour, length, quantity, price. The deal amount is the total of the lines.
 3. Choose the **currency**. Set the **stage**: Qualification, Discovery, Proposal, Negotiation, Closed Won or Closed Lost.
@@ -51,12 +53,14 @@ Running example: **Adaeze Okafor**, Eisenbahnstr. 7, 79576 Weil am Rhein, German
 *Example:* Deal "Adaeze Okafor order". Line 1: Bounce Curl, 12". Line 2: Pixie Curl, 16". Total $300.
 
 ### 3.3 Record payments and instalments
+
 1. On the deal card, open the menu and choose **Payments**.
 2. **Add payment:** amount, date, method (Bank transfer, Cash, Digital, Other).
 3. Optional: **Set schedule** to split the price into instalments with due dates.
 4. The card shows **paid**, **balance** and **overdue**.
 
 Rules to know:
+
 - Payments are applied to instalments **oldest first**.
 - An instalment is **overdue** if it is not covered and its due date has passed. Due *today* is not overdue.
 - You cannot pay more than the deal total. The deal total cannot drop below what is already paid.
@@ -64,6 +68,7 @@ Rules to know:
 *Example:* Total $300, three instalments of $100. Adaeze pays $100 now. Paid $100, balance $200, next due next month.
 
 **Online payment links (USD and EUR deals).** In the deal's **Payments**, under **Payment links**, enter an amount (blank = everything still owed) and click **Create payment link**. Copy it, or send it by WhatsApp or email from the same row. The customer pays on a Stripe page; the payment then appears under **Payments received** by itself (method Digital, marked "paid online") and the balance, instalments and dashboard update. Notes:
+
 - Open links count as collected, so links can never add up to more than the balance. **Cancel link** frees the amount.
 - Each link takes one payment only.
 - If a customer pays a link after the balance has dropped (for example you recorded a bank transfer meanwhile), the CRM does **not** record it. The link shows **Refund needed** and an urgent task is created for the deal owner: refund it in the Stripe dashboard.
@@ -71,7 +76,9 @@ Rules to know:
 - Needs the Stripe keys (see `TECHNICIAN.md`). Until then the section says online payment is not set up.
 
 ### 3.4 Add a supplier invoice (Invoices)
+
 Three ways:
+
 - **By hand:** **Invoices**, **New**. Fill in number, supplier, billed-to, and the lines.
 - **Import:** **Import** and choose a CSV or Excel file. Lines are read and a form opens prefilled. You must still fill in the invoice number, supplier and billed-to, then click create. An error banner appears if one is missing.
 - **Print:** open an invoice and click **Print**.
@@ -79,11 +86,13 @@ Three ways:
 *Example:* `PI-20250807-001` from Yuzhou City Xiao Yuan is the sample (36 lines, 59 pieces, deal price $7,309). The printed subtotal says 7,945 but the lines add to 7,941, so check supplier sheets against the lines.
 
 ### 3.5 Stock on hand (Stock)
+
 The **Stock** page compares what you bought (invoices) with what you sold (deals in Proposal, Negotiation or Closed Won). Lines are matched on **product + colour + length**, ignoring capital letters.
 
 *Example:* Adaeze's deal has no colour or length that matches an invoice line, so it appears under **unmatched**. To fix, enter colour and length on the deal items exactly as on the invoice.
 
 ### 3.6 Tasks, activities and reminders
+
 - **Tasks:** things to do with a due date and priority. A daily email reminds the owner.
 - **Activities:** a log of notes, calls, emails and meetings on a contact or deal.
 - **Instalment reminders:** a daily email goes out for instalments that are due.
@@ -99,7 +108,7 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
     - **`payment_reminder_upcoming`**: "Hi {{1}}, this is a friendly reminder from Ivycandy Hair that your instalment of {{2}} is due on {{3}}. If you have already paid, thank you, and please ignore this message. To pay or ask a question: {{4}}" followed by a new line and "Thank you."
     - **`payment_reminder_overdue`**: "Hi {{1}}, we have not yet received your instalment of {{2}} to Ivycandy Hair, which was due on {{3}}. If you have already paid, thank you, and please let us know so we can check. Otherwise, please arrange the payment as soon as you can. To pay or ask a question: {{4}}" followed by a new line and "Thank you."
     - **`payment_reminder_final`**: "Hi {{1}}, your instalment of {{2}} to Ivycandy Hair (due {{3}}) is now overdue, and this is our second reminder. Please arrange the payment, or reply to tell us when we can expect it. If you have already paid, please send us the details so we can match it to your order. To pay or ask a question: {{4}}" followed by a new line and "Thank you."
-    - **What fills the slots:** {{1}} first name, {{2}} amount (for example $100.00), {{3}} due date (2026-11-03), {{4}} the secure pay link, or "just reply to this message" when no pay link can be made. When Meta asks for example values, give: Ada, $100.00, 2026-11-03, https://example.com/pay. Do not move a slot to the very start or end of the text; Meta rejects that.
+    - **What fills the slots:** {{1}} first name, {{2}} amount (for example $100.00), {{3}} due date (2026-11-03), {{4}} the secure pay link, or "just reply to this message" when no pay link can be made. When Meta asks for example values, give: Ada, $100.00, 2026-11-03, `https://example.com/pay`. Do not move a slot to the very start or end of the text; Meta rejects that.
     - **First check:** switch the mode to Test, enter your own WhatsApp number as the test number, save, open a deal with an unpaid instalment and press **Send on WhatsApp** (the contact needs the WhatsApp box ticked and a number). The template message arrives on your phone. A refused message shows Meta's reason, usually that a template is not approved yet or its name is spelled differently.
   - **Reminders on a deal:** open a deal’s **Payments** screen. **Payment reminders** lists every reminder email sent for it, and **Send reminder now** emails one unpaid instalment straight away (the notice matches how late it is). It follows the same Test/Live mode, skips customers who opted out, and will not send the same instalment twice within an hour. Admins see every deal; other users see their own.
     - It starts in **test mode**: every email goes to an address you choose, marked [TEST] with who would really have received it, and nothing else changes. Read a few, then switch to **Live**.
@@ -119,6 +128,7 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
 *Example:* Task "Call Adaeze about 2nd instalment", due Friday, priority High.
 
 ### 3.7 Read the Dashboard
+
 - **Stock spend:** what you paid suppliers.
 - **Cash flow:** **collected** (paid so far), **owed** (balance customers still owe) and **overdue**, plus estimated profit.
 - Money is shown **per currency**. USD and EUR are never added together.
@@ -127,6 +137,7 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
 *Example:* Collected $100, owed $5,000 across 2 deals, overdue $0.
 
 ### 3.8 Export your data (CSV and PDF)
+
 - **Export button.** Most pages (Companies, Deals, Invoices, Stock, Tasks, Activities, Dashboard) have an **Export** button next to the page title. It downloads a CSV file that opens in Excel or Google Sheets. It exports what your current search and filters show, and you see the number of rows before it downloads. On **Deals**, the menu also has deal items, payments and instalments; on **Invoices**, the invoice lines. The **Stock** file is always the whole stock list, because the search box only filters the screen.
 - **Export only the rows you choose.** On Contacts, Companies, Deals, Invoices, Tasks and Activities the Export menu has **Choose rows: …** next to **All matching: …**. Choose rows opens a list of what the page is showing with nothing ticked: tick the rows you want (or **Tick all shown**), untick any time, and the button shows how many will be downloaded. It lists the first 100 rows of your current search; use the page's search to narrow it first. Only the ticked rows go into the file. It is also in **Stock** (pick stock rows), on **Invoices → Invoice lines** (tick invoices, get their lines) and on **Deals → Deal items / Payments / Instalments** (tick deals, get those deals' items, payments or instalments).
 - **Choose which invoice lines go into the PDF.** On an invoice with more than one line, **Choose lines (PDF)** lists every line, all ticked: untick the ones to leave out. The PDF then shows only those lines, with their own subtotal and a "Partial copy" note instead of the full invoice total and shipping.
@@ -138,6 +149,7 @@ The **Stock** page compares what you bought (invoices) with what you sold (deals
 - A text cell that starts with `=`, `+`, `-` or `@` (for example a phone number such as `+234 …`) gets a `'` in front of it in the file. That is deliberate: it stops a spreadsheet from running it as a formula.
 
 ### 3.9 Starting the CRM: normal or fast
+
 - **`start-crm.bat`** is the normal start. It is the development server: slower (a page can take half a second, and the first visit to each page a few seconds while it compiles), but it prints emails (invitations, password resets) to its window and needs no setup.
 - **`start-crm-fast.bat`** runs the same CRM as a finished build: pages open about **6 times faster** and there are no compile pauses. The first start, and the first start after any code change, builds for about a minute; after that it starts at once. Close the normal window first, because both use the same address (`localhost:3001`).
 - **Before using fast mode, turn on two-step verification for the admin account** (Settings → Security). In fast mode an admin without it only gets a Sales-level view of their own data until they do.
