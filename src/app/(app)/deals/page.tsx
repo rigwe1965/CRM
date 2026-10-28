@@ -111,7 +111,7 @@ function DealCard({
         menu={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="-mr-1.5 -mt-1 h-6 w-6 shrink-0" aria-label={`Actions for ${deal.title}`} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="-mr-1.5 -mt-1 h-6 w-6 shrink-0 [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9" aria-label={`Actions for ${deal.title}`} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
@@ -161,7 +161,7 @@ function Column({
           <h2 className="text-sm font-semibold">{stage.label}</h2>
           <span className="rounded-full bg-background px-1.5 text-xs text-muted-foreground tabular-nums">{deals.length}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onAdd} aria-label={`Add deal to ${stage.label}`}>
+        <Button variant="ghost" size="icon" className="h-6 w-6 [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9" onClick={onAdd} aria-label={`Add deal to ${stage.label}`}>
           <Plus />
         </Button>
       </header>

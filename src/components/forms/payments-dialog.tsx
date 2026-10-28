@@ -391,7 +391,7 @@ function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="Deal amount" value={cur(view.dealAmount)} />
         <Stat label="Paid" value={cur(summary.paid)} tone="good" />
         <Stat label="Balance" value={cur(summary.balance)} tone={summary.overdue ? "bad" : undefined} />
