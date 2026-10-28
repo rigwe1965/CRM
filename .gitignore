@@ -38,3 +38,4 @@ next-env.d.ts
 # env (keep .env.example)
 .env
 .env*
+!.env.example
