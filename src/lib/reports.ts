@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { OwnerScope } from "@/lib/access";
 import { addMoney, type MoneyMap } from "@/lib/money";
@@ -45,6 +45,25 @@ export function averageDaysToPay(deals: { amount: number; createdAt: Date; payme
   return { average: days.length ? round1(days.reduce((s, n) => s + n, 0) / days.length) : null, deals: days.length };
 }
 
+/**
+ * `averageDaysToPay` computed in the database: a running total of each won deal's payments finds the one that
+ * completed it, so no deal or payment rows are loaded however long the history. Same rules as the function above.
+ */
+export async function averageDaysToPayInDb(owned: OwnerScope) {
+  const owner = Prisma.sql`AND d."tenantId" = ${owned.tenantId} ${owned.ownerId ? Prisma.sql`AND d."ownerId" = ${owned.ownerId}` : Prisma.empty}`;
+  const [row] = await db.$queryRaw<{ n: number; avg: unknown }[]>`
+    WITH running AS (
+      SELECT d.id, d.amount, d."createdAt", p."paidAt",
+             SUM(p.amount) OVER (PARTITION BY d.id ORDER BY p."paidAt", p.id) AS cum
+      FROM "Deal" d JOIN "Payment" p ON p."dealId" = d.id
+      WHERE d."deletedAt" IS NULL AND d.stage::text = 'CLOSED_WON' AND d.amount > 0 ${owner}
+    ), done AS (
+      SELECT DISTINCT ON (id) "createdAt", "paidAt" FROM running WHERE cum + 0.005 >= amount ORDER BY id, "paidAt"
+    )
+    SELECT COUNT(*)::int AS n, AVG(GREATEST(0, EXTRACT(EPOCH FROM ("paidAt" - "createdAt")) / 86400)) AS avg FROM done`;
+  return { average: row.n ? round1(Number(row.avg)) : null, deals: row.n };
+}
+
 /** Best sellers by pieces, with what they brought in per currency. */
 export function topProducts(items: { productType: string; quantity: number; unitPrice: number; currency: string }[], limit = 8) {
   const by = new Map<string, { product: string; pieces: number; revenue: MoneyMap }>();
@@ -80,15 +99,12 @@ export async function buildReports(owned: OwnerScope, monthsBack: number, now = 
   const from = new Date(`${months[0]}-01T00:00:00.000Z`);
   const liveDeal: Prisma.DealWhereInput = { deletedAt: null, ...owned };
 
-  const [payments, wonDeals, wonItems, contacts] = await Promise.all([
+  const [payments, daysToPay, wonItems, contacts] = await Promise.all([
     db.payment.findMany({
       where: { tenantId: owned.tenantId, paidAt: { gte: from }, deal: liveDeal },
       select: { amount: true, paidAt: true, deal: { select: { currency: true } } },
     }),
-    db.deal.findMany({
-      where: { ...liveDeal, stage: "CLOSED_WON" },
-      select: { amount: true, createdAt: true, payments: { select: { amount: true, paidAt: true } } },
-    }),
+    averageDaysToPayInDb(owned),
     db.dealItem.findMany({
       where: { deal: { ...liveDeal, stage: "CLOSED_WON", closedAt: { gte: from } } },
       select: { productType: true, quantity: true, unitPrice: true, deal: { select: { currency: true } } },
@@ -102,9 +118,7 @@ export async function buildReports(owned: OwnerScope, monthsBack: number, now = 
       payments.map((p) => ({ amount: Number(p.amount), paidAt: p.paidAt, currency: p.deal.currency })),
       months,
     ),
-    daysToPay: averageDaysToPay(
-      wonDeals.map((d) => ({ amount: Number(d.amount), createdAt: d.createdAt, payments: d.payments.map((p) => ({ amount: Number(p.amount), paidAt: p.paidAt })) })),
-    ),
+    daysToPay,
     topProducts: topProducts(wonItems.map((i) => ({ productType: i.productType, quantity: i.quantity, unitPrice: Number(i.unitPrice), currency: i.deal.currency }))),
     leadsBySource: leadsBySource(contacts),
   };
