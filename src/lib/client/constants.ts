@@ -86,7 +86,7 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 
 export const paymentMethodLabel = (m: PaymentMethod) => PAYMENT_METHODS.find((x) => x.value === m)?.label ?? m;
 
-export const CURRENCIES = ["USD", "EUR", "GBP", "NGN"] as const;
+export const CURRENCIES = ["USD", "EUR", "GBP", "NGN", "CAD", "AUD", "ZAR", "GHS", "KES", "AED"] as const;
 
 /** The standard currencies, plus the record's current one if it is something else (e.g. CNY). */
 export const currencyOptions = (current?: string | null) =>

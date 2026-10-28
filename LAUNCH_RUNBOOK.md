@@ -37,7 +37,10 @@ Generate each with `openssl rand -base64 32`, and set them on Production only.
 - [ ] Set the real prices and limits in `src/lib/plans.ts` (the numbers there are placeholders). That is a code change, so it needs an approved plan.
 - [ ] Set `BILLING_STRIPE_SECRET_KEY` to the live key.
 - [ ] Add the webhook endpoint `https://<domain>/api/webhooks/billing` for `customer.subscription.created`, `.updated` and `.deleted`. Set `BILLING_STRIPE_WEBHOOK_SECRET` to its signing secret.
-- [ ] Turn on the customer portal in Stripe (it is where businesses change their card or cancel).
+- [ ] Turn on the customer portal in Stripe (it is where businesses change their card or cancel). In its settings let customers update their billing address and tax ID.
+- [ ] Sell worldwide: add **currency options** to each price in Stripe (the currencies in `BILLING_CURRENCIES`, `src/lib/billing.ts`). Keep one price per plan; do not create a separate price for each currency, because the plan is recognised by its price id. Checkout picks the buyer's currency, and a business that has subscribed stays in it.
+- [ ] Switch on **Stripe Tax** in Stripe: enter the head-office address, add a tax registration for each place where you must collect tax (Stripe calculates and collects tax; it does not register you or file returns, so ask an accountant where you need to), give both products a SaaS tax code, and set each price's tax behaviour (exclusive adds tax on top; inclusive includes it). Test in test mode first.
+- [ ] Only after that, set `BILLING_AUTOMATIC_TAX=1` on Production. Before Stripe Tax is ready, leave it unset: with it on, Stripe refuses checkout.
 - [ ] Set `TRIAL_DAYS` if you want something other than 14.
 
 ## 6. Sign-up and CAPTCHA

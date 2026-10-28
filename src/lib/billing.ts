@@ -30,6 +30,61 @@ const priceOf = (plan: PlanKey) => {
 };
 const planForPrice = (priceId: string | undefined): PlanKey | undefined => PAID_PLANS.find((p) => priceId && priceOf(p) === priceId);
 
+/** Currencies a business may be asked to pay in. Each one must also be added to the plan's Stripe price (currency options). */
+export const BILLING_CURRENCIES = ["USD", "EUR", "GBP", "NGN", "CAD", "AUD", "ZAR", "GHS", "KES", "AED"] as const;
+export type BillingCurrency = (typeof BILLING_CURRENCIES)[number];
+
+/** Stripe Tax on Checkout. Off until Stripe Tax is set up in the Stripe account: Stripe refuses the session otherwise. */
+export const automaticTax = () => ["1", "true"].includes(process.env.BILLING_AUTOMATIC_TAX ?? "");
+
+/** The Checkout Session we ask Stripe for. Pure, so the tax and currency options are easy to test. */
+export function checkoutSessionParams(o: { customer: string; tenantId: string; price: string; baseUrl: string; trialEnd?: number; currency?: BillingCurrency }): Stripe.Checkout.SessionCreateParams {
+  return {
+    mode: "subscription",
+    customer: o.customer,
+    client_reference_id: o.tenantId,
+    line_items: [{ price: o.price, quantity: 1 }],
+    subscription_data: { metadata: { tenantId: o.tenantId }, ...(o.trialEnd && { trial_end: o.trialEnd }) },
+    // Stripe picks the currency from the buyer's location unless one was chosen; it must be one the price offers.
+    ...(o.currency && { currency: o.currency.toLowerCase() }),
+    ...(automaticTax() && {
+      automatic_tax: { enabled: true },
+      billing_address_collection: "required" as const,
+      // A business can enter its VAT or tax number, which usually means no VAT is charged (reverse charge).
+      tax_id_collection: { enabled: true },
+      // Tax needs the customer's address, and a tax number needs its name, saved on the existing Stripe customer.
+      customer_update: { address: "auto" as const, name: "auto" as const },
+    }),
+    success_url: `${o.baseUrl}/settings?billing=success`,
+    cancel_url: `${o.baseUrl}/settings?billing=canceled`,
+  };
+}
+
+type PriceLine = { currency: string; amount: number };
+type PriceInfo = { prices: PriceLine[]; taxExclusive: boolean };
+const PRICE_TTL = 10 * 60_000;
+const priceCache = new Map<string, { at: number; info: PriceInfo }>();
+
+/** Zero-decimal currencies (JPY) have no minor unit, so the divisor comes from the currency itself. */
+const major = (amount: number, currency: string) => amount / 10 ** (new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2);
+
+/** What a plan costs in each currency its Stripe price offers (cached; empty if Stripe can't be reached, so the screen still loads). */
+async function priceInfo(priceId: string): Promise<PriceInfo> {
+  const hit = priceCache.get(priceId);
+  if (hit && Date.now() - hit.at < PRICE_TTL) return hit.info;
+  try {
+    const p = await billingStripe().prices.retrieve(priceId, { expand: ["currency_options"] });
+    const prices: PriceLine[] = [];
+    if (p.unit_amount !== null) prices.push({ currency: p.currency.toUpperCase(), amount: major(p.unit_amount, p.currency) });
+    for (const [cur, o] of Object.entries(p.currency_options ?? {})) if (o?.unit_amount != null && cur !== p.currency) prices.push({ currency: cur.toUpperCase(), amount: major(o.unit_amount, cur) });
+    const info = { prices, taxExclusive: p.tax_behavior === "exclusive" };
+    priceCache.set(priceId, { at: Date.now(), info });
+    return info;
+  } catch {
+    return { prices: [], taxExclusive: false };
+  }
+}
+
 const finite = (n: number) => (Number.isFinite(n) ? n : null);
 
 /** The billing screen's data for the caller's business. Must run in its context. */
@@ -41,8 +96,10 @@ export async function billingView(tenantId: string) {
   const access = accessOf(t);
   const [users, contacts] = await Promise.all([db.user.count({ where: { tenantId, isActive: true } }), db.contact.count({ where: { tenantId, deletedAt: null } })]);
   const now = Date.now();
+  const configured = billingConfigured();
+  const prices = await Promise.all(PAID_PLANS.map(async (key) => (configured && priceOf(key) ? priceInfo(priceOf(key)!) : ({ prices: [], taxExclusive: false } as PriceInfo))));
   return {
-    configured: billingConfigured(),
+    configured,
     plan: planOf(t.plan),
     planLabel: PLANS[planOf(t.plan)].label,
     status: t.billingStatus,
@@ -54,8 +111,11 @@ export async function billingView(tenantId: string) {
     hasSubscription: !!t.stripeCustomerId && t.billingStatus !== "TRIALING",
     limits: { users: finite(access.limits.users), contacts: finite(access.limits.contacts) },
     usage: { users, contacts },
-    plans: PAID_PLANS.map((key) => ({
+    plans: PAID_PLANS.map((key, i) => ({
       key,
+      prices: prices[i].prices,
+      // Shown as "plus tax where it applies" when the price is set up to have tax added on top.
+      plusTax: automaticTax() && prices[i].taxExclusive,
       label: PLANS[key].label,
       limits: { users: finite(PLANS[key].limits.users), contacts: finite(PLANS[key].limits.contacts) },
       available: !!priceOf(key),
@@ -64,7 +124,7 @@ export async function billingView(tenantId: string) {
 }
 
 /** A Stripe Checkout page for subscribing to a plan. Creates the business's Stripe customer the first time. */
-export async function startCheckout(user: { id: string; tenantId: string; email?: string | null }, plan: (typeof PAID_PLANS)[number]) {
+export async function startCheckout(user: { id: string; tenantId: string; email?: string | null }, plan: (typeof PAID_PLANS)[number], currency?: BillingCurrency) {
   const price = priceOf(plan);
   if (!billingConfigured() || !price) throw new ApiError(503, "That plan cannot be bought yet.", "BILLING_NOT_CONFIGURED");
   const stripe = billingStripe();
@@ -79,16 +139,7 @@ export async function startCheckout(user: { id: string; tenantId: string; email?
   // A trial that is still running is honoured: Stripe starts charging when it would have ended (Stripe needs 48 h of notice).
   const trialEnd =
     t.billingStatus === "TRIALING" && t.trialEndsAt && t.trialEndsAt.getTime() > Date.now() + 2 * 86_400_000 ? Math.floor(t.trialEndsAt.getTime() / 1000) : undefined;
-  const base = appUrl();
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer,
-    client_reference_id: user.tenantId,
-    line_items: [{ price, quantity: 1 }],
-    subscription_data: { metadata: { tenantId: user.tenantId }, ...(trialEnd && { trial_end: trialEnd }) },
-    success_url: `${base}/settings?billing=success`,
-    cancel_url: `${base}/settings?billing=canceled`,
-  });
+  const session = await stripe.checkout.sessions.create(checkoutSessionParams({ customer, tenantId: user.tenantId, price, baseUrl: appUrl(), trialEnd, currency }));
   if (!session.url) throw new ApiError(502, "Stripe did not return a checkout page. Please try again.", "PAYMENT_PROVIDER_FAILED");
   return session.url;
 }

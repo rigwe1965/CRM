@@ -29,6 +29,7 @@ const productionEnv = z
     BILLING_STRIPE_WEBHOOK_SECRET: z.string().optional(),
     BILLING_PRICE_STARTER: z.string().optional(),
     BILLING_PRICE_PRO: z.string().optional(),
+    BILLING_AUTOMATIC_TAX: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     WHATSAPP_ACCESS_TOKEN: z.string().optional(),

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +24,11 @@ type Billing = {
   hasSubscription: boolean;
   limits: { users: number | null; contacts: number | null };
   usage: { users: number; contacts: number };
-  plans: { key: "starter" | "pro"; label: string; limits: { users: number | null; contacts: number | null }; available: boolean }[];
+  plans: { key: "starter" | "pro"; label: string; limits: { users: number | null; contacts: number | null }; available: boolean; prices: { currency: string; amount: number }[]; plusTax: boolean }[];
 };
 
 const count = (n: number | null) => (n === null ? "unlimited" : n.toLocaleString("en"));
+const money = (amount: number, currency: string) => new Intl.NumberFormat("en", { style: "currency", currency }).format(amount);
 
 /** Admin: the plan, trial or subscription, what is used against the limits, and how to pay or manage it. */
 export function BillingCard() {
@@ -34,6 +36,9 @@ export function BillingCard() {
     queryKey: ["billing"],
     queryFn: async () => (await request<{ data: Billing }>("GET", "/api/billing")).data,
   });
+  // Empty until chosen: Stripe then picks the currency from where the buyer is.
+  const [currency, setCurrency] = useState("");
+  const currencies = [...new Set((data?.plans ?? []).flatMap((p) => p.prices.map((x) => x.currency)))];
   const go = useMutation({
     mutationFn: (target: { path: string; body?: unknown }) => request<{ data: { url: string } }>("POST", target.path, target.body),
     onSuccess: (r) => {
@@ -87,12 +92,29 @@ export function BillingCard() {
             {data.plan !== "internal" && (
               <div className="space-y-3">
                 {!data.configured && <p className="text-sm text-muted-foreground">Online billing is not switched on for this CRM yet.</p>}
+                {currencies.length > 1 && (
+                  <label className="flex items-center gap-2 text-sm">
+                    Pay in
+                    <select className="h-8 rounded-md border bg-background px-2" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                      <option value="">Automatic</option>
+                      {currencies.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <div className="flex flex-wrap gap-3">
                   {data.plans.map((p) => (
                     <div key={p.key} className="min-w-48 rounded-md border p-3 text-sm">
                       <p className="font-medium">{p.label}</p>
                       <p className="text-muted-foreground">{count(p.limits.users)} users, {count(p.limits.contacts)} contacts</p>
-                      <Button className="mt-2" size="sm" variant={data.plan === p.key && data.writable && data.status === "ACTIVE" ? "outline" : "default"} disabled={!data.configured || !p.available || go.isPending || (data.hasSubscription && data.status !== "CANCELED")} onClick={() => go.mutate({ path: "/api/billing/checkout", body: { plan: p.key } })}>
+                      {p.prices.length > 0 && (
+                        <p>
+                          {money((p.prices.find((x) => x.currency === currency) ?? p.prices[0]).amount, (p.prices.find((x) => x.currency === currency) ?? p.prices[0]).currency)} / month
+                          {p.plusTax && <span className="text-muted-foreground"> plus tax where it applies</span>}
+                        </p>
+                      )}
+                      <Button className="mt-2" size="sm" variant={data.plan === p.key && data.writable && data.status === "ACTIVE" ? "outline" : "default"} disabled={!data.configured || !p.available || go.isPending || (data.hasSubscription && data.status !== "CANCELED")} onClick={() => go.mutate({ path: "/api/billing/checkout", body: { plan: p.key, ...(currency && p.prices.some((x) => x.currency === currency) && { currency }) } })}>
                         {data.plan === p.key && data.status === "ACTIVE" ? "Current plan" : `Choose ${p.label}`}
                       </Button>
                     </div>
