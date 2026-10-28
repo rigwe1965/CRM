@@ -259,10 +259,14 @@ export function useMergeContact() {
   });
 }
 
+/** Lists that change rarely (tags, templates): reuse them for 5 minutes instead of 30 seconds. */
+const SLOW_CHANGING = 5 * 60_000;
+
 export function useTags() {
   return useQuery({
     queryKey: ["tags"],
     queryFn: async () => (await request<{ data: Tag[] }>("GET", "/api/tags")).data,
+    staleTime: SLOW_CHANGING, // edits here invalidate it, so only another user's change waits
   });
 }
 
@@ -319,6 +323,7 @@ export function useEmailTemplates() {
   return useQuery({
     queryKey: ["email-templates"],
     queryFn: async () => (await request<{ data: EmailTemplate[] }>("GET", "/api/email-templates")).data,
+    staleTime: SLOW_CHANGING,
   });
 }
 
