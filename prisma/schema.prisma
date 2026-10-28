@@ -374,6 +374,7 @@ model Deal {
   @@index([contactId])
   @@index([deletedAt])
   @@index([tenantId])
+  @@index([tenantId, stage, closedAt])
 }
 
 model Activity {
@@ -405,6 +406,7 @@ model Activity {
   @@index([dealId])
   @@index([organizationId])
   @@index([tenantId])
+  @@index([tenantId, occurredAt])
 }
 
 model Task {
@@ -634,6 +636,7 @@ model Payment {
   @@index([dealId, paidAt])
   @@index([recordedById])
   @@index([tenantId])
+  @@index([tenantId, paidAt])
 }
 
 // A Stripe-hosted page where a customer pays part of a deal's balance online. Pending links reserve
