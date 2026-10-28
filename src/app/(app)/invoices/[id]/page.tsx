@@ -67,7 +67,7 @@ export default function InvoiceDetailPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Proforma invoice {inv.number}</h1>
           <p className="text-sm text-muted-foreground">Dated {dateOnly(inv.invoiceDate)}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Tone tone={status.tone}>{status.label}</Tone>
           <Button variant="outline" size="sm" className="print:hidden" onClick={() => window.print()}>
             <Printer /> Print / PDF
@@ -121,13 +121,13 @@ export default function InvoiceDetailPage() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>#</TableHead>
+              <TableHead className="hidden sm:table-cell">#</TableHead>
               <TableHead>Item</TableHead>
-              <TableHead>Color</TableHead>
+              <TableHead className="hidden sm:table-cell">Color</TableHead>
               <TableHead className="hidden md:table-cell">Density</TableHead>
               <TableHead className="text-right">Length</TableHead>
               <TableHead className="text-right">Qty</TableHead>
-              <TableHead className="text-right">Unit</TableHead>
+              <TableHead className="hidden text-right sm:table-cell">Unit</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead className="hidden text-right print:hidden lg:table-cell">Resale</TableHead>
               <TableHead className="hidden xl:table-cell">Notes</TableHead>
@@ -136,16 +136,19 @@ export default function InvoiceDetailPage() {
           <TableBody>
             {items.map((i) => (
               <TableRow key={i.id}>
-                <TableCell className="tabular-nums text-muted-foreground">{i.ref}</TableCell>
+                <TableCell className="hidden tabular-nums text-muted-foreground sm:table-cell">{i.ref}</TableCell>
                 <TableCell>
                   <p className="font-medium">{i.style}</p>
                   <p className="text-xs text-muted-foreground">{i.description}</p>
+                  <p className="text-xs text-muted-foreground sm:hidden">
+                    {i.ref} · {i.color ?? "—"} · {cur(i.unitPrice)} each
+                  </p>
                 </TableCell>
-                <TableCell>{i.color ?? "—"}</TableCell>
+                <TableCell className="hidden sm:table-cell">{i.color ?? "—"}</TableCell>
                 <TableCell className="hidden text-muted-foreground md:table-cell">{i.density ?? "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{i.lengthInches ? `${i.lengthInches}"` : "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{i.quantity}</TableCell>
-                <TableCell className="text-right tabular-nums">{cur(i.unitPrice)}</TableCell>
+                <TableCell className="hidden text-right tabular-nums sm:table-cell">{cur(i.unitPrice)}</TableCell>
                 <TableCell className="text-right font-medium tabular-nums">{cur(i.lineTotal)}</TableCell>
                 <TableCell className="hidden text-right tabular-nums print:hidden lg:table-cell">{i.resalePrice === null ? "—" : cur(i.resalePrice)}</TableCell>
                 <TableCell className="hidden text-muted-foreground xl:table-cell">{i.note ?? ""}</TableCell>

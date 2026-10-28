@@ -103,9 +103,9 @@ export default function StockPage() {
                   <TableHead>Product</TableHead>
                   <TableHead>Colour</TableHead>
                   <TableHead className="text-right">Length</TableHead>
-                  <TableHead className="text-right">Bought</TableHead>
-                  <TableHead className="text-right">Sold</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">Adjusted</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Bought</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Sold</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Adjusted</TableHead>
                   <TableHead className="text-right">On hand</TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
@@ -122,9 +122,9 @@ export default function StockPage() {
                     </TableCell>
                     <TableCell>{r.color || "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.lengthInches ? `${r.lengthInches}"` : "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.bought}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.sold}</TableCell>
-                    <TableCell className={cn("hidden text-right tabular-nums sm:table-cell", r.adjusted < 0 && "text-destructive", r.adjusted === 0 && "text-muted-foreground")}>
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">{r.bought}</TableCell>
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">{r.sold}</TableCell>
+                    <TableCell className={cn("hidden text-right tabular-nums md:table-cell",r.adjusted < 0 && "text-destructive", r.adjusted === 0 && "text-muted-foreground")}>
                       {r.adjusted > 0 ? `+${r.adjusted}` : r.adjusted}
                     </TableCell>
                     <TableCell className={cn("text-right font-semibold tabular-nums", r.onHand < 0 && "text-destructive", r.onHand === 0 && "text-muted-foreground")}>
