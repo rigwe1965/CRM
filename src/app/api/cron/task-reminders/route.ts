@@ -24,7 +24,7 @@ function authorized(req: Request) {
  * about customer instalments that are due or late, after running the daily automations (quiet-lead
  * follow-up tasks). One daily cron covers all of it.
  * Public path (no session) but requires `Authorization: Bearer $CRON_SECRET`, which Vercel Cron
- * sends automatically (see vercel.json). Safe to call repeatedly: each task is reminded once.
+ * sends automatically when a Vercel cron is configured. Safe to call repeatedly: each task is reminded once.
  */
 export async function GET(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
