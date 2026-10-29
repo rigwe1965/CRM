@@ -91,7 +91,7 @@ Notes:
 - Delivery failures never fail the action that triggered them (a stage change still succeeds); they are logged as `[mail] failed to send …`. Emailing a contact is the exception: you get an error, because sending was the whole point.
 - Set `EMAIL_FROM` to an address on a domain you have **verified in Resend** (DNS records). Resend's `onboarding@resend.dev` test sender only delivers to your own account email.
 - Contact emails are sent from `"Your Name via CRM" <EMAIL_FROM address>` with your address as Reply-To. The sender address is never spoofed, so SPF/DKIM stay aligned.
-- Reminders run once a day (`0 8 * * *` UTC in `vercel.json`; Vercel's Hobby plan only allows daily crons). On a Pro plan or any other scheduler you can run it hourly: the endpoint is idempotent. Trigger it manually with `curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/cron/task-reminders`.
+- Reminders run once a day (schedule `0 8 * * *` UTC; Vercel's Hobby plan only allows daily crons). On a Pro plan or any other scheduler you can run it hourly: the endpoint is idempotent. Trigger it manually with `curl -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/cron/task-reminders`.
 - Templates live in `src/lib/email-templates.ts`; every interpolated value is HTML-escaped.
 - Gotcha worth knowing: Next.js caches identical `POST` fetches made from `GET` route handlers. The cron route sets `fetchCache = "force-no-store"` so a repeated, identical email is never swallowed. Keep that line if you add other mail-sending `GET` handlers.
 
@@ -127,7 +127,7 @@ The server **checks this list at startup** (`src/instrumentation.ts`) and exits 
 
 ### 3. Deploy
 
-1. Push the repo to GitHub and import it in Vercel (framework: Next.js; `vercel.json` sets the build command).
+1. Push the repo to GitHub and import it in Vercel (framework: Next.js; set the build command to `npm run vercel-build`).
 2. Deploy. The build runs `prisma migrate deploy && next build` (`npm run vercel-build`), so migrations are applied before the new code goes live.
 3. Verify: `curl https://your-app/api/health` returns `{"status":"ok"}`.
 
@@ -291,5 +291,4 @@ src/
     rate-limit.ts   fixed-window limiter (Upstash Redis or in-memory)
     env.ts          production environment contract
 .github/workflows/ci.yml   migrations check, typecheck, lint, build
-vercel.json         build command and the daily reminder cron
 ```
