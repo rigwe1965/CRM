@@ -1,7 +1,7 @@
 # Security Audit Log: Ivycandy Hair CRM
 
 - **Date:** 2026-10-08
-- **Scope:** whole repository at commit `710b636` (Next.js 15 App Router, Auth.js v5, Prisma/PostgreSQL, Upstash rate limiting, Resend/SMTP mail). Read: every route handler under `src/app/api`, `src/middleware.ts`, `src/lib/*`, validation schemas, `next.config.mjs`, `vercel.json`, CI, Docker, seed and scripts, the client import/API code.
+- **Scope:** whole repository at commit `710b636` (Next.js 15 App Router, Auth.js v5, Prisma/PostgreSQL, Upstash rate limiting, Resend/SMTP mail). Read: every route handler under `src/app/api`, `src/middleware.ts`, `src/lib/*`, validation schemas, `next.config.mjs`, the deployment config, CI, Docker, seed and scripts, the client import/API code.
 - **Method:** manual code review, plus `npm audit --omit=dev` (0 known vulnerabilities) and a scan of git history and tracked files for secrets (none found; `.env` was never committed).
 - **Status:** findings 1 to 3 (branch `security-fixes-1-3`) and 4 to 7 (branch `security-fixes-4-7`) and 8 to 13 (branch `security-fixes-8-13`) were fixed after the owner approved a plan (see "Fix status" under each).
 
