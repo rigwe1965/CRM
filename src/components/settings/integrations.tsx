@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Textarea } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, FormField } from "@/components/common/page";
 import { request } from "@/lib/client/api";
@@ -93,10 +94,10 @@ export function IntegrationsCard() {
             }}
           >
             <FormField label="Secret key" hint="Starts with sk_ or rk_. Not shown again after saving.">
-              <Input type="password" autoComplete="off" value={stripe.secretKey} onChange={(e) => setStripe({ ...stripe, secretKey: e.target.value })} required />
+              <PasswordInput autoComplete="off" value={stripe.secretKey} onChange={(e) => setStripe({ ...stripe, secretKey: e.target.value })} required />
             </FormField>
             <FormField label="Webhook signing secret" hint="Starts with whsec_.">
-              <Input type="password" autoComplete="off" value={stripe.webhookSecret} onChange={(e) => setStripe({ ...stripe, webhookSecret: e.target.value })} required />
+              <PasswordInput autoComplete="off" value={stripe.webhookSecret} onChange={(e) => setStripe({ ...stripe, webhookSecret: e.target.value })} required />
             </FormField>
             <div className="flex gap-2">
               <Button type="submit" disabled={save.isPending}>{data.stripe.configured ? "Replace keys" : "Save keys"}</Button>
@@ -123,16 +124,16 @@ export function IntegrationsCard() {
             }}
           >
             <FormField label="Access token" hint="A permanent system-user token.">
-              <Input type="password" autoComplete="off" value={wa.accessToken} onChange={(e) => setWa({ ...wa, accessToken: e.target.value })} required />
+              <PasswordInput autoComplete="off" value={wa.accessToken} onChange={(e) => setWa({ ...wa, accessToken: e.target.value })} required />
             </FormField>
             <FormField label="Phone number ID" hint="The number's ID in Meta (digits), not the phone number itself.">
               <Input value={wa.phoneNumberId} onChange={(e) => setWa({ ...wa, phoneNumberId: e.target.value })} required />
             </FormField>
             <FormField label="App secret" hint="Used to check that messages really come from Meta.">
-              <Input type="password" autoComplete="off" value={wa.appSecret} onChange={(e) => setWa({ ...wa, appSecret: e.target.value })} required />
+              <PasswordInput autoComplete="off" value={wa.appSecret} onChange={(e) => setWa({ ...wa, appSecret: e.target.value })} required />
             </FormField>
             <FormField label="Verify token" hint="You invent this (16+ characters) and enter the same in Meta.">
-              <Input type="password" autoComplete="off" value={wa.verifyToken} onChange={(e) => setWa({ ...wa, verifyToken: e.target.value })} required minLength={16} />
+              <PasswordInput autoComplete="off" value={wa.verifyToken} onChange={(e) => setWa({ ...wa, verifyToken: e.target.value })} required minLength={16} />
             </FormField>
             <div className="flex gap-2">
               <Button type="submit" disabled={save.isPending}>{data.whatsapp.configured ? "Replace settings" : "Save settings"}</Button>

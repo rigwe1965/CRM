@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { FormField } from "@/components/common/page";
 import { useFormState } from "@/components/forms/form-kit";
 import { request } from "@/lib/client/api";
@@ -111,7 +112,7 @@ export function MfaCard() {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">To turn it off, enter your password and a current code (or a recovery code).</p>
             <FormField label="Password">
-              <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </FormField>
             <FormField label="Code" error={form.err("code")}>
               <Input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} />

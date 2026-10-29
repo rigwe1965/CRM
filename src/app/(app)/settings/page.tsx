@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -124,10 +125,10 @@ function PasswordCard() {
             <p role="alert" className="text-sm text-destructive">{form.formError}</p>
           )}
           <FormField label="Current password" error={form.err("currentPassword")} hint="Leave blank if you have no password yet.">
-            <Input type="password" autoComplete="current-password" value={v.current} onChange={(e) => setV({ ...v, current: e.target.value })} aria-invalid={!!form.err("currentPassword")} />
+            <PasswordInput autoComplete="current-password" value={v.current} onChange={(e) => setV({ ...v, current: e.target.value })} aria-invalid={!!form.err("currentPassword")} />
           </FormField>
           <FormField label="New password" error={form.err("newPassword")} hint="At least 10 characters, with a letter and a number.">
-            <Input type="password" autoComplete="new-password" value={v.next} onChange={(e) => setV({ ...v, next: e.target.value })} aria-invalid={!!form.err("newPassword")} />
+            <PasswordInput autoComplete="new-password" value={v.next} onChange={(e) => setV({ ...v, next: e.target.value })} aria-invalid={!!form.err("newPassword")} />
           </FormField>
           {me?.mfaEnabled && (
             <FormField label="Authenticator code" error={form.err("code")} hint="The 6-digit code from your app, or a recovery code.">
@@ -135,7 +136,7 @@ function PasswordCard() {
             </FormField>
           )}
           <FormField label="Confirm new password" error={mismatch ? "Passwords do not match" : undefined}>
-            <Input type="password" autoComplete="new-password" value={v.confirm} onChange={(e) => setV({ ...v, confirm: e.target.value })} aria-invalid={mismatch} />
+            <PasswordInput autoComplete="new-password" value={v.confirm} onChange={(e) => setV({ ...v, confirm: e.target.value })} aria-invalid={mismatch} />
           </FormField>
           <Button type="submit" disabled={saving || !v.next}>
             {saving ? "Updating…" : "Change password"}

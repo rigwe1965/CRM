@@ -1,9 +1,11 @@
 import type { InputHTMLAttributes, ReactNode } from "react";
+import { PasswordInput } from "@/components/ui/password-input";
 
 export function Field({
   label,
   error,
   hint,
+  type,
   ...props
 }: { label: string; error?: string; hint?: string } & InputHTMLAttributes<HTMLInputElement>) {
   const id = props.id ?? props.name;
@@ -12,13 +14,23 @@ export function Field({
       <label htmlFor={id} className="block text-sm font-medium text-foreground">
         {label}
       </label>
-      <input
-        id={id}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${id}-error` : undefined}
-        className="block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-muted aria-[invalid=true]:border-destructive"
-        {...props}
-      />
+      {type === "password" ? (
+        <PasswordInput
+          id={id}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          {...props}
+        />
+      ) : (
+        <input
+          id={id}
+          type={type}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
+          className="block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-muted aria-[invalid=true]:border-destructive"
+          {...props}
+        />
+      )}
       {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && (
         <p id={`${id}-error`} className="text-xs text-destructive">
