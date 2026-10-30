@@ -102,7 +102,13 @@ export async function expireDue(tenantId: string, now = new Date()) {
  * Checks and saves a proposal made by Ivy's tool. `raw` is the model's input; `prepare` validates it against the
  * screens' own schemas and scope. Throws ToolError, in words the model can act on, when it should not be saved.
  */
-export async function propose(ctx: { user: SessionUser; conversationId?: string; now: Date }, kind: AiProposalKind, raw: unknown): Promise<{ id: string; preview: Preview }> {
+export async function propose(
+  ctx: { user: SessionUser; conversationId?: string; now: Date },
+  kind: AiProposalKind,
+  raw: unknown,
+  /** Server-written notes added to the card after the checked ones (for example that it was read from a picture). */
+  extra: { warning?: string } = {},
+): Promise<{ id: string; preview: Preview }> {
   const { user, conversationId, now } = ctx;
   if (!conversationId) throw new ToolError("Proposals are not available here.");
   const settings = await loadAssistantSettings(user.tenantId);
@@ -124,6 +130,7 @@ export async function propose(ctx: { user: SessionUser; conversationId?: string;
   }
 
   const prepared: Prepared = await KINDS[kind].prepare(user, raw as never);
+  if (extra.warning) prepared.preview = { ...prepared.preview, warning: [prepared.preview.warning, extra.warning].filter(Boolean).join(" ") };
   const row = await db.aiProposal.create({
     data: {
       tenantId: user.tenantId,

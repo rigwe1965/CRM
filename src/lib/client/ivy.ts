@@ -11,7 +11,7 @@ export type IvyEvent =
 export type IvyMessage = { role: "user" | "assistant"; text: string; tools: string[] };
 export type IvyChat = { id: string; title: string; stale: boolean; full: boolean; messages: IvyMessage[] };
 export type IvyChatSummary = { id: string; title: string; updatedAt: string };
-export type IvyStatus = { ready: boolean; /** Whether people may have Ivy read an invoice from a PDF or photo. */ documents?: boolean; reason: "AI_DISABLED" | "AI_NOT_CONFIGURED" | "AI_CEILING_UNSET" | "AI_CEILING_REACHED" | null; resetsOn: string | null };
+export type IvyStatus = { ready: boolean; /** Whether people may have Ivy read an invoice from a PDF or photo. */ documents?: boolean; /** Whether people may attach a customer's order screenshot (needs documents and proposed actions). */ orders?: boolean; reason: "AI_DISABLED" | "AI_NOT_CONFIGURED" | "AI_CEILING_UNSET" | "AI_CEILING_REACHED" | null; resetsOn: string | null };
 
 const KNOWN = new Set(["conversation", "text", "tool", "done", "error"]);
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Check, History, Inbox, Loader2, Plus, Sparkles, Square, Trash2 } from "lucide-react";
+import { ArrowUp, Check, History, Inbox, Loader2, Paperclip, Plus, Sparkles, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
@@ -11,6 +11,7 @@ import { ConfirmDialog } from "@/components/common/page";
 import { ProposalCards, ProposalList, type ProposalCard } from "@/components/assistant/proposal-cards";
 import { useCurrentUser } from "@/components/providers";
 import { ApiClientError, request } from "@/lib/client/api";
+import { chooseOrderCustomer, readOrderDocument, type OrderReading } from "@/lib/client/document-upload";
 import { errorMessage } from "@/lib/client/hooks";
 import { parseBlocks, streamChat, type Inline, type IvyChat, type IvyChatSummary, type IvyEvent, type IvyMessage, type IvyStatus } from "@/lib/client/ivy";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,9 @@ export function AskIvy() {
   const [streaming, setStreaming] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [deleting, setDeleting] = useState<IvyChatSummary | null>(null);
+  // An order Ivy read but could not match to one customer: the person picks, and the draft goes back with the choice.
+  const [pick, setPick] = useState<Pick<OrderReading, "conversationId" | "candidates" | "draft"> | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
   const log = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -141,6 +145,7 @@ export function AskIvy() {
   const reset = useCallback(() => {
     abort.current?.abort();
     setChat({ messages: [], stale: false, full: false });
+    setPick(null);
     setProblem(null);
     setStreaming(false);
     setView("chat");
@@ -188,6 +193,51 @@ export function AskIvy() {
       void qc.invalidateQueries({ queryKey: ["ivy-chats"] });
       void qc.invalidateQueries({ queryKey: ["ivy-status"] });
       void qc.invalidateQueries({ queryKey: ["ivy-proposals"] });
+    }
+  };
+
+  const showOrder = (r: OrderReading) => {
+    setChat((c) => ({ ...c, id: r.conversationId }));
+    patchLast((b) => ({ ...b, text: r.message }));
+    setPick(r.outcome === "pick_customer" ? { conversationId: r.conversationId, candidates: r.candidates, draft: r.draft } : null);
+  };
+  const afterOrder = () => {
+    setStreaming(false);
+    void qc.invalidateQueries({ queryKey: ["ivy-chats"] });
+    void qc.invalidateQueries({ queryKey: ["ivy-status"] });
+    void qc.invalidateQueries({ queryKey: ["ivy-proposals"] });
+  };
+
+  /** A screenshot of a customer's order: Ivy reads it and, if it can, puts a Create a deal card in this chat for the person to approve. */
+  const attach = async (file: File) => {
+    if (streaming) return;
+    setProblem(null);
+    setPick(null);
+    setStreaming(true);
+    setChat((c) => ({ ...c, messages: [...c.messages, { role: "user", text: `Attached a picture: ${file.name.slice(0, 60)}`, tools: [] }, { role: "assistant", text: "", tools: [], activity: [{ id: "read", label: "Reading the picture", status: "start" }] }] }));
+    try {
+      showOrder(await readOrderDocument(file, chat.id));
+      patchLast((b) => ({ ...b, activity: [{ id: "read", label: "Read the picture", status: "done" }] }));
+    } catch (e) {
+      setProblem({ code: e instanceof ApiClientError ? e.code : "ERROR", message: errorMessage(e) });
+      setChat((c) => ({ ...c, messages: c.messages.slice(0, -2) }));
+    } finally {
+      afterOrder();
+    }
+  };
+  const choose = async (contactId: string) => {
+    if (!pick || streaming) return;
+    const { conversationId, draft } = pick;
+    setStreaming(true);
+    setProblem(null);
+    try {
+      const r = await chooseOrderCustomer({ conversationId, contactId, draft });
+      setPick(null);
+      setChat((c) => ({ ...c, messages: [...c.messages, { role: "assistant", text: r.message, tools: [] }] }));
+    } catch (e) {
+      setProblem({ code: e instanceof ApiClientError ? e.code : "ERROR", message: errorMessage(e) });
+    } finally {
+      afterOrder();
     }
   };
 
@@ -315,6 +365,15 @@ export function AskIvy() {
                     </div>
                   ),
                 )}
+                {pick && (
+                  <div className="space-y-2 rounded-md border p-3" aria-label="Choose the customer">
+                    <div className="flex flex-wrap gap-2">
+                      {pick.candidates.map((c) => (
+                        <Button key={c.id} type="button" size="sm" variant="outline" disabled={streaming} onClick={() => void choose(c.id)}>{c.label}</Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <ProposalCards conversationId={chat.id} onNavigate={closePanel} />
                 {problem && (
                   <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
@@ -335,6 +394,22 @@ export function AskIvy() {
                 }}
               >
                 <div className="flex items-end gap-2">
+                  {status.data?.orders && (
+                    <>
+                      <input
+                        ref={fileInput}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          e.target.value = "";
+                          if (f) void attach(f);
+                        }}
+                      />
+                      <Button type="button" size="icon" variant="outline" aria-label="Attach a customer's order screenshot" title="Attach a customer's order screenshot" disabled={!ready || locked || streaming} onClick={() => fileInput.current?.click()}><Paperclip className="size-4" /></Button>
+                    </>
+                  )}
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -357,7 +432,7 @@ export function AskIvy() {
                     <Button type="submit" size="icon" aria-label="Send" disabled={!ready || locked || !input.trim()}><ArrowUp className="size-4" /></Button>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">Ivy can make mistakes. Amounts come from your records.</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">Ivy can make mistakes. Amounts come from your records.{status.data?.orders ? " A picture you attach is sent to Anthropic to be read and is not kept." : ""}</p>
               </form>
             </>
           )}
