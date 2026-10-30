@@ -27,7 +27,8 @@ async function shrink(file: File): Promise<Blob> {
 
 export type OrderReading = {
   conversationId: string;
-  outcome: "card" | "pick_customer" | "incomplete";
+  /** card: a card is waiting. pick_customer / pick_deal: the person chooses from `candidates`. incomplete: no card can be made. */
+  outcome: "card" | "pick_customer" | "pick_deal" | "incomplete";
   message: string;
   candidates: { id: string; label: string }[];
   /** With pick_customer: sent back, unchanged, with the chosen customer. */
@@ -47,11 +48,23 @@ export const readInvoiceDocument = async (file: File) => (await send(await prepa
 /** Sends a customer's order screenshot; the answer says whether a deal card is now waiting, the customer must be chosen, or something is missing. */
 export const readOrderDocument = async (file: File, conversationId?: string) => (await send(await prepare(file, "order"), file, { kind: "order", ...(conversationId ? { conversationId } : {}) })) as OrderReading;
 
+/** Sends a bank transfer receipt; the answer says whether a Record a payment card is waiting, the deal must be chosen, or no card can be made. */
+export const readPaymentDocument = async (file: File, conversationId?: string) => (await send(await prepare(file, "receipt"), file, { kind: "payment", ...(conversationId ? { conversationId } : {}) })) as OrderReading;
+
+/** Chooses the deal for a receipt Ivy read but could not place for certain; makes the payment card. */
+export async function choosePaymentDeal(body: { conversationId: string; dealId: string; draft: unknown }): Promise<OrderReading> {
+  return post("/api/assistant/documents/payment", body);
+}
+
 /** Chooses the customer for an order Ivy read but could not match for certain; makes the deal card. */
 export async function chooseOrderCustomer(body: { conversationId: string; contactId: string; draft: unknown }): Promise<OrderReading> {
+  return post("/api/assistant/documents/order", body);
+}
+
+async function post(url: string, body: unknown): Promise<OrderReading> {
   let res: Response;
   try {
-    res = await fetch("/api/assistant/documents/order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   } catch {
     throw new ApiClientError(0, "Network error. Check your connection and try again.", "NETWORK");
   }

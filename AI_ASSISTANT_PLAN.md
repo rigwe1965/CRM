@@ -444,7 +444,7 @@ release them one at a time.
 8. **3c:** a daily triage cap per business, default 100, admin-adjustable (recommended)?
 9. **Order and release:** 3a, then 3b, then 3c, each pushed separately with its own switch (recommended)?
 
-## Phase 4: document intake (PLAN APPROVED with all recommendations; 4a and 4b built, see TECHNICIAN.md "Phase 4a" and "Phase 4b"; 4c not started)
+## Phase 4: document intake (PLAN APPROVED with all recommendations; 4a, 4b and 4c built, see TECHNICIAN.md "Phase 4a", "Phase 4b" and "Phase 4c")
 
 **The problem.** Supplier invoices arrive as PDFs or phone photos, and customers send their orders as WhatsApp screenshots.
 Today someone retypes them. The CRM already reads a supplier *spreadsheet* (CSV or .xlsx, in the browser) into the New invoice

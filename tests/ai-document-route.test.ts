@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { gate, read, orderGate, readOrder, holder } = vi.hoisted(() => ({
+const { gate, read, orderGate, readOrder, payGate, readPay, holder } = vi.hoisted(() => ({
   gate: vi.fn(),
   read: vi.fn(),
   orderGate: vi.fn(),
   readOrder: vi.fn(),
+  payGate: vi.fn(),
+  readPay: vi.fn(),
   holder: { user: { id: "u1", tenantId: "t1", role: "SALES", name: "Sam", tenantWritable: true } as Record<string, unknown> },
 }));
 vi.mock("@/lib/route", () => ({
@@ -19,6 +21,7 @@ vi.mock("@/lib/route", () => ({
 }));
 vi.mock("@/lib/ai/documents/invoice", () => ({ assertCanReadDocument: gate, readInvoiceFile: read }));
 vi.mock("@/lib/ai/documents/order", () => ({ assertCanReadOrder: orderGate, readOrderFile: readOrder }));
+vi.mock("@/lib/ai/documents/payment", () => ({ assertCanReadPayment: payGate, readPaymentFile: readPay }));
 
 import { ApiError } from "@/lib/api";
 import { POST } from "@/app/api/assistant/documents/route";
@@ -39,6 +42,8 @@ beforeEach(() => {
   gate.mockResolvedValue(undefined);
   read.mockResolvedValue({ header: { number: "PI-1" }, items: [], warnings: [] });
   orderGate.mockResolvedValue(undefined);
+  payGate.mockResolvedValue(undefined);
+  readPay.mockResolvedValue({ conversationId: "cv1", outcome: "card", message: "ok", candidates: [], draft: null });
   readOrder.mockResolvedValue({ conversationId: "cv1", outcome: "card", message: "ok", candidates: [], draft: null });
 });
 
@@ -70,7 +75,7 @@ describe("POST /api/assistant/documents", () => {
   it("refuses a missing file, a missing or other kind, and a file that is not a PDF or photo", async () => {
     expect((await post({ kind: "invoice" })).status).toBe(422);
     expect((await post({ file: new Blob([PDF]) })).status).toBe(422);
-    expect((await post({ kind: "payment", file: new Blob([PDF]) })).status).toBe(422);
+    expect((await post({ kind: "refund", file: new Blob([PDF]) })).status).toBe(422);
     const res = await post({ kind: "invoice", file: new Blob([new TextEncoder().encode("<script>alert(1)</script>")]) });
     expect(res.status).toBe(415);
     expect(read).not.toHaveBeenCalled();
@@ -93,6 +98,20 @@ describe("POST /api/assistant/documents", () => {
     orderGate.mockResolvedValue(undefined);
     expect((await post({ kind: "order", file: new Blob([new TextEncoder().encode("hello")]) })).status).toBe(415);
     expect(readOrder).not.toHaveBeenCalled();
+  });
+
+  it("reads a payment receipt with the payment gates only, already gated, in the person's chat", async () => {
+    const res = await post({ kind: "payment", conversationId: "cv9", file: new Blob([PDF], { type: "application/pdf" }) });
+    expect(res.status).toBe(200);
+    expect(payGate).toHaveBeenCalledTimes(1);
+    expect([gate, orderGate, read, readOrder].some((f) => f.mock.calls.length)).toBe(false);
+    expect(readPay.mock.calls[0][2]).toEqual({ gated: true, conversationId: "cv9" });
+  });
+
+  it("refuses a receipt without reading it when the payment gate says no", async () => {
+    payGate.mockRejectedValue(new ApiError(403, "needs payment proposals", "AI_PAYMENTS_OFF"));
+    expect((await post({ kind: "payment", file: new Blob([PDF]) })).status).toBe(403);
+    expect(readPay).not.toHaveBeenCalled();
   });
 
   it("is reachable in a read-only workspace like the rest of Ivy (it saves nothing; the invoice save is the guarded write)", () => {

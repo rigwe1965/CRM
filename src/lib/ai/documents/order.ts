@@ -62,10 +62,10 @@ export function buildOrder(r: ReadOrder): { draft: OrderDraft | null; blocking: 
   return { draft, blocking, warnings };
 }
 
-type Found = { id: string; firstName: string; lastName: string; phone: string | null; phoneE164: string | null };
+export type Found = { id: string; firstName: string; lastName: string; phone: string | null; phoneE164: string | null };
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter((t) => t && t !== "-");
-const display = (c: Pick<Found, "firstName" | "lastName">) => [c.firstName, c.lastName].filter((p) => p && p !== "-").join(" ");
-const label = (c: Found) => {
+export const display = (c: Pick<Found, "firstName" | "lastName">) => [c.firstName, c.lastName].filter((p) => p && p !== "-").join(" ");
+export const label = (c: Found) => {
   const digits = (c.phone ?? "").replace(/\D/g, "");
   return digits.length >= 4 ? `${display(c)} (…${digits.slice(-4)})` : display(c);
 };
@@ -128,7 +128,7 @@ export function orderRequest(file: DocumentFile) {
 }
 
 /** Opens the chat the card goes in: the person's current one, or a new one. */
-async function chatFor(user: SessionUser, conversationId: string | undefined) {
+export async function chatFor(user: SessionUser, conversationId: string | undefined) {
   if (!conversationId) return startConversation(user, "Order from a screenshot");
   const existing = await loadConversation(user, conversationId);
   if (!existing) throw new ApiError(404, "That conversation was not found.", "NOT_FOUND");
