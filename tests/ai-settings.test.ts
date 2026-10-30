@@ -86,6 +86,23 @@ describe("load and save", () => {
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).inboxEnabled).toBeUndefined();
   });
 
+  it("keeps the WhatsApp-help switch and its daily cap separately, and a save that leaves them out changes neither", async () => {
+    db.automationSetting.findUnique.mockResolvedValue({ config: { enabled: true, monthlyCeilingUsd: 8, triageEnabled: true, triageDailyCap: 40 } });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9 }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[0][0].update.config).toEqual({ enabled: true, monthlyCeilingUsd: 9, triageEnabled: true, triageDailyCap: 40 });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9, triageDailyCap: 60 }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[1][0].update.config).toMatchObject({ triageEnabled: true, triageDailyCap: 60 });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9, triageEnabled: false }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[2][0].update.config).toMatchObject({ triageEnabled: false, triageDailyCap: 40 });
+    expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).triageEnabled).toBeUndefined();
+  });
+
+  it("accepts a daily cap only as a whole number from 1 to 1000", () => {
+    const parse = (cap: unknown) => assistantSettingsSchema.safeParse({ enabled: false, monthlyCeilingUsd: null, triageDailyCap: cap }).success;
+    expect([1, 100, 1000].every(parse)).toBe(true);
+    expect([0, -5, 1001, 2.5, "50", null].some(parse)).toBe(false);
+  });
+
   it("is off until an admin allows it", () => {
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).paymentProposalsEnabled).toBeUndefined();
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).proposalsEnabled).toBeUndefined();

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db } = vi.hoisted(() => ({ db: { aiConversation: { deleteMany: vi.fn() }, aiProposal: { updateMany: vi.fn(), deleteMany: vi.fn() }, aiInboxRun: { deleteMany: vi.fn() } } }));
+const { db } = vi.hoisted(() => ({ db: { aiConversation: { deleteMany: vi.fn() }, aiProposal: { updateMany: vi.fn(), deleteMany: vi.fn() }, aiInboxRun: { deleteMany: vi.fn() }, aiTriage: { deleteMany: vi.fn() } } }));
 vi.mock("@/lib/db", () => ({ db }));
 
 import { AI_RETENTION_DAYS, purgeOldConversations } from "@/lib/ai/retention";
@@ -22,7 +22,7 @@ describe("purgeOldConversations", () => {
   it("only ever touches conversations, proposals and run records, never the spend records the ceiling needs", async () => {
     db.aiConversation.deleteMany.mockResolvedValue({ count: 0 });
     await purgeOldConversations("t1");
-    expect(Object.keys(db)).toEqual(["aiConversation", "aiProposal", "aiInboxRun"]);
+    expect(Object.keys(db)).toEqual(["aiConversation", "aiProposal", "aiInboxRun", "aiTriage"]);
   });
 
   it("deletes decided or expired suggestions made on Ivy's own (no conversation) and old run records, after the same period", async () => {
@@ -32,6 +32,7 @@ describe("purgeOldConversations", () => {
     const cutoff = new Date("2026-08-01T12:00:00Z");
     expect(db.aiProposal.deleteMany).toHaveBeenCalledWith({ where: { tenantId: "t1", conversationId: null, status: { not: "PENDING" }, createdAt: { lt: cutoff } } });
     expect(db.aiInboxRun.deleteMany).toHaveBeenCalledWith({ where: { tenantId: "t1", startedAt: { lt: cutoff } } });
+    expect(db.aiTriage.deleteMany).toHaveBeenCalledWith({ where: { tenantId: "t1", createdAt: { lt: cutoff } } });
   });
 
   it("closes proposals nobody decided in time (expired), for that business only", async () => {

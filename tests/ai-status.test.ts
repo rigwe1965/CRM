@@ -7,7 +7,7 @@ const { settings, spent, byPurpose, integration, rate } = vi.hoisted(() => ({
   integration: vi.fn(),
   rate: vi.fn(),
 }));
-vi.mock("@/lib/ai/settings", () => ({ loadAssistantSettings: settings }));
+vi.mock("@/lib/ai/settings", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/settings")>()), loadAssistantSettings: settings }));
 vi.mock("@/lib/ai/usage", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/usage")>()), monthToDateMicros: spent, monthToDateByPurpose: byPurpose }));
 vi.mock("@/lib/integrations", () => ({ getIntegration: integration }));
 vi.mock("@/lib/rate-limit", async (orig) => ({ ...(await orig<typeof import("@/lib/rate-limit")>()), enforceRateLimit: rate }));
@@ -42,7 +42,9 @@ describe("assistantStatus", () => {
     const s = await assistantStatus("t1", NOW);
     expect(s).toMatchObject({ proposalsEnabled: true, paymentProposalsEnabled: true, inboxEnabled: true, spentByPurposeUsd: { chat: 0.8, inbox: 0.2, triage: 0 } });
     settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10 });
-    expect(await assistantStatus("t1", NOW)).toMatchObject({ proposalsEnabled: false, paymentProposalsEnabled: false, inboxEnabled: false });
+    expect(await assistantStatus("t1", NOW)).toMatchObject({ proposalsEnabled: false, paymentProposalsEnabled: false, inboxEnabled: false, triageEnabled: false, triageDailyCap: 100 });
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, triageEnabled: true, triageDailyCap: 25 });
+    expect(await assistantStatus("t1", NOW)).toMatchObject({ triageEnabled: true, triageDailyCap: 25 });
   });
 
   it("reports an environment-supplied key as such", async () => {

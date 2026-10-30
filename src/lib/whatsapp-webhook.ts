@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getIntegration } from "@/lib/integrations";
+import { enqueueTriage, processTriage } from "@/lib/ai/triage/run";
 import { withTenant } from "@/lib/tenant-context";
 import { parseInbound, recordInbound, validSignature } from "@/lib/whatsapp";
 
@@ -35,11 +36,24 @@ export async function receiveWhatsappWebhook(req: Request, tenantId: string): Pr
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
+  const filed: string[] = [];
   try {
-    for (const msg of parseInbound(payload)) await withTenant(tenantId, () => recordInbound(tenantId, msg));
+    for (const msg of parseInbound(payload)) {
+      if ((await withTenant(tenantId, () => recordInbound(tenantId, msg))) === "recorded") filed.push(msg.id);
+    }
   } catch (e) {
     console.error("[whatsapp] webhook failed", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Could not record message" }, { status: 500 });
+  }
+
+  // Triage (Ivy, Phase 3c) is extra: it is queued here and done after Meta has its answer, and nothing about it can make this fail.
+  if (filed.length > 0) {
+    try {
+      const queued = await withTenant(tenantId, () => enqueueTriage(tenantId, filed));
+      if (queued.length > 0) after(() => withTenant(tenantId, () => processTriage(tenantId, queued)).then(() => undefined, (e) => console.error("[ivy-triage] background run failed", e instanceof Error ? e.message : e)));
+    } catch (e) {
+      console.error("[ivy-triage] could not queue", e instanceof Error ? e.message : e);
+    }
   }
   return NextResponse.json({ received: true });
 }

@@ -3,6 +3,8 @@ import { receiveWhatsappWebhook, verifyWhatsappWebhook } from "@/lib/whatsapp-we
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// WhatsApp triage runs after the response, inside the host's function limit.
+export const maxDuration = 60;
 
 // The original address, kept for the first business so its Meta setup needs no change. Every other business uses
 // /api/webhooks/whatsapp/<business>.

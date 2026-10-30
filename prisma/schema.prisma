@@ -251,6 +251,7 @@ model Tenant {
   aiConversations     AiConversation[]
   aiProposals        AiProposal[]
   aiInboxRuns        AiInboxRun[]
+  aiTriages          AiTriage[]
   aiMessages          AiMessage[]
   aiUsage             AiUsage[]
 }
@@ -575,6 +576,7 @@ enum AiProposalKind {
   CONTACT_CREATE
   DEAL_CREATE
   SCHEDULE_REPLACE
+  CONTACT_OPT_OUT
 }
 
 enum AiProposalSource {
@@ -711,6 +713,37 @@ model AiInboxRun {
 
   @@unique([tenantId, userId, day])
   @@index([startedAt])
+}
+
+// The queue behind WhatsApp triage (AI_ASSISTANT_PLAN.md, Phase 3c): one row per customer message, made when the
+// webhook files it, so a retry from Meta or a crash never triages a message twice and a sweep can finish what was left.
+// Holds the verdict (label, urgency, a short summary) and no message text.
+model AiTriage {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  activityId  String
+  contactId   String
+  // PENDING, RUNNING, DONE, FAILED, SKIPPED
+  status      String    @default("PENDING")
+  // Why it was skipped (no model call made), in a few fixed words.
+  skipReason  String?
+  attempts    Int       @default(0)
+  // Whether the model was called for this message; counts against the business's daily cap.
+  modelCalled Boolean   @default(false)
+  label       String?
+  urgency     String?
+  summary     String?
+  cards       Int       @default(0)
+  costMicros  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
+  @@unique([tenantId, activityId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, contactId, createdAt])
+  @@index([status, createdAt])
 }
 
 // ─── Invoices ───────────────────────────────────────────

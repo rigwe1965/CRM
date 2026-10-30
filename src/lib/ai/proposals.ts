@@ -33,6 +33,8 @@ export type ProposalDto = {
   preview: Preview;
   /** Drafts are copied, not approved. */
   approvable: boolean;
+  /** A WhatsApp draft the person can send from the card (while the 24-hour window is open, which the card checks); null for everything else. */
+  whatsappContactId: string | null;
   /** Fields the person may change on the card before approving, with their current values. */
   editable: Record<string, string | null>;
   result: { href: string; entity: string } | null;
@@ -52,6 +54,7 @@ const EDITABLE: Record<AiProposalKind, string[]> = {
   CONTACT_CREATE: ["firstName", "lastName", "email", "phone", "city", "country"],
   DEAL_CREATE: ["title", "expectedCloseDate"],
   SCHEDULE_REPLACE: [],
+  CONTACT_OPT_OUT: [],
 };
 
 function editableValues(row: Pick<AiProposal, "kind" | "params">): Record<string, string | null> {
@@ -71,6 +74,7 @@ export function toDto(row: AiProposal): ProposalDto {
     status: row.status,
     preview: row.preview as unknown as Preview,
     approvable: row.kind !== DRAFT,
+    whatsappContactId: row.kind === DRAFT && (row.params as { channel?: string }).channel === "WHATSAPP" ? String((row.params as { contactId?: string }).contactId ?? "") || null : null,
     editable: row.status === "PENDING" ? editableValues(row) : {},
     result,
     failure: row.failure,
@@ -141,11 +145,15 @@ export async function propose(ctx: { user: SessionUser; conversationId?: string;
  */
 export async function createBackgroundProposal(
   user: SessionUser,
-  input: { kind: AiProposalKind; raw: unknown; source: AiProposalSource; dedupeKey: string; reason: string; subject?: { type: string; id: string }; extraWarning?: string; now?: Date },
+  input: { kind: AiProposalKind; raw: unknown; source: AiProposalSource; dedupeKey: string; reason: string; subject?: { type: string; id: string }; extraWarning?: string; /** Plain-text lines added to the card after the checked ones (for example what the customer wrote). */ extraLines?: { label: string; value: string }[]; now?: Date },
 ): Promise<{ id: string; preview: Preview } | null> {
   const now = input.now ?? new Date();
   const prepared: Prepared = await KINDS[input.kind].prepare(user, input.raw as never);
-  const preview = input.extraWarning ? { ...prepared.preview, warning: [prepared.preview.warning, input.extraWarning].filter(Boolean).join(" ") } : prepared.preview;
+  const preview: Preview = {
+    ...prepared.preview,
+    ...(input.extraLines?.length ? { lines: [...prepared.preview.lines, ...input.extraLines] } : {}),
+    ...(input.extraWarning ? { warning: [prepared.preview.warning, input.extraWarning].filter(Boolean).join(" ") } : {}),
+  };
   try {
     const row = await db.aiProposal.create({
       data: {
@@ -178,10 +186,12 @@ export async function listInbox(user: { id: string; tenantId: string }, now = ne
     orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     take: 50,
   });
-  return rows.map(toDto);
+  // A customer asking to stop is the one thing that must not wait: it goes first while it is undecided.
+  const waitingFirst = (r: AiProposal) => (r.kind === "CONTACT_OPT_OUT" && r.status === "PENDING" ? 0 : 1);
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => waitingFirst(a.r) - waitingFirst(b.r) || a.i - b.i).map(({ r }) => toDto(r));
 }
 
-const mine = (user: { id: string; tenantId: string }) => ({ tenantId: user.tenantId, userId: user.id });
+const mine =(user: { id: string; tenantId: string }) => ({ tenantId: user.tenantId, userId: user.id });
 
 export async function listProposals(user: { id: string; tenantId: string }, conversationId: string) {
   await expireDue(user.tenantId);

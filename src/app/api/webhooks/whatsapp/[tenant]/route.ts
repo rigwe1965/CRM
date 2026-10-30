@@ -2,6 +2,8 @@ import { receiveWhatsappWebhook, verifyWhatsappWebhook } from "@/lib/whatsapp-we
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+// WhatsApp triage runs after the response, inside the host's function limit.
+export const maxDuration = 60;
 
 type Ctx = { params: Promise<{ tenant: string }> };
 

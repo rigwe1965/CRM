@@ -146,6 +146,8 @@ export type AssistantStatus = {
   proposalsEnabled: boolean;
   paymentProposalsEnabled: boolean;
   inboxEnabled: boolean;
+  triageEnabled: boolean;
+  triageDailyCap: number;
   spentByPurposeUsd: { chat: number; inbox: number; triage: number };
   monthlyCeilingUsd: number | null;
   level: "unset" | "ok" | "warn" | "reached";

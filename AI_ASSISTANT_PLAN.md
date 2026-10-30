@@ -288,7 +288,7 @@ Recording a payment changes what a customer owes, so it gets more safeguards tha
 ## Phase 3: instalment schedules, the Suggested actions inbox, and WhatsApp triage
 
 The owner approved the plan below with "use your recommendations" (all nine decisions as recommended). Status: **3a built**
-(instalment schedules; see TECHNICIAN.md, "Phase 3a"); **3b built** (the daily inbox, "Phase 3b"; differences: the mute link sits in the Suggested list rather than in Profile, a won deal with no schedule gets an "agree a payment plan" task rather than a schedule proposal because Ivy cannot invent instalment terms, and no separate rule for quiet leads because the existing automation covers them); 3c (WhatsApp triage) is next.
+(instalment schedules; see TECHNICIAN.md, "Phase 3a"); **3b built** (the daily inbox, "Phase 3b"; differences: the mute link sits in the Suggested list rather than in Profile, a won deal with no schedule gets an "agree a payment plan" task rather than a schedule proposal because Ivy cannot invent instalment terms, and no separate rule for quiet leads because the existing automation covers them); **3c built** (WhatsApp triage, "Phase 3c" in TECHNICIAN.md; differences: one model call with one result tool instead of a tool loop, which is stricter; a new number nobody has answered gets only the opt-out rule and the existing reply task, no extra card; the Send button also appears on chat drafts for WhatsApp). The real attack-message run (`scripts/triage-eval.ts`) still needs your budget approval.
 
 Three pieces, built in this order because each reuses the one before: **3a** instalment schedules (a Wave B-style proposal),
 **3b** a daily "Suggested actions" inbox (Ivy proposes without being asked), **3c** triage of incoming WhatsApp messages

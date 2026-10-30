@@ -39,13 +39,14 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
 
   const [apiKey, setApiKey] = useState("");
   const [ceiling, setCeiling] = useState<string | null>(null);
+  const [triageCap, setTriageCap] = useState<string | null>(null);
 
   if (isLoading) return <Skeleton className="h-64" />;
   if (error || !data) return <ErrorState message={error?.message} onRetry={() => refetch()} />;
@@ -185,6 +186,41 @@ export function AssistantCard() {
             </Button>
             {!data.proposalsEnabled && <p className="text-sm text-muted-foreground">Allow proposed actions first.</p>}
           </div>
+
+          <div className="max-w-xl space-y-2 border-t pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-medium">WhatsApp message help</h3>
+              <Badge variant={data.triageEnabled ? "default" : "secondary"}>{data.triageEnabled ? "Allowed" : "Off"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              When allowed, each time a known customer writes to you on WhatsApp, Ivy reads that conversation&apos;s last few messages and prepares, for the customer&apos;s owner, a short summary, a draft reply and, if useful, a task or note. The owner
+              reads, edits and sends the reply themselves; Ivy never sends anything and never records a payment. If a customer asks to stop, the owner is offered to mark them as not agreeing to WhatsApp messages. New numbers you have not replied to yet are
+              not sent to Anthropic. It costs roughly one to two cents a message, counted in your monthly limit.
+            </p>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const n = Number(triageCap ?? data.triageDailyCap);
+                if (!Number.isInteger(n) || n < 1 || n > 1000) return void toast.error("Enter a whole number from 1 to 1000");
+                saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, triageDailyCap: n });
+              }}
+            >
+              <FormField label="Most messages a day" hint="After this many in a day, new messages just get the usual reply task.">
+                <Input type="number" inputMode="numeric" min="1" max="1000" step="1" className="w-28" value={triageCap ?? String(data.triageDailyCap)} onChange={(e) => setTriageCap(e.target.value)} />
+              </FormField>
+              <Button type="submit" variant="outline" disabled={saveSettings.isPending}>Save</Button>
+            </form>
+            <Button
+              type="button"
+              variant={data.triageEnabled ? "outline" : "default"}
+              disabled={saveSettings.isPending || !data.proposalsEnabled}
+              onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, triageEnabled: !data.triageEnabled })}
+            >
+              {data.triageEnabled ? "Stop WhatsApp message help" : "Allow WhatsApp message help"}
+            </Button>
+            {!data.proposalsEnabled && <p className="text-sm text-muted-foreground">Allow proposed actions first.</p>}
+          </div>
         </CardContent>
       </Card>
 
@@ -231,6 +267,7 @@ export function AssistantCard() {
           <p>Conversations are kept for {data.retentionDays} days and then deleted. People can delete their own conversations sooner.</p>
           <p>When proposed actions are allowed, what Ivy suggests (the task, note or message text, and the names it refers to) is saved with the conversation and deleted with it. Approved actions are kept as ordinary records and in the audit log.</p>
           <p>Daily suggestions use only each person&apos;s own records and send the names, deals and amounts they involve to Anthropic under your key, in one short request a day per person.</p>
+          <p>WhatsApp message help sends the customer&apos;s latest few messages in that one conversation, their first name, and their deals, balances and open tasks to Anthropic under your key, once per incoming message, so the customer&apos;s own words leave your system. Only turn it on if your customers expect that. The suggestions it makes quote up to 300 characters of the message, and a short summary of each message is kept; both are deleted after {data.retentionDays} days.</p>
           <p>Ivy works as the person asking: sales and support users get answers from their own records only, admins from the whole business.</p>
         </CardContent>
       </Card>

@@ -8,7 +8,7 @@ import { TENANTLESS_MODELS, businessModels } from "./helpers/two-tenants";
 // without a tenantId, so a table can never silently escape tenant scoping.
 
 /** Business tables created after Phase 0, each with its tenantId from the start. */
-const ADDED_LATER = ["TenantIntegration", "StockThreshold", "AiConversation", "AiMessage", "AiUsage", "AiProposal", "AiInboxRun"];
+const ADDED_LATER = ["TenantIntegration", "StockThreshold", "AiConversation", "AiMessage", "AiUsage", "AiProposal", "AiInboxRun", "AiTriage"];
 
 const models = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
 
@@ -62,7 +62,7 @@ describe("tenant columns", () => {
 
 describe("row-level security (Phase 2)", () => {
   // The migration that switched it on, plus the later ones that add a table with its own policy.
-  const sql = () => ["20261031000000_row_level_security", "20261101000000_tenant_integrations", "20261105000000_stock_thresholds", "20261108000000_ai_assistant", "20261110000000_ai_proposals", "20261113000000_ai_inbox"].map((d) => readFileSync(`prisma/migrations/${d}/migration.sql`, "utf8")).join("\n");
+  const sql = () => ["20261031000000_row_level_security", "20261101000000_tenant_integrations", "20261105000000_stock_thresholds", "20261108000000_ai_assistant", "20261110000000_ai_proposals", "20261113000000_ai_inbox", "20261114000000_ai_triage"].map((d) => readFileSync(`prisma/migrations/${d}/migration.sql`, "utf8")).join("\n");
 
   it("every business table has RLS switched on and a policy that names its tenantId", () => {
     const migration = sql();

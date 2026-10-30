@@ -509,6 +509,34 @@ const scheduleReplace = {
   },
 };
 
+// ─── Mark a customer as opted out of WhatsApp (Phase 3c) ─
+
+export const optOutInput = z.object({ contactId: id });
+
+/** Made by the WhatsApp triage when a customer's message asks us to stop, never by the model. Consent changes only when a person approves. */
+const contactOptOut = {
+  edit: z.object({}),
+  async prepare(user: SessionUser, raw: z.infer<typeof optOutInput>): Promise<Prepared> {
+    const c = await db.contact.findFirst({ where: { id: raw.contactId, deletedAt: null, ...ownerScope(user) }, select: { firstName: true, lastName: true, whatsappOptIn: true } });
+    if (!c) throw new ToolError("No contact with that id is visible to you.");
+    if (!c.whatsappOptIn) throw new ToolError("This contact is already marked as not agreeing to WhatsApp messages.");
+    return {
+      params: { contactId: raw.contactId },
+      preview: {
+        title: "Customer asked to stop WhatsApp messages",
+        lines: [...line("Customer", fullName(c)), { label: "Change", value: "Mark as not agreeing to WhatsApp messages" }],
+        warning: "Reminders and campaigns will no longer be sent to them on WhatsApp. You can tick it again on their contact if they change their mind.",
+      },
+    };
+  },
+  async apply(user: SessionUser, p: Record<string, unknown>): Promise<Applied> {
+    const { contactId } = parseOrTell(optOutInput, p);
+    const { count } = await db.contact.updateMany({ where: { id: contactId, deletedAt: null, ...ownerScope(user) }, data: { whatsappOptIn: false } });
+    if (count === 0) throw new ApiError(404, "That contact no longer exists, so nothing was changed.", "NOT_FOUND");
+    return { entity: "contact", id: contactId, href: `/contacts/${contactId}` };
+  },
+};
+
 export type KindDef = {
   /** What a person may change on the card before approving; checked again on approval. */
   edit: z.ZodType<Record<string, unknown>>;
@@ -527,4 +555,5 @@ export const KINDS = {
   CONTACT_CREATE: contactCreate,
   DEAL_CREATE: dealCreate,
   SCHEDULE_REPLACE: scheduleReplace,
-} as unknown as Record<"TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE" | "SCHEDULE_REPLACE", KindDef>;
+  CONTACT_OPT_OUT: contactOptOut,
+} as unknown as Record<"TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE" | "SCHEDULE_REPLACE" | "CONTACT_OPT_OUT", KindDef>;

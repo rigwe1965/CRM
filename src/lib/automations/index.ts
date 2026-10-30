@@ -21,6 +21,14 @@ export async function runDailyAiRetention(now = new Date()) {
       failed++;
       console.error(`[ai] retention purge failed for ${id}`, e);
     }
+    // Finish WhatsApp messages that were queued for triage but never processed (a crash, a failed call).
+    try {
+      // Loaded here, not at the top: triage pulls in Ivy's prompt and tools, which reach back into the CRM's actions (and so into this file).
+      const { retryPendingTriage } = await import("@/lib/ai/triage/run");
+      await withTenant(id, () => retryPendingTriage(id, now));
+    } catch (e) {
+      console.error(`[ai] triage retry failed for ${id}`, e);
+    }
   }
   return { tenants: tenants.length, deleted, failed };
 }

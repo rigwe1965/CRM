@@ -24,10 +24,16 @@ export const assistantSettingsSchema = z
     paymentProposalsEnabled: z.boolean().optional(),
     /** Whether Ivy makes a daily "Suggested actions" list for each person (Phase 3b). Off until an admin allows it; left out means "keep what is stored". */
     inboxEnabled: z.boolean().optional(),
+    /** Whether Ivy triages incoming WhatsApp messages (Phase 3c). Sends the customer's message text to Anthropic, so it is its own switch, off until an admin allows it; left out means "keep what is stored". */
+    triageEnabled: z.boolean().optional(),
+    /** The most messages a day the model is called for (Phase 3c); left out means "keep what is stored", and nothing stored means DEFAULT_TRIAGE_DAILY_CAP. */
+    triageDailyCap: z.number("Enter a whole number").int("Enter a whole number").min(1, "Must be at least 1").max(1000, "Must be 1,000 or fewer").optional(),
   })
   .refine((v) => !v.enabled || v.monthlyCeilingUsd !== null, { path: ["monthlyCeilingUsd"], message: "Set a monthly ceiling before turning Ivy on" });
 
 export type AssistantSettings = z.infer<typeof assistantSettingsSchema>;
+
+export const DEFAULT_TRIAGE_DAILY_CAP = 100;
 
 export const DEFAULT_ASSISTANT: AssistantSettings = { enabled: false, monthlyCeilingUsd: null };
 
@@ -48,11 +54,15 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   const proposalsEnabled = settings.proposalsEnabled ?? stored.proposalsEnabled;
   const paymentProposalsEnabled = settings.paymentProposalsEnabled ?? stored.paymentProposalsEnabled;
   const inboxEnabled = settings.inboxEnabled ?? stored.inboxEnabled;
+  const triageEnabled = settings.triageEnabled ?? stored.triageEnabled;
+  const triageDailyCap = settings.triageDailyCap ?? stored.triageDailyCap;
   const config = {
     ...settings,
     ...(proposalsEnabled === undefined ? {} : { proposalsEnabled }),
     ...(paymentProposalsEnabled === undefined ? {} : { paymentProposalsEnabled }),
     ...(inboxEnabled === undefined ? {} : { inboxEnabled }),
+    ...(triageEnabled === undefined ? {} : { triageEnabled }),
+    ...(triageDailyCap === undefined ? {} : { triageDailyCap }),
   } as unknown as Prisma.InputJsonValue;
   await db.automationSetting.upsert({
     where: { tenantId_key: { tenantId, key: KEY } },

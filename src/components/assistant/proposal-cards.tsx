@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Loader2, TriangleAlert, X } from "lucide-react";
+import { Check, Copy, Loader2, Send, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,12 @@ import { cn } from "@/lib/utils";
 
 export type ProposalCard = {
   id: string;
-  kind: "TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE" | "SCHEDULE_REPLACE";
+  kind: "TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE" | "SCHEDULE_REPLACE" | "CONTACT_OPT_OUT";
   status: "PENDING" | "APPLIED" | "DECLINED" | "EXPIRED" | "FAILED";
   preview: { title: string; lines: { label: string; value: string }[]; warning?: string; draft?: { text: string }; confirm?: { title?: string; button: string; message: string } };
   approvable: boolean;
+  /** A WhatsApp draft: the customer it goes to. The card offers Send while the 24-hour window is open. */
+  whatsappContactId?: string | null;
   /** Why Ivy suggested it, built from data; only for suggestions she made on her own. */
   reason?: string | null;
   editable: Record<string, string | null>;
@@ -50,6 +52,28 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
   const pending = p.status === "PENDING";
   const keys = Object.keys(p.editable);
 
+  // A WhatsApp draft can be sent from here while the customer's 24-hour window is open: a person's click on text they can read and change.
+  const qc = useQueryClient();
+  const wa = p.whatsappContactId;
+  const canSend = useQuery({
+    queryKey: ["ivy-wa-can-send", wa],
+    queryFn: async () => (await request<{ data: { configured: boolean; canSend: boolean } }>("GET", `/api/contacts/${wa}/whatsapp`)).data,
+    enabled: pending && !!wa,
+    staleTime: 30_000,
+  });
+  const [draftText, setDraftText] = useState(p.preview.draft?.text ?? "");
+  const [confirmSend, setConfirmSend] = useState(false);
+  const send = useMutation({
+    mutationFn: () => request("POST", `/api/contacts/${wa}/whatsapp`, { message: draftText.trim() }),
+    onSuccess: () => {
+      toast.success("Sent on WhatsApp");
+      void qc.invalidateQueries();
+      onDecline(); // it is done: take it off the list
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+  const sendable = pending && !!wa && canSend.data?.canSend === true;
+
   const edits = () => {
     const out: Record<string, string | null> = {};
     for (const k of keys) {
@@ -66,9 +90,9 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
     return out;
   };
 
-  const copy = async () => {
+  const copy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(p.preview.draft?.text ?? "");
+      await navigator.clipboard.writeText(text);
       toast.success("Copied");
     } catch {
       toast.error("Could not copy. Select the text and copy it yourself.");
@@ -98,7 +122,11 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
         ))}
       </dl>
 
-      {p.preview.draft && <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-md border bg-muted/50 p-2 font-sans text-sm">{p.preview.draft.text}</pre>}
+      {p.preview.draft && sendable ? (
+        <textarea aria-label="Message to send" className={cn(field, "h-28 py-1")} value={draftText} maxLength={1000} onChange={(e) => setDraftText(e.target.value)} />
+      ) : (
+        p.preview.draft && <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-md border bg-muted/50 p-2 font-sans text-sm">{p.preview.draft.text}</pre>
+      )}
       {p.preview.warning && (
         <p className="flex gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" /> {p.preview.warning}
@@ -136,10 +164,31 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
       )}
       {pending && !p.approvable && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button size="sm" onClick={() => void copy()}><Copy className="size-3.5" /> Copy</Button>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={onDecline}>Dismiss</Button>
+          {sendable && (
+            <Button size="sm" disabled={busy || send.isPending || draftText.trim() === ""} onClick={() => (p.preview.warning ? setConfirmSend(true) : send.mutate())}>
+              {send.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />} Send on WhatsApp
+            </Button>
+          )}
+          <Button size="sm" variant={sendable ? "outline" : "default"} onClick={() => void copy(draftText)}><Copy className="size-3.5" /> Copy</Button>
+          <Button size="sm" variant="ghost" disabled={busy || send.isPending} onClick={onDecline}>Dismiss</Button>
         </div>
       )}
+      {pending && !p.approvable && !!wa && canSend.data && !canSend.data.canSend && (
+        <p className="text-[11px] text-muted-foreground">{canSend.data.configured ? "Sending from here is only possible within 24 hours of the customer's last message." : "WhatsApp is not set up, so copy this and send it yourself."}</p>
+      )}
+      <ConfirmDialog
+        open={confirmSend}
+        onOpenChange={setConfirmSend}
+        title="Send this message?"
+        description={`The warning on this card says the message contains something that is not from your records. Check the text, then send it to the customer on WhatsApp.`}
+        confirmLabel="Send on WhatsApp"
+        pending={send.isPending}
+        onConfirm={() => {
+          setConfirmSend(false);
+          send.mutate();
+        }}
+      />
+
       {p.result && (
         <Link href={safeHref(p.result.href)} onClick={onNavigate} className="inline-block text-xs font-medium underline underline-offset-2">
           Open it
