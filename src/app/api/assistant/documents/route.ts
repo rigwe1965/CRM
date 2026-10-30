@@ -20,7 +20,7 @@ export const POST = authed(async ({ req, user }) => {
   // The size must be declared: a request with no length (chunked) is refused, so the body is never read without a bound.
   const header = req.headers.get("content-length");
   const declared = header === null ? NaN : Number(header);
-  if (!Number.isFinite(declared) || declared <= 0) throw new ApiError(411, "Send the file with its size.", "LENGTH_REQUIRED");
+  if (!Number.isFinite(declared) || declared <= 0) throw new ApiError(411, "Your browser did not say how large the file is, so it was not accepted. Try again, or use a different browser.", "LENGTH_REQUIRED");
   // Leave room for the form's own framing; the exact size is checked again on the bytes.
   if (declared > MAX_DOCUMENT_BYTES + 64 * 1024) throw new ApiError(413, "That file is too large. Use a smaller photo, or a PDF of the invoice pages only.", "DOCUMENT_TOO_LARGE");
   const form = await req.formData().catch(() => null);

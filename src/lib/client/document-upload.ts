@@ -35,6 +35,9 @@ export type OrderReading = {
   draft: unknown;
 };
 
+/** The heading over the list Ivy shows when it could not place a picture for certain. */
+export const pickHeading = (of: "customer" | "deal") => (of === "deal" ? "Choose the deal" : "Choose the customer");
+
 /** Checks the file and, for a photo, shrinks it. Throws what the server would, sooner. */
 async function prepare(file: File, what: string): Promise<Blob> {
   if (!TYPES.includes(file.type)) throw new ApiClientError(422, "Only PDF, JPG, PNG or WEBP files can be read.", "DOCUMENT_TYPE");

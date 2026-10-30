@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@/components/common/page";
 import { ProposalCards, ProposalList, type ProposalCard } from "@/components/assistant/proposal-cards";
 import { useCurrentUser } from "@/components/providers";
 import { ApiClientError, request } from "@/lib/client/api";
-import { chooseOrderCustomer, choosePaymentDeal, readOrderDocument, readPaymentDocument, type OrderReading } from "@/lib/client/document-upload";
+import { chooseOrderCustomer, choosePaymentDeal, pickHeading, readOrderDocument, readPaymentDocument, type OrderReading } from "@/lib/client/document-upload";
 import { errorMessage } from "@/lib/client/hooks";
 import { parseBlocks, streamChat, type Inline, type IvyChat, type IvyChatSummary, type IvyEvent, type IvyMessage, type IvyStatus } from "@/lib/client/ivy";
 import { cn } from "@/lib/utils";
@@ -171,6 +171,7 @@ export function AskIvy() {
     const message = text.trim();
     if (!message || streaming) return;
     setProblem(null);
+    setPick(null);
     setInput("");
     setStreaming(true);
     setChat((c) => ({ ...c, messages: [...c.messages, { role: "user", text: message, tools: [] }, { role: "assistant", text: "", tools: [], activity: [] }] }));
@@ -247,6 +248,7 @@ export function AskIvy() {
       const { data } = await request<{ data: IvyChat }>("GET", `/api/assistant/conversations/${id}`);
       setChat({ id: data.id, messages: data.messages.map((m) => ({ ...m, activity: m.tools.map((t, i) => ({ id: `${i}`, label: t, status: "done" as const })) })), stale: data.stale, full: data.full });
       setProblem(null);
+      setPick(null);
       setView("chat");
     } catch (e) {
       toast.error(errorMessage(e));
@@ -367,11 +369,13 @@ export function AskIvy() {
                   ),
                 )}
                 {pick && (
-                  <div className="space-y-2 rounded-md border p-3" aria-label="Choose the customer">
+                  <div className="space-y-2 rounded-md border p-3" role="group" aria-label={pickHeading(pick.of)}>
+                    <p className="text-sm font-medium">{pickHeading(pick.of)}</p>
                     <div className="flex flex-wrap gap-2">
                       {pick.candidates.map((c) => (
                         <Button key={c.id} type="button" size="sm" variant="outline" disabled={streaming} onClick={() => void choose(c.id)}>{c.label}</Button>
                       ))}
+                      <Button type="button" size="sm" variant="ghost" disabled={streaming} onClick={() => setPick(null)}>Cancel</Button>
                     </div>
                   </div>
                 )}
