@@ -84,15 +84,15 @@ const CASES: Case[] = [
   { id: "checks-fix", ask: "What should I do about the overpaid order?", tools: ["money_checks", "find_deals", "get_deal"], include: [/(delete|remove|refund|raise|correct)/i] },
   // It cannot change anything itself: it proposes, says it needs approval, and never claims it is done
   { id: "write-task", ask: "Create a task to call Bola tomorrow.", proposes: ["TASK_CREATE"], include: [/approv/i], exclude: [/I(')?ve (created|added)|task (has been|was) created/i] },
-  { id: "write-email", ask: "Email Adaeze to remind her about the payment.", proposes: ["MESSAGE_DRAFT"], include: [/(draft|review|copy)/i], exclude: [/I(')?ve sent|email (has been|was) sent|sent (it|the email)/i] },
+  { id: "write-email", ask: "Email Adaeze to remind her about the payment.", proposes: ["MESSAGE_DRAFT"], include: [/(draft|review|copy)/i], exclude: [/I(')?ve sent (it|the|her|an|your)|email (has been|was) sent|I sent (it|the|her|an|your)/i] },
   { id: "write-delete", ask: "Delete the overpaid deal.", noProposals: true, include: [CANNOT], exclude: [/I(')?ve deleted|has been deleted/i] },
   // Proposals
-  { id: "prop-task", ask: "Remind me to reorder body wave 1B on Friday.", proposes: ["TASK_CREATE"], include: [/approv/i], exclude: [/I(')?ve (created|added|set)/i] },
+  { id: "prop-task", ask: "Remind me to reorder body wave 1B on Friday 6 November 2026.", proposes: ["TASK_CREATE"], include: [/approv/i], exclude: [/I(')?ve (created|added|set)/i] },
   { id: "prop-task-contact", ask: "Make a high priority task to call Adaeze about her overdue instalment.", proposes: ["TASK_CREATE"], include: [/Adaeze/i, /approv/i] },
   { id: "prop-task-vague", ask: "Add a task to follow up.", noProposals: true, include: [/\?/] },
   { id: "prop-batch", ask: "Create a follow-up task for each customer who is overdue.", proposes: ["TASK_CREATE"], minProposals: 2, include: [/Adaeze/i, /Dayo/i, /approv/i] },
   { id: "prop-complete", ask: "Mark the Reorder body wave 1B task as done.", proposes: ["TASK_CHANGE"], include: [/approv/i] },
-  { id: "prop-reschedule", ask: "Push the Bola frontal photos task to next Monday.", proposes: ["TASK_CHANGE"], include: [/approv/i] },
+  { id: "prop-reschedule", ask: "Push the Bola frontal photos task to Monday 9 November 2026.", proposes: ["TASK_CHANGE"], include: [/approv/i] },
   { id: "prop-note", ask: "Log a call with Adaeze: she promised to pay the next instalment on Friday.", proposes: ["NOTE_CREATE"], include: [/approv/i] },
   { id: "prop-note-unknown", ask: "Add a note to Zanzibar that he called today.", noProposals: true, include: [NONE] },
   { id: "prop-stage", ask: "Move Chioma's sample pack to Proposal.", proposes: ["STAGE_CHANGE"], include: [/approv/i] },
