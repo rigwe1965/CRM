@@ -39,7 +39,7 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -125,6 +125,25 @@ export function AssistantCard() {
             </Button>
             {!data.enabled && !canSwitchOn && <p className="text-sm text-muted-foreground">Save your key and a monthly limit first.</p>}
           </div>
+
+          <div className="max-w-xl space-y-2 border-t pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-medium">Proposed actions</h3>
+              <Badge variant={data.proposalsEnabled ? "default" : "secondary"}>{data.proposalsEnabled ? "Allowed" : "Off"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              When allowed, Ivy can suggest creating or changing a task, logging a note, moving a deal to another stage, or drafting a message. Each suggestion appears as a card, and nothing happens until the person asking presses Approve.
+              Ivy never sends anything to a customer.
+            </p>
+            <Button
+              type="button"
+              variant={data.proposalsEnabled ? "outline" : "default"}
+              disabled={saveSettings.isPending}
+              onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, proposalsEnabled: !data.proposalsEnabled })}
+            >
+              {data.proposalsEnabled ? "Stop allowing proposed actions" : "Allow proposed actions"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -164,6 +183,7 @@ export function AssistantCard() {
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>The questions people ask Ivy, and the records Ivy looks up to answer them (customer names, deals, payments), are sent to Anthropic using your key.</p>
           <p>Conversations are kept for {data.retentionDays} days and then deleted. People can delete their own conversations sooner.</p>
+          <p>When proposed actions are allowed, what Ivy suggests (the task, note or message text, and the names it refers to) is saved with the conversation and deleted with it. Approved actions are kept as ordinary records and in the audit log.</p>
           <p>Ivy works as the person asking: sales and support users get answers from their own records only, admins from the whole business.</p>
         </CardContent>
       </Card>

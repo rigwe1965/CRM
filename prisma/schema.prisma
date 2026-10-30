@@ -132,6 +132,7 @@ model User {
   paymentLinks       PaymentLink[]     @relation("PaymentLinkCreator")
   savedFilters       SavedFilter[]
   aiConversations    AiConversation[]
+  aiProposals       AiProposal[]
 
   @@index([role])
   @@index([tenantId])
@@ -245,6 +246,7 @@ model Tenant {
   stockAdjustments    StockAdjustment[]
   stockThresholds     StockThreshold[]
   aiConversations     AiConversation[]
+  aiProposals        AiProposal[]
   aiMessages          AiMessage[]
   aiUsage             AiUsage[]
 }
@@ -559,6 +561,22 @@ enum AiRole {
   ASSISTANT
 }
 
+enum AiProposalKind {
+  TASK_CREATE
+  TASK_CHANGE
+  NOTE_CREATE
+  STAGE_CHANGE
+  MESSAGE_DRAFT
+}
+
+enum AiProposalStatus {
+  PENDING
+  APPLIED
+  DECLINED
+  EXPIRED
+  FAILED
+}
+
 // One chat between a user and Ivy. Visible only to that user; purged after AI_RETENTION_DAYS (src/lib/ai/retention.ts).
 model AiConversation {
   id        String   @id @default(cuid())
@@ -573,7 +591,8 @@ model AiConversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  messages AiMessage[]
+  messages  AiMessage[]
+  proposals AiProposal[]
 
   @@index([tenantId, userId, updatedAt])
   @@index([updatedAt])
@@ -614,6 +633,37 @@ model AiUsage {
   createdAt        DateTime @default(now())
 
   @@index([tenantId, createdAt])
+}
+
+// What Ivy suggested and what the person decided (AI_ASSISTANT_PLAN.md, Phase 2). `params` is the exact action, validated
+// when it was proposed and again when approved; `preview` is the card text built from it by the server. A proposal
+// writes nothing to the business until the person approves it, and is decided once. Removed with its conversation.
+model AiProposal {
+  id             String              @id @default(cuid())
+  tenantId       String
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String
+  conversation   AiConversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  kind           AiProposalKind
+  status         AiProposalStatus    @default(PENDING)
+  params         Json
+  preview        Json
+  // What the approval produced, so the card can link to it (e.g. entity "task").
+  resultEntity   String?
+  resultId       String?
+  // Why an approval did nothing (the record changed, was deleted...), in words for the person.
+  failure        String?
+  createdAt      DateTime            @default(now())
+  expiresAt      DateTime
+  decidedAt      DateTime?
+  // Set once Ivy has been told the outcome (in the person's next message).
+  reportedAt     DateTime?
+
+  @@index([tenantId, userId, status, createdAt])
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
 // ─── Invoices ───────────────────────────────────────────

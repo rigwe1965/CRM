@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { holder, roles, gate, client, convo, runIvy, audit, db, assistantStatus } = vi.hoisted(() => ({
+const { holder, roles, gate, client, convo, runIvy, audit, db, assistantStatus, outcomes } = vi.hoisted(() => ({
+  outcomes: vi.fn(),
   holder: { user: { id: "u1", tenantId: "t1", role: "SALES", name: "Sam Seller", email: "sam@x.test" } as Record<string, unknown> },
   roles: new Map<string, unknown[]>(),
   gate: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock("@/lib/audit", () => ({ audit }));
 vi.mock("@/lib/ai/status", () => ({ assertCanAsk: gate, assistantStatus }));
 vi.mock("@/lib/ai/client", () => ({ anthropicFor: client }));
 vi.mock("@/lib/ai/ivy", () => ({ runIvy }));
+vi.mock("@/lib/ai/proposals", () => ({ takeOutcomes: outcomes }));
 vi.mock("@/lib/ai/tools", () => ({ TOOL_DEFINITIONS: [] }));
 vi.mock("@/lib/ai/conversations", async (orig) => ({
   ...(await orig<typeof import("@/lib/ai/conversations")>()),
@@ -186,6 +188,20 @@ describe("POST /api/assistant/chat: continuing a chat", () => {
     expect(o.userBlocks).toEqual([{ type: "text", text: "and now?" }]);
     expect(o.history).toEqual([{ role: "user", content: [{ type: "text", text: "first" }] }, { role: "assistant", content: [{ type: "text", text: "answer" }] }]);
     expect(db.tenant.findFirst).not.toHaveBeenCalled();
+    expect(outcomes).toHaveBeenCalledWith(expect.objectContaining({ id: "u1", tenantId: "t1" }), "c1");
+  });
+
+  it("puts the note about how Ivy's earlier proposals ended in front of the question, once", async () => {
+    convo.load.mockResolvedValue({ id: "c1", title: "Earlier", promptVersion: IVY_PROMPT_VERSION, messages: [{ role: "USER", content: [{ type: "text", text: "first" }] }, { role: "ASSISTANT", content: [{ type: "text", text: "answer" }] }] });
+    const note = ["<proposal_outcomes>", "- done", "</proposal_outcomes>"].join(String.fromCharCode(10));
+    outcomes.mockResolvedValue(note);
+    await events(await post({ conversationId: "c1", message: "thanks" }));
+    expect(runIvy.mock.calls[0][0].userBlocks).toEqual([{ type: "text", text: note }, { type: "text", text: "thanks" }]);
+  });
+
+  it("asks for no outcomes when a chat is new", async () => {
+    await events(await post({ message: "hi" }));
+    expect(outcomes).not.toHaveBeenCalled();
   });
 });
 

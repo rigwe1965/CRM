@@ -99,7 +99,7 @@ describe("export routes", () => {
 describe("registry", () => {
   it("lists every area", () => {
     expect(Object.keys(EXPORTS).sort()).toEqual(
-      ["activities", "ai-conversations", "ai-usage", "audit-log", "cashflow", "contacts", "deal-items", "deals", "instalments", "invoice-items", "invoices", "organizations", "payments", "stock", "tasks"],
+      ["activities", "ai-conversations", "ai-proposals", "ai-usage", "audit-log", "cashflow", "contacts", "deal-items", "deals", "instalments", "invoice-items", "invoices", "organizations", "payments", "stock", "tasks"],
     );
   });
   it("makes contacts and the audit log admin-only, and the audit log code-protected", () => {
@@ -107,14 +107,14 @@ describe("registry", () => {
     expect(EXPORTS["audit-log"]).toMatchObject({ adminOnly: true, stepUp: true });
   });
   it("makes Ivy's spend records and chat metadata admin-only, with no chat text or titles in them", () => {
-    for (const key of ["ai-usage", "ai-conversations"]) expect(EXPORTS[key], key).toMatchObject({ adminOnly: true, stepUp: false });
+    for (const key of ["ai-usage", "ai-conversations", "ai-proposals"]) expect(EXPORTS[key], key).toMatchObject({ adminOnly: true, stepUp: false });
     const code = read("lib", "export", "admin-entities.ts");
     const ai = code.slice(code.indexOf("const aiUsage")).replace(/\/\*[\s\S]*?\*\//g, "");
-    expect(ai).not.toMatch(/\btitle\b|\bcontent\b|aiMessage/);
+    expect(ai).not.toMatch(/\btitle\b|\bcontent\b|aiMessage|\bparams\b|\bpreview\b/);
   });
   it("leaves every other area open to the owner's own rows only", () => {
     for (const [key, e] of Object.entries(EXPORTS)) {
-      if (key === "contacts" || key === "audit-log" || key === "ai-usage" || key === "ai-conversations") continue;
+      if (key === "contacts" || key === "audit-log" || key === "ai-usage" || key === "ai-conversations" || key === "ai-proposals") continue;
       expect(e.adminOnly, key).toBe(false);
       expect(e.stepUp, key).toBe(false);
     }

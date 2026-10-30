@@ -130,7 +130,8 @@ export async function runIvy(opts: {
       }
 
       // Independent reads, so they run together; results go back in the order they were asked for.
-      const results = await Promise.all(uses.map((use) => runTool(ctx, use, emit)));
+      const toolCtx = { ...ctx, conversationId };
+      const results = await Promise.all(uses.map((use) => runTool(toolCtx, use, emit)));
       run.tools.push(...uses.map((u) => u.name));
       const turn: StoredMessage[] = [
         { role: "ASSISTANT", content: message.content },

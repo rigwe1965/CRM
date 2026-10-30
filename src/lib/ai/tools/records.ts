@@ -234,14 +234,14 @@ export const listTasks = defineTool({
         orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { id: "asc" }],
         take: i.limit,
         select: {
-          title: true, status: true, priority: true, dueDate: true, assignee: { select: { name: true } },
+          id: true, title: true, status: true, priority: true, dueDate: true, assignee: { select: { name: true } },
           contact: { select: { firstName: true, lastName: true } }, deal: { select: { title: true } },
         },
       }),
     ]);
     return {
       total,
-      rows: rows.map((t) => ({ title: clip(t.title, 140), status: t.status, priority: t.priority, due: isoDate(t.dueDate), assignee: t.assignee.name, contact: fullName(t.contact), deal: t.deal?.title ?? null })),
+      rows: rows.map((t) => ({ id: t.id, title: clip(t.title, 140), status: t.status, priority: t.priority, due: isoDate(t.dueDate), assignee: t.assignee.name, contact: fullName(t.contact), deal: t.deal?.title ?? null })),
     };
   },
 });

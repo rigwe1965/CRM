@@ -150,4 +150,26 @@ const aiConversations = listing({
   ],
 });
 
-export const ADMIN_EXPORTS: Readonly<Record<string, ExportEntity>> = { contacts, "audit-log": audit, "ai-usage": aiUsage, "ai-conversations": aiConversations };
+/**
+ * What Ivy proposed and what people decided: kind, status, who and when. Not the values: a proposal names customers,
+ * deals and notes, so (like chats) its content stays in the app and goes with the conversation after AI_RETENTION_DAYS.
+ */
+const aiProposals = listing({
+  file: "ai-proposals",
+  adminOnly: true,
+  schema: exportAiQuery,
+  count: (user, q) => db.aiProposal.count({ where: aiRange(user, q) }),
+  fetch: (user, q, page) =>
+    db.aiProposal.findMany({
+      where: aiRange(user, q),
+      select: { id: true, createdAt: true, decidedAt: true, kind: true, status: true, conversationId: true, resultEntity: true, resultId: true, user: person },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      ...page,
+    }),
+  columns: [
+    ["id", (p) => p.id], ["user", (p) => p.user.name], ["createdAt", (p) => p.createdAt], ["decidedAt", (p) => p.decidedAt], ["kind", (p) => p.kind], ["status", (p) => p.status],
+    ["conversationId", (p) => p.conversationId], ["resultEntity", (p) => p.resultEntity], ["resultId", (p) => p.resultId],
+  ],
+});
+
+export const ADMIN_EXPORTS: Readonly<Record<string, ExportEntity>> = { contacts, "audit-log": audit, "ai-usage": aiUsage, "ai-conversations": aiConversations, "ai-proposals": aiProposals };

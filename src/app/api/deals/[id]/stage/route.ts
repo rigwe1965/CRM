@@ -1,11 +1,6 @@
-import { db } from "@/lib/db";
 import { ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { dealInclude } from "@/lib/includes";
-import { displayName, notFound, ownerScope, tenantScope } from "@/lib/access";
-import { dealDto, stageTransition } from "@/lib/deals";
-import { notifyDealStageChange } from "@/lib/notifications";
-import { runStageAutomations } from "@/lib/automations";
+import { changeDealStage } from "@/lib/crm-actions";
 import { dealStageSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -17,22 +12,5 @@ export const dynamic = "force-dynamic";
  */
 export const POST = authed<{ id: string }>(async ({ req, user, params }) => {
   const body = await readBody(req, dealStageSchema);
-  const existing = await db.deal.findFirst({
-    where: { id: params.id, deletedAt: null, ...ownerScope(user) },
-    select: { stage: true },
-  });
-  if (!existing) throw notFound("Deal");
-  const deal = await db.deal.update({
-    where: { id: params.id, ...tenantScope(user) },
-    data: stageTransition(body.stage, { probability: body.probability, lostReason: body.lostReason }),
-    include: dealInclude,
-  });
-  await notifyDealStageChange({
-    deal,
-    from: existing.stage,
-    to: deal.stage,
-    actor: { id: user.id, name: displayName(user), tenantId: user.tenantId },
-  });
-  await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id, tenantId: user.tenantId } });
-  return ok(dealDto(deal));
+  return ok(await changeDealStage(user, params.id, body));
 });

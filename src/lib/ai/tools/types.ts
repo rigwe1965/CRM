@@ -4,7 +4,7 @@ import type { SessionUser } from "@/lib/auth-helpers";
 import { resultText } from "@/lib/ai/tools/result";
 
 /** Who Ivy is working for. Every tool reads through `owned`, the same scope the screens use, so Ivy sees exactly what the person sees. */
-export type ToolContext = { user: SessionUser; owned: OwnerScope; now: Date };
+export type ToolContext = { user: SessionUser; owned: OwnerScope; now: Date; /** The chat this answer belongs to; the proposal tools attach their cards to it. */ conversationId?: string };
 
 /** The model sent input that does not fit the tool, or asked for something that is not there. The message goes back to it so it can correct itself. */
 export class ToolError extends Error {}

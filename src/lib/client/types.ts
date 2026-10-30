@@ -143,6 +143,7 @@ export type AssistantStatus = {
   keyConfigured: boolean;
   keySource: "settings" | "env" | null;
   enabled: boolean;
+  proposalsEnabled: boolean;
   monthlyCeilingUsd: number | null;
   level: "unset" | "ok" | "warn" | "reached";
   spentUsd: number;

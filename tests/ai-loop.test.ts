@@ -147,6 +147,12 @@ describe("tool rounds", () => {
     expect(result).toMatchObject({ stopped: "answered", rounds: 2, tools: ["lookup"] });
   });
 
+  it("tells each tool which chat it is answering in, so a proposal's card lands in the right chat", async () => {
+    await ask([call("tu1", "lookup", { q: 1 }), say("Done.")]);
+    const toolCtx = (tools.lookup.run as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(toolCtx).toMatchObject({ conversationId: "conv1", user: { id: "u1", tenantId: "t1" } });
+  });
+
   it("runs several tool calls from one turn together and returns every result in order", async () => {
     tools.lookup.run = vi.fn(async (_c, raw) => JSON.stringify({ n: (raw as { n: number }).n }));
     const reply: Reply = { content: [{ type: "tool_use", id: "a", name: "lookup", input: { n: 1 } }, { type: "tool_use", id: "b", name: "lookup", input: { n: 2 } }], stop_reason: "tool_use" };

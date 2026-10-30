@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { taskInclude } from "@/lib/includes";
-import { assertLinks, resolveOwner, taskScope, tenantScope } from "@/lib/access";
+import { taskScope } from "@/lib/access";
+import { createTask } from "@/lib/crm-actions";
 import { createTaskSchema, taskListQuery } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -48,17 +49,5 @@ export const GET = authed(async ({ req, user }) => {
 /** POST /api/tasks: create. Assignee defaults to the caller; only admins can assign to someone else. */
 export const POST = authed(async ({ req, user }) => {
   const body = await readBody(req, createTaskSchema);
-  await assertLinks(user, body);
-  const assigneeId = (await resolveOwner(user, body.assigneeId)) ?? user.id;
-  const task = await db.task.create({
-    data: {
-      ...body,
-      ...tenantScope(user),
-      assigneeId,
-      createdById: user.id,
-      completedAt: body.status === "DONE" ? new Date() : null,
-    },
-    include: taskInclude,
-  });
-  return ok(task, 201);
+  return ok(await createTask(user, body), 201);
 });

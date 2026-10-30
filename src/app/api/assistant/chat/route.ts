@@ -9,6 +9,7 @@ import { anthropicFor } from "@/lib/ai/client";
 import { appendMessages, loadConversation, MAX_MESSAGES, startConversation, toParams } from "@/lib/ai/conversations";
 import { runIvy, type IvyEvent } from "@/lib/ai/ivy";
 import { conversationContext, IVY_PROMPT_VERSION } from "@/lib/ai/prompt";
+import { takeOutcomes } from "@/lib/ai/proposals";
 import { assertCanAsk } from "@/lib/ai/status";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,9 @@ export const POST = authed(async ({ req, user }) => {
   const convo = existing ?? (await startConversation(user, body.message));
   const history = existing ? toParams(existing.messages) : [];
   const userBlocks: { type: "text"; text: string }[] = [{ type: "text", text: body.message }];
+  // How Ivy's earlier proposals ended, so it never assumes one was done (or not).
+  const outcomes = existing ? await takeOutcomes(user, convo.id) : null;
+  if (outcomes) userBlocks.unshift({ type: "text", text: outcomes });
   if (history.length === 0) {
     // Who is asking and today's date go in the first message, so the instructions themselves never change.
     const business = await db.tenant.findFirst({ where: { id: user.tenantId }, select: { name: true, brandName: true } });

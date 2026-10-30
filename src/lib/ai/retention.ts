@@ -11,6 +11,8 @@ const DAY_MS = 86_400_000;
  */
 export async function purgeOldConversations(tenantId: string, now = new Date()) {
   const cutoff = new Date(now.getTime() - AI_RETENTION_DAYS * DAY_MS);
+  // Proposals whose time ran out are closed first; the rest go with their conversation.
+  await db.aiProposal.updateMany({ where: { tenantId, status: "PENDING", expiresAt: { lt: now } }, data: { status: "EXPIRED", decidedAt: now } });
   const { count } = await db.aiConversation.deleteMany({ where: { tenantId, updatedAt: { lt: cutoff } } });
   return count;
 }

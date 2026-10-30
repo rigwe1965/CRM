@@ -19,6 +19,7 @@ const m = vi.hoisted(() => {
     contact: model(),
     aiUsage: model(),
     aiConversation: model(),
+    aiProposal: model(),
     auditLog: { ...model(), create: vi.fn() },
   };
 });
@@ -61,7 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.stepUp.mockResolvedValue(undefined);
   m.auditLog.create.mockResolvedValue({});
-  for (const model of [m.organization, m.deal, m.dealItem, m.payment, m.instalment, m.invoice, m.invoiceItem, m.task, m.activity, m.contact, m.aiUsage, m.aiConversation]) {
+  for (const model of [m.organization, m.deal, m.dealItem, m.payment, m.instalment, m.invoice, m.invoiceItem, m.task, m.activity, m.contact, m.aiUsage, m.aiConversation, m.aiProposal]) {
     model.count.mockResolvedValue(0);
     model.findMany.mockResolvedValue([]);
   }

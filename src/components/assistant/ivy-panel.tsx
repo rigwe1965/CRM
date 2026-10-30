@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/common/page";
+import { ProposalCards } from "@/components/assistant/proposal-cards";
 import { useCurrentUser } from "@/components/providers";
 import { ApiClientError, request } from "@/lib/client/api";
 import { errorMessage } from "@/lib/client/hooks";
@@ -165,6 +166,7 @@ export function AskIvy() {
       });
       void qc.invalidateQueries({ queryKey: ["ivy-chats"] });
       void qc.invalidateQueries({ queryKey: ["ivy-status"] });
+      void qc.invalidateQueries({ queryKey: ["ivy-proposals"] });
     }
   };
 
@@ -230,7 +232,7 @@ export function AskIvy() {
                       <p className="rounded-md border bg-muted/50 p-3 text-sm">{blocked}{isAdmin && <> <Link href="/settings" onClick={closePanel} className="font-medium underline">Open Settings</Link></>}</p>
                     ) : (
                       <>
-                        <p className="text-sm text-muted-foreground">Hello{user.name ? `, ${user.name.split(" ")[0]}` : ""}. Ask me anything about your records. I can look things up, but I cannot change anything.</p>
+                        <p className="text-sm text-muted-foreground">Hello{user.name ? `, ${user.name.split(" ")[0]}` : ""}. Ask me anything about your records. I can look things up and suggest actions, but nothing changes until you approve it, and I never message customers.</p>
                         <div className="flex flex-col gap-2">
                           {STARTERS.map((s) => (
                             <button key={s} type="button" disabled={!ready} onClick={() => void send(s)} className="rounded-md border px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50">{s}</button>
@@ -259,6 +261,7 @@ export function AskIvy() {
                     </div>
                   ),
                 )}
+                <ProposalCards conversationId={chat.id} onNavigate={closePanel} />
                 {problem && (
                   <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
                     {problem.message}

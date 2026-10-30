@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { activityInclude } from "@/lib/includes";
-import { assertLinks, authorScope, tenantScope } from "@/lib/access";
+import { authorScope } from "@/lib/access";
+import { logActivity } from "@/lib/crm-actions";
 import { activityListQuery, createActivitySchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -50,10 +51,5 @@ export const GET = authed(async ({ req, user }) => {
 /** POST /api/activities: log an activity. Author is always the caller; link to a contact/deal/organization you own. */
 export const POST = authed(async ({ req, user }) => {
   const body = await readBody(req, createActivitySchema);
-  await assertLinks(user, body);
-  const activity = await db.activity.create({
-    data: { ...body, ...tenantScope(user), authorId: user.id },
-    include: activityInclude,
-  });
-  return ok(activity, 201);
+  return ok(await logActivity(user, body), 201);
 });

@@ -14,6 +14,7 @@ export async function assistantStatus(tenantId: string, now = new Date()) {
     keyConfigured: !!key,
     keySource: key?.source ?? null,
     enabled: settings.enabled,
+    proposalsEnabled: settings.proposalsEnabled === true,
     monthlyCeilingUsd: settings.monthlyCeilingUsd,
     ...ceilingState(settings.monthlyCeilingUsd, spent),
     resetsOn: nextMonthStart(now).toISOString().slice(0, 10),
