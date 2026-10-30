@@ -567,6 +567,9 @@ enum AiProposalKind {
   NOTE_CREATE
   STAGE_CHANGE
   MESSAGE_DRAFT
+  PAYMENT_RECORD
+  CONTACT_CREATE
+  DEAL_CREATE
 }
 
 enum AiProposalStatus {

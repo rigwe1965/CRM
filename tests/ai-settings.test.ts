@@ -69,7 +69,16 @@ describe("load and save", () => {
     expect(db.automationSetting.upsert.mock.calls[0][0].update.config.proposalsEnabled).toBe(false);
   });
 
+  it("keeps the payment-proposals choice separately, and lets each switch change on its own", async () => {
+    db.automationSetting.findUnique.mockResolvedValue({ config: { enabled: true, monthlyCeilingUsd: 8, proposalsEnabled: true, paymentProposalsEnabled: true } });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 8, proposalsEnabled: false }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[0][0].update.config).toEqual({ enabled: true, monthlyCeilingUsd: 8, proposalsEnabled: false, paymentProposalsEnabled: true });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 8, paymentProposalsEnabled: false }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[1][0].update.config).toEqual({ enabled: true, monthlyCeilingUsd: 8, proposalsEnabled: true, paymentProposalsEnabled: false });
+  });
+
   it("is off until an admin allows it", () => {
+    expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).paymentProposalsEnabled).toBeUndefined();
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).proposalsEnabled).toBeUndefined();
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5, proposalsEnabled: true }).proposalsEnabled).toBe(true);
     expect(assistantSettingsSchema.safeParse({ enabled: false, monthlyCeilingUsd: null, proposalsEnabled: "yes" }).success).toBe(false);

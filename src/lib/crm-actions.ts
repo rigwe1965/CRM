@@ -1,12 +1,14 @@
 import type { z } from "zod";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth-helpers";
-import { assertLinks, displayName, notFound, ownerScope, resolveOwner, taskScope, tenantScope } from "@/lib/access";
-import { activityInclude, dealInclude, taskInclude } from "@/lib/includes";
-import { dealDto, stageTransition } from "@/lib/deals";
+import { assertLinks, assertTags, displayName, notFound, ownerScope, resolveOwner, taskScope, tenantScope } from "@/lib/access";
+import { activityInclude, contactInclude, dealInclude, taskInclude } from "@/lib/includes";
+import { dealDto, itemsTotal, NO_LEGACY_HAIR, stageTransition } from "@/lib/deals";
+import { assertWithinPlan } from "@/lib/plan-limits";
+import { normalizePhone } from "@/lib/phone";
 import { notifyDealStageChange } from "@/lib/notifications";
 import { runStageAutomations } from "@/lib/automations";
-import type { createActivitySchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
+import type { createActivitySchema, createContactSchema, createDealSchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
 
 /**
  * The writes that both a screen's API route and an approved Ivy proposal run (AI_ASSISTANT_PLAN.md, Phase 2), so the
@@ -80,5 +82,50 @@ export async function changeDealStage(user: SessionUser, id: string, body: z.inf
     actor: { id: user.id, name: displayName(user), tenantId: user.tenantId },
   });
   await runStageAutomations({ deal, from: existing.stage, to: deal.stage, actor: { id: user.id, tenantId: user.tenantId } });
+  return dealDto(deal);
+}
+
+/** Creates a contact. The business's plan limit applies; the owner defaults to the caller (only admins can pick someone else). */
+export async function createContact(user: SessionUser, input: z.infer<typeof createContactSchema>) {
+  const { tagIds, ...body } = input;
+  await assertWithinPlan(user.tenantId, "contacts");
+  await assertLinks(user, { organizationId: body.organizationId });
+  await assertTags(user, tagIds);
+  const ownerId = await resolveOwner(user, body.ownerId);
+  return db.contact.create({
+    data: {
+      ...body,
+      ...tenantScope(user),
+      ownerId,
+      phoneE164: normalizePhone(body.phone),
+      ...(tagIds?.length ? { tags: { create: [...new Set(tagIds)].map((tagId) => ({ tenantId: user.tenantId, tagId })) } } : {}),
+    },
+    include: contactInclude,
+  });
+}
+
+/** Creates a deal. With line items its amount is their total; the stage defaults to QUALIFICATION and the probability follows the stage. */
+export async function createDeal(user: SessionUser, input: z.infer<typeof createDealSchema>) {
+  const { items, ...body } = input;
+  await assertLinks(user, { organizationId: body.organizationId, contactId: body.contactId });
+  const ownerId = (await resolveOwner(user, body.ownerId)) ?? user.id;
+  const { stage, probability, closedAt, lostReason } = stageTransition(body.stage, { probability: body.probability, lostReason: body.lostReason });
+  const deal = await db.deal.create({
+    data: {
+      ...body,
+      ...tenantScope(user),
+      ...(items?.length && {
+        ...NO_LEGACY_HAIR,
+        amount: itemsTotal(items),
+        items: { create: items.map((i, n) => ({ ...i, tenantId: user.tenantId, position: n + 1 })) },
+      }),
+      ownerId,
+      stage,
+      probability,
+      closedAt,
+      lostReason,
+    },
+    include: dealInclude,
+  });
   return dealDto(deal);
 }

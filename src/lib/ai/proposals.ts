@@ -43,6 +43,9 @@ const EDITABLE: Record<AiProposalKind, string[]> = {
   NOTE_CREATE: ["subject", "body"],
   STAGE_CHANGE: ["stage", "lostReason"],
   MESSAGE_DRAFT: [],
+  PAYMENT_RECORD: ["paidAt", "method", "reference", "note"],
+  CONTACT_CREATE: ["firstName", "lastName", "email", "phone", "city", "country"],
+  DEAL_CREATE: ["title", "expectedCloseDate"],
 };
 
 function editableValues(row: Pick<AiProposal, "kind" | "params">): Record<string, string | null> {
@@ -72,6 +75,7 @@ export function toDto(row: AiProposal): ProposalDto {
 const hrefFor = (row: AiProposal) => {
   const p = row.params as Record<string, unknown>;
   if (row.resultEntity === "deal") return `/deals/${row.resultId}`;
+  if (row.resultEntity === "contact") return `/contacts/${row.resultId}`;
   if (row.resultEntity === "activity") return p.contactId ? `/contacts/${p.contactId}` : `/deals/${p.dealId}`;
   return "/tasks";
 };
@@ -89,8 +93,12 @@ export async function expireDue(tenantId: string, now = new Date()) {
 export async function propose(ctx: { user: SessionUser; conversationId?: string; now: Date }, kind: AiProposalKind, raw: unknown): Promise<{ id: string; preview: Preview }> {
   const { user, conversationId, now } = ctx;
   if (!conversationId) throw new ToolError("Proposals are not available here.");
-  if ((await loadAssistantSettings(user.tenantId)).proposalsEnabled !== true) {
+  const settings = await loadAssistantSettings(user.tenantId);
+  if (settings.proposalsEnabled !== true) {
     throw new ToolError("Proposed actions are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under Ivy, and describe what they can do themselves instead.");
+  }
+  if (kind === "PAYMENT_RECORD" && settings.paymentProposalsEnabled !== true) {
+    throw new ToolError("Payment proposals are switched off for this business, so you cannot propose recording a payment. Tell the person an admin can allow them in Settings, under Ivy, and that they can record it themselves on the deal's page.");
   }
   if (user.tenantWritable === false) throw new ToolError("This workspace is read-only until its subscription is renewed, so nothing can be changed. Say so plainly.");
 

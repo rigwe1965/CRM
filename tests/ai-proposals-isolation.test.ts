@@ -40,7 +40,7 @@ run("Ivy's proposals across two businesses", () => {
     t = await createTwoTenants();
     holder.db = createTenantDb(t.appDb);
     for (const f of [t.a, t.b]) {
-      await t.db.automationSetting.create({ data: { tenantId: f.tenantId, key: "assistant", config: { enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true }, updatedById: f.admin } });
+      await t.db.automationSetting.create({ data: { tenantId: f.tenantId, key: "assistant", config: { enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true, paymentProposalsEnabled: f === t.a }, updatedById: f.admin } });
       conv[f.tenantId] = (await t.db.aiConversation.create({ data: { tenantId: f.tenantId, userId: f.admin, promptVersion: "2" } })).id;
     }
   }, 60_000);
@@ -104,6 +104,72 @@ run("Ivy's proposals across two businesses", () => {
     if (!t.rls) return;
     const seenByB = await inTenant(t.b, () => (holder.db as { aiProposal: { findMany: () => Promise<unknown[]> } }).aiProposal.findMany());
     expect(seenByB).toEqual([]);
+  });
+
+  // ── Wave B: payments, contacts and deals ────────────────────────────────────────────────────────────────────
+  const paid = async (dealId: string) => Number((await t.db.payment.aggregate({ where: { dealId }, _sum: { amount: true } }))._sum.amount ?? 0);
+
+  it("will not propose a payment or a deal against the other business's deal or customer", async () => {
+    await expect(proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.b.deal, amount: 10 })).rejects.toThrow(/No deal with that id is visible/);
+    await expect(proposeAs(t.a, "DEAL_CREATE", { contactId: t.b.contact, title: "Sneaky", currency: "USD", items: [{ productType: "Closure", quantity: 1, unitPrice: 10 }] })).rejects.toThrow();
+    expect(await t.db.deal.count({ where: { title: "Sneaky" } })).toBe(0);
+  });
+
+  it("refuses a payment above the balance, and another currency, and a business without payment proposals", async () => {
+    await expect(proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 1000 })).rejects.toThrow(/more than the balance/);
+    await expect(proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 10, currency: "EUR" })).rejects.toThrow(/not EUR/);
+    await expect(proposeAs(t.b, "PAYMENT_RECORD", { dealId: t.b.deal, amount: 10 })).rejects.toThrow(/Payment proposals are switched off/);
+  });
+
+  it("an approved payment lands once, in the person's business only, and warns about the open payment link first", async () => {
+    const p = await proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 50, reference: "TRX-1" });
+    expect(p.preview.warning).toMatch(/open online payment link/);
+    expect(p.preview.lines).toContainEqual({ label: "Balance", value: "200.00 → 150.00 USD" });
+    const before = { a: await paid(t.a.deal), b: await paid(t.b.deal) };
+    const done = await inTenant(t.a, () => approveProposal(user(t.a), p.id, {}));
+    expect(done.status).toBe("APPLIED");
+    expect(await paid(t.a.deal)).toBe(before.a + 50);
+    expect(await paid(t.b.deal)).toBe(before.b);
+    expect(await t.db.payment.findFirst({ where: { dealId: t.a.deal, reference: "TRX-1" } })).toMatchObject({ tenantId: t.a.tenantId, recordedById: t.a.admin });
+    expect(await t.db.auditLog.count({ where: { tenantId: t.a.tenantId, action: "payment.recorded" } })).toBeGreaterThan(0);
+  });
+
+  it("a payment recorded in between makes the approval do nothing", async () => {
+    const p = await proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 10 });
+    await t.db.payment.create({ data: { tenantId: t.a.tenantId, dealId: t.a.deal, amount: 5, paidAt: new Date(), recordedById: t.a.sales } });
+    const before = await paid(t.a.deal);
+    const out = await inTenant(t.a, () => approveProposal(user(t.a), p.id, {}));
+    expect(out.status).toBe("FAILED");
+    expect(out.failure).toMatch(/Another payment was recorded/);
+    expect(await paid(t.a.deal)).toBe(before);
+  });
+
+  it("two approvals at once record one payment", async () => {
+    const p = await proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 7 });
+    const before = await paid(t.a.deal);
+    const results = await Promise.allSettled([inTenant(t.a, () => approveProposal(user(t.a), p.id, {})), inTenant(t.a, () => approveProposal(user(t.a), p.id, {}))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(await paid(t.a.deal)).toBe(before + 7);
+  });
+
+  it("a contact is created in the person's business, owned by them, after a duplicate warning", async () => {
+    const p = await proposeAs(t.a, "CONTACT_CREATE", { firstName: "Ada", lastName: "Customer a", phone: "+2348099999999" });
+    expect(p.preview.warning).toMatch(/Possible duplicate: Ada Customer a/);
+    const done = await inTenant(t.a, () => approveProposal(user(t.a), p.id, { firstName: "Adaora" }));
+    expect(done.status).toBe("APPLIED");
+    expect(await t.db.contact.findFirst({ where: { firstName: "Adaora" } })).toMatchObject({ tenantId: t.a.tenantId, ownerId: t.a.admin, phoneE164: "+2348099999999", type: "LEAD", whatsappOptIn: false });
+  });
+
+  it("a deal is created with its items and a total the CRM worked out", async () => {
+    const p = await proposeAs(t.a, "DEAL_CREATE", { contactId: t.a.contact, title: "Wave B order", currency: "usd", items: [{ productType: "Closure", quantity: 2, unitPrice: 50.25 }] });
+    expect(p.preview.lines).toContainEqual({ label: "Total", value: "100.50 USD" });
+    const done = await inTenant(t.a, () => approveProposal(user(t.a), p.id, { title: "Wave B order (edited)" }));
+    expect(done.status).toBe("APPLIED");
+    const deal = await t.db.deal.findFirst({ where: { title: "Wave B order (edited)" }, include: { items: true } });
+    expect(deal).toMatchObject({ tenantId: t.a.tenantId, ownerId: t.a.admin, stage: "QUALIFICATION", currency: "USD", contactId: t.a.contact });
+    expect(Number(deal!.amount)).toBe(100.5);
+    expect(deal!.items).toHaveLength(1);
   });
 
   it("a business that has not allowed proposed actions gets none", async () => {

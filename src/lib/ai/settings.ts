@@ -20,6 +20,8 @@ export const assistantSettingsSchema = z
       .nullable(),
     /** Whether Ivy may put proposed actions in front of people for approval (Phase 2). Off until an admin allows it; left out means "keep what is stored". */
     proposalsEnabled: z.boolean().optional(),
+    /** Whether Ivy may also propose recording payments (Wave B). A separate switch, off until an admin allows it; left out means "keep what is stored". */
+    paymentProposalsEnabled: z.boolean().optional(),
   })
   .refine((v) => !v.enabled || v.monthlyCeilingUsd !== null, { path: ["monthlyCeilingUsd"], message: "Set a monthly ceiling before turning Ivy on" });
 
@@ -39,8 +41,15 @@ export async function loadAssistantSettings(tenantId: string): Promise<Assistant
 }
 
 export async function saveAssistantSettings(tenantId: string, settings: AssistantSettings, updatedById: string) {
-  const proposalsEnabled = settings.proposalsEnabled ?? (await loadAssistantSettings(tenantId)).proposalsEnabled;
-  const config = (proposalsEnabled === undefined ? settings : { ...settings, proposalsEnabled }) as unknown as Prisma.InputJsonValue;
+  // A save that leaves a switch out (the limit and on/off buttons do) keeps what is stored.
+  const stored = await loadAssistantSettings(tenantId);
+  const proposalsEnabled = settings.proposalsEnabled ?? stored.proposalsEnabled;
+  const paymentProposalsEnabled = settings.paymentProposalsEnabled ?? stored.paymentProposalsEnabled;
+  const config = {
+    ...settings,
+    ...(proposalsEnabled === undefined ? {} : { proposalsEnabled }),
+    ...(paymentProposalsEnabled === undefined ? {} : { paymentProposalsEnabled }),
+  } as unknown as Prisma.InputJsonValue;
   await db.automationSetting.upsert({
     where: { tenantId_key: { tenantId, key: KEY } },
     create: { tenantId, key: KEY, config, updatedById },

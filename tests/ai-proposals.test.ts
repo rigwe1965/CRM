@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-const { db, settings, taskCreate, taskChange, noteCreate, draft } = vi.hoisted(() => ({
+const { db, settings, taskCreate, taskChange, noteCreate, draft, paymentRecord } = vi.hoisted(() => ({
+  paymentRecord: { prepare: vi.fn(), apply: vi.fn(), edit: undefined as unknown },
   db: { aiProposal: { count: vi.fn(), create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn() } },
   settings: vi.fn(),
   taskCreate: { prepare: vi.fn(), apply: vi.fn(), edit: undefined as unknown },
@@ -11,13 +12,14 @@ const { db, settings, taskCreate, taskChange, noteCreate, draft } = vi.hoisted((
 }));
 taskCreate.edit = z.object({ title: z.string().min(1) }).partial();
 taskChange.edit = z.object({ status: z.string() }).partial();
+paymentRecord.edit = z.object({ note: z.string() }).partial();
 noteCreate.edit = z.object({ subject: z.string().min(1) }).partial();
 draft.edit = z.object({});
 
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ai/settings", () => ({ loadAssistantSettings: settings }));
 vi.mock("@/lib/ai/proposal-kinds", () => ({
-  KINDS: { TASK_CREATE: taskCreate, TASK_CHANGE: taskChange, NOTE_CREATE: noteCreate, MESSAGE_DRAFT: draft },
+  KINDS: { PAYMENT_RECORD: paymentRecord, TASK_CREATE: taskCreate, TASK_CHANGE: taskChange, NOTE_CREATE: noteCreate, MESSAGE_DRAFT: draft },
   nice: (s: string) => s.toLowerCase(),
 }));
 
@@ -59,6 +61,17 @@ describe("propose", () => {
     await expect(propose(ctx, "TASK_CREATE", {})).rejects.toThrow(/switched off/);
     expect(db.aiProposal.create).not.toHaveBeenCalled();
     expect(taskCreate.prepare).not.toHaveBeenCalled();
+  });
+
+  it("refuses a payment unless the admin allowed payment proposals too, even with proposed actions on", async () => {
+    taskCreate.prepare.mockClear();
+    paymentRecord.prepare.mockResolvedValue({ params: { dealId: "d1" }, preview });
+    await expect(propose(ctx, "PAYMENT_RECORD", { dealId: "d1", amount: 5 })).rejects.toThrow(/Payment proposals are switched off/);
+    expect(paymentRecord.prepare).not.toHaveBeenCalled();
+    expect(db.aiProposal.create).not.toHaveBeenCalled();
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true, paymentProposalsEnabled: true });
+    db.aiProposal.create.mockResolvedValue({ id: "p5" });
+    expect((await propose(ctx, "PAYMENT_RECORD", { dealId: "d1", amount: 5 })).id).toBe("p5");
   });
 
   it("refuses in a read-only workspace", async () => {
@@ -108,6 +121,12 @@ describe("toDto", () => {
     expect(toDto(row({ kind: "STAGE_CHANGE", status: "APPLIED", resultEntity: "deal", resultId: "d1", params: {} }) as never).result?.href).toBe("/deals/d1");
     expect(toDto(row({ kind: "NOTE_CREATE", status: "APPLIED", resultEntity: "activity", resultId: "a1", params: { contactId: "c7" } }) as never).result?.href).toBe("/contacts/c7");
     expect(toDto(row({ kind: "MESSAGE_DRAFT", params: {} }) as never).approvable).toBe(false);
+  });
+
+  it("shows the editable fields of the new kinds, and links to the contact or deal they made", () => {
+    expect(toDto(row({ kind: "PAYMENT_RECORD", params: { paidAt: "2026-10-30", method: "CASH", reference: null, note: null } }) as never).editable).toEqual({ paidAt: "2026-10-30", method: "CASH", reference: null, note: null });
+    expect(toDto(row({ kind: "DEAL_CREATE", params: { title: "Order", expectedCloseDate: null } }) as never).editable).toEqual({ title: "Order", expectedCloseDate: null });
+    expect(toDto(row({ kind: "CONTACT_CREATE", status: "APPLIED", resultEntity: "contact", resultId: "c4", params: { firstName: "A", lastName: "B" } }) as never).result?.href).toBe("/contacts/c4");
   });
 
   it("shows the changes of a task change as the editable values", () => {

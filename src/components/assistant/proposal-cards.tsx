@@ -7,15 +7,16 @@ import { Check, Copy, Loader2, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmDialog } from "@/components/common/page";
 import { request } from "@/lib/client/api";
 import { errorMessage } from "@/lib/client/hooks";
 import { cn } from "@/lib/utils";
 
 export type ProposalCard = {
   id: string;
-  kind: "TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT";
+  kind: "TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE";
   status: "PENDING" | "APPLIED" | "DECLINED" | "EXPIRED" | "FAILED";
-  preview: { title: string; lines: { label: string; value: string }[]; warning?: string; draft?: { text: string } };
+  preview: { title: string; lines: { label: string; value: string }[]; warning?: string; draft?: { text: string }; confirm?: { button: string; message: string } };
   approvable: boolean;
   editable: Record<string, string | null>;
   result: { href: string; entity: string } | null;
@@ -26,9 +27,14 @@ export type ProposalCard = {
 const OPTIONS: Record<string, string[]> = {
   priority: ["LOW", "MEDIUM", "HIGH", "URGENT"],
   status: ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"],
+  method: ["BANK_TRANSFER", "CASH", "DIGITAL", "OTHER"],
   stage: ["QUALIFICATION", "DISCOVERY", "PROPOSAL", "NEGOTIATION", "CLOSED_WON", "CLOSED_LOST"],
 };
-const LABELS: Record<string, string> = { title: "Title", dueDate: "Due date", priority: "Priority", status: "Status", subject: "Subject", body: "Details", stage: "Stage", lostReason: "Reason" };
+const LABELS: Record<string, string> = {
+  title: "Title", dueDate: "Due date", priority: "Priority", status: "Status", subject: "Subject", body: "Details", stage: "Stage", lostReason: "Reason",
+  paidAt: "Date paid", method: "Method", reference: "Reference", note: "Notes", firstName: "First name", lastName: "Last name", email: "Email", phone: "Phone", city: "City", country: "Country", expectedCloseDate: "Expected close",
+};
+const DATE_FIELDS = new Set(["dueDate", "paidAt", "expectedCloseDate"]);
 const nice = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
 /** The server builds this link from record ids; anything that is not an in-app path is ignored. */
 const safeHref = (h: string) => (h.startsWith("/") && !h.startsWith("//") ? h : "/");
@@ -37,6 +43,7 @@ const field = "h-8 w-full rounded-md border border-input bg-background px-2 text
 
 function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; busy: boolean; onApprove: (edits: Record<string, string | null>) => void; onDecline: () => void; onNavigate: () => void }) {
   const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(p.editable).map(([k, v]) => [k, v ?? ""])));
   const pending = p.status === "PENDING";
   const keys = Object.keys(p.editable);
@@ -67,7 +74,7 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
   };
 
   return (
-    <div className={cn("space-y-2 rounded-lg border bg-card p-3 text-sm", !pending && "opacity-90")} data-testid="ivy-proposal">
+    <div className={cn("space-y-2 rounded-lg border bg-card p-3 text-sm", p.preview.confirm && "border-primary/60", !pending && "opacity-90")} data-testid="ivy-proposal">
       <div className="flex items-start justify-between gap-2">
         <p className="font-medium">{p.preview.title}</p>
         {p.status !== "PENDING" && (
@@ -107,7 +114,7 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
               ) : k === "body" ? (
                 <textarea className={cn(field, "h-20 py-1")} value={values[k] ?? ""} maxLength={2000} onChange={(e) => setValues((v) => ({ ...v, [k]: e.target.value }))} />
               ) : (
-                <Input type={k === "dueDate" ? "date" : "text"} className="h-8" value={values[k] ?? ""} maxLength={200} onChange={(e) => setValues((v) => ({ ...v, [k]: e.target.value }))} />
+                <Input type={DATE_FIELDS.has(k) ? "date" : "text"} className="h-8" value={values[k] ?? ""} maxLength={200} onChange={(e) => setValues((v) => ({ ...v, [k]: e.target.value }))} />
               )}
             </label>
           ))}
@@ -116,8 +123,8 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
 
       {pending && p.approvable && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Button size="sm" disabled={busy} onClick={() => onApprove(edits())}>
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />} Approve
+          <Button size="sm" disabled={busy} onClick={() => (p.preview.confirm ? setConfirming(true) : onApprove(edits()))}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />} {p.preview.confirm ? p.preview.confirm.button : "Approve"}
           </Button>
           {keys.length > 0 && <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((e) => !e)}>{editing ? "Hide edit" : "Edit"}</Button>}
           <Button size="sm" variant="ghost" disabled={busy} onClick={onDecline}>Decline</Button>
@@ -133,6 +140,20 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
         <Link href={safeHref(p.result.href)} onClick={onNavigate} className="inline-block text-xs font-medium underline underline-offset-2">
           Open it
         </Link>
+      )}
+      {p.preview.confirm && (
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          title="Record this payment?"
+          description={p.preview.confirm.message}
+          confirmLabel={p.preview.confirm.button}
+          pending={busy}
+          onConfirm={() => {
+            setConfirming(false);
+            onApprove(edits());
+          }}
+        />
       )}
       {pending && <p className="text-[11px] text-muted-foreground">Nothing happens until you approve. This suggestion expires on {new Date(p.expiresAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.</p>}
     </div>
@@ -174,8 +195,8 @@ export function ProposalCards({ conversationId, onNavigate }: { conversationId: 
   });
 
   if (!data?.length) return null;
-  // "Approve all" leaves out anything with a warning (such as closing a deal): those are approved one by one.
-  const waiting = data.filter((p) => p.status === "PENDING" && p.approvable && !p.preview.warning);
+  // "Approve all" leaves out anything with a warning (such as closing a deal) and every payment: those are approved one by one.
+  const waiting = data.filter((p) => p.status === "PENDING" && p.approvable && !p.preview.warning && !p.preview.confirm);
 
   return (
     <section aria-label="Actions Ivy suggested" className="space-y-2">

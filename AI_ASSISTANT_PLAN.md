@@ -170,6 +170,121 @@ with an approved budget before release.
 4. Approval expiry of 24 hours, and at most 10 rows per batch card: fine?
 5. Wave B (payments, create contact or deal) as a later, separate approval?
 
+## Wave B: money and new records (Ivy suggests, you approve): built
+
+The owner approved this plan with "use your recommendations" (payments behind their own admin switch, the extra confirmation
+for payments with the amount not editable, contacts warn about duplicates without blocking, no instalment schedules yet, roles
+as on the screens). One addition while building: an exact-email duplicate is refused at proposal time (the database already
+refuses it), while a same-name or same-phone match is only a warning. The eval has 75 questions; the Wave B ones have not had
+their real run yet. Details: TECHNICIAN.md, "Wave B".
+
+Goal: the same approval cards as Phase 2, for three actions that matter more: **recording a payment**, **creating a contact**
+and **creating a deal with its items**. Everything in Phase 2 still holds: Ivy only proposes, the server builds the card
+from saved values, the person decides once, and approving runs the same shared code as the screens, as them.
+
+### What Ivy can propose
+
+| Tool | Does on approval | Same logic as |
+| --- | --- | --- |
+| `propose_payment` | Records a payment on a deal: amount, date, method, reference, note | `POST /api/deals/:id/payments` |
+| `propose_contact` | Creates a contact (name, email, phone, type, city, country, source) | `POST /api/contacts` |
+| `propose_deal` | Creates a deal for a contact with its items (product, texture, length, colour, lace, quantity, unit price) | `POST /api/deals` |
+
+Not in Wave B: changing or deleting a payment, refunds, instalment schedules, payment links, reminders, editing or merging
+contacts, editing a deal's items or price after it exists, and anything that sends a message. (An instalment schedule is the
+natural next step; it is left out so this wave stays small and checkable.)
+
+### Payments: the strictest card
+
+Recording a payment changes what a customer owes, so it gets more safeguards than any Phase 2 action.
+
+1. **Only what the person says.** Ivy may propose a payment only when the person tells her the amount they received and which
+   deal (or customer) it is for. She never infers it from a record, a note, an invoice, or a customer's message ("I have paid
+   400" in a WhatsApp message is a claim, not a receipt). If two deals fit, she asks which. The prompt says so, and the eval
+   attacks it.
+2. **The deal's currency, always.** Ivy passes an amount, never a currency. If the person names a different currency from the
+   deal's, she says so and proposes nothing.
+3. **Numbers from the server, not from Ivy.** The card shows the customer, the deal, the amount and currency, the date, the
+   method, and the balance before and after (for example "800.00 USD → 400.00 USD"), plus which instalment it clears,
+   all computed by `src/lib/payments.ts` when the proposal is saved. Ivy does no arithmetic.
+4. **Refused at proposal time**, with a reason the model can pass on: deal not visible or deleted, amount zero or above the
+   balance, a date in the future.
+5. **Warnings on the card** (never silent): a payment of the same amount on that deal in the last 7 days (a likely double
+   entry); an open online payment link on the deal (if the customer also pays online, it would be counted twice).
+6. **Guard against recording it twice.** The card remembers how much was paid when it was made. If anything has been
+   recorded on the deal since (a colleague, or an online payment), approving does nothing and says so. The shared function
+   also re-checks the balance under the same database lock the screen uses.
+7. **Two clicks, and the amount in the button.** The button reads "Record 400.00 USD", and a confirmation dialog repeats the
+   customer, deal and amount before anything is written. Payment cards are never part of "Approve all".
+8. **The amount cannot be edited on the card.** The person can change the date, method, reference and note. To change the
+   amount they decline and tell Ivy the right one, so the figure shown is always the figure applied.
+9. **Its own admin switch**, "Allow payment proposals", off by default and separate from "Allow proposed actions". Admins
+   can have task and note suggestions without ever letting Ivy near payments.
+10. **Roles as on the screen.** Anyone who can record a payment on a deal today (admins on any deal of the business, sales on
+    their own) can approve one. Nothing is widened.
+
+### Contacts and deals
+
+- **`propose_contact`:** the contact is checked with the duplicate finder (`findDuplicates`); possible matches are shown on
+  the card as a warning with links, as the screen does (it warns, it does not block). The business's plan limit
+  (`assertWithinPlan`) is checked when proposing and again on approval, with the same message as the screen. The phone is
+  normalised the way the screen does. Ivy never sets WhatsApp opt-in or email opt-out: consent is the customer's to give.
+  The owner is the person asking; only admins can assign someone else.
+- **`propose_deal`:** needs a contact the person can see. One currency per deal, 3 letters; **the total is computed by the
+  server from the items** (`itemsTotal`), never supplied by Ivy, and shown on the card with the item lines. Prices come only
+  from the person (the CRM has no price list); if one is missing she asks. At most 20 items. The stage is always the
+  starting stage: closing is a separate stage proposal, with its warning. A deal with the same title for the same contact in
+  the last 24 hours shows a duplicate warning. Edits on the card are limited to the title and expected close date; to change
+  items, decline and ask again.
+
+### How it is built
+
+- **Shared functions** (`src/lib/crm-actions.ts`): `recordPayment(user, dealId, body, req?)` (the locked transaction and the
+  `payment.recorded` audit entry move out of the route unchanged), `createContact(user, body)` (including the plan check)
+  and `createDeal(user, body)`. The three routes call them, so a screen and an approval cannot drift apart.
+- **Kinds** (`src/lib/ai/proposal-kinds.ts`): `PAYMENT_RECORD`, `CONTACT_CREATE`, `DEAL_CREATE`, each with its input schema,
+  `prepare`, `apply`, editable fields and, for payments, the `expect` snapshot of what was paid.
+- **Migration:** three new values for the `AiProposalKind` enum (hand-written SQL, like `ANTHROPIC` before it) and one new
+  setting, `paymentProposalsEnabled`, in the `assistant` setting (left out means off; saving the other settings keeps it).
+- **Prompt version 3:** new tools and rules, so chats open at release become read-only (the panel already explains this).
+  The fingerprint pin test is updated with it.
+- **Panel:** a payment card styled to stand apart (amount first, balance before and after), the confirmation dialog, and the
+  contact and deal cards (an item table for deals). Settings → Ivy gets the second switch.
+- **Audit and export:** unchanged in kind. Approval writes `assistant.proposal.approve` plus the screen's own entry
+  (`payment.recorded`, or the create entries), so a payment can be traced to Ivy and to the person who approved it.
+  `ai-proposals` export still carries metadata only.
+
+### Tests and checks
+
+- Unit tests per kind (same shape as `ai-proposal-kinds`): refusals (invisible deal, over the balance, foreign currency, future
+  date, zero), the card figures, duplicate and open-link warnings, stale-balance refusal, plan limit, duplicate contact
+  warning, deal total computed from items and never from the model, no opt-in flags set, edit limits.
+- Real-database tests across two businesses: Ivy cannot propose a payment, contact or deal against the other business; an
+  approved payment lands once, only in the person's business; a payment recorded in between makes the approval do nothing;
+  two approvals at once record one payment.
+- The existing route tests must pass unchanged, proving the refactor did not alter the screens.
+- Eval (about 20 more questions, one real run): a clear payment; an amount above the balance; the wrong currency; two deals for
+  one customer (she must ask); a customer's message claiming payment (no proposal); "mark everything as paid" (refuse); a
+  duplicate contact; a contact over the plan limit; a deal with items and prices; a deal with a missing price (she must ask);
+  a deal in two currencies (she must ask); hostile record text asking for a payment. It still ends by checking the business is
+  unchanged. Estimated cost about $0.40 to $0.50; I would set a $1 budget.
+
+### Order of work
+
+1. Migration, settings (`paymentProposalsEnabled`), admin switch (small).
+2. Move the three writes into shared functions; route tests unchanged (medium: the part to review closely, especially payments).
+3. The three kinds and tools, prompt version 3 (medium).
+4. Cards, payment confirmation dialog (medium).
+5. Tests, eval run (needs your budget approval), docs.
+
+### Decisions I need from you
+
+1. Include payments in Wave B, behind their own admin switch (recommended)?
+2. Keep the extra confirmation dialog for payments, and the amount not editable on the card (recommended)?
+3. Contacts: warn about duplicates but allow creating (as the screen does), rather than blocking an exact email or phone match (recommended)?
+4. Deals without an instalment schedule in this wave, the schedule coming later (recommended)?
+5. Roles exactly as on the screens (recommended)?
+
 ## Later phases (each needs its own approval)
 
 - Phase 3: a daily "Suggested actions" inbox and inbound WhatsApp triage.

@@ -1,10 +1,16 @@
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { assertLinks, ownerScope, resolveOwner, taskScope, tenantScope } from "@/lib/access";
-import { changeDealStage, createTask, logActivity, updateTask } from "@/lib/crm-actions";
-import { createActivitySchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
+import { changeDealStage, createContact, createDeal, createTask, logActivity, updateTask } from "@/lib/crm-actions";
+import { recordPayment } from "@/lib/record-payment";
+import { assertWithinPlan } from "@/lib/plan-limits";
+import { findDuplicates } from "@/lib/duplicates";
+import { itemsTotal } from "@/lib/deals";
+import { dealPaymentsView, summarize } from "@/lib/payments";
+import { createActivitySchema, createContactSchema, createDealSchema, createPaymentSchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
 import { ToolError } from "@/lib/ai/tools/types";
 import { fullName } from "@/lib/ai/tools/result";
 
@@ -17,7 +23,14 @@ import { fullName } from "@/lib/ai/tools/result";
 
 export type PreviewLine = { label: string; value: string };
 /** What the card shows. Built by the server from the saved values. `draft` is a message to copy, never sent by us. */
-export type Preview = { title: string; lines: PreviewLine[]; warning?: string; draft?: { text: string } };
+export type Preview = {
+  title: string;
+  lines: PreviewLine[];
+  warning?: string;
+  draft?: { text: string };
+  /** Money actions: the words on the button and in the confirmation dialog, with the exact amount, built by the server. */
+  confirm?: { button: string; message: string };
+};
 export type Prepared = { params: Record<string, unknown>; preview: Preview };
 export type Applied = { entity: string; id: string; href: string };
 
@@ -230,6 +243,174 @@ const messageDraft = {
   },
 };
 
+// ─── Record a payment (the strictest card) ──────────────
+
+const money = (n: number) => n.toFixed(2);
+const today = () => new Date().toISOString().slice(0, 10);
+
+export const paymentInput = z.object({
+  dealId: id.describe("From find_deals."),
+  amount: z.number().positive().max(100_000_000).describe("Exactly the amount the person said they received, in the deal's own currency. Never a figure you worked out."),
+  currency: z.string().trim().length(3).optional().describe("Only if the person named a currency. It is checked against the deal's and the proposal is refused if they differ; it does not choose the currency."),
+  paidAt: date.optional().describe("YYYY-MM-DD, the day the money arrived. Defaults to today."),
+  method: z.enum(["BANK_TRANSFER", "CASH", "DIGITAL", "OTHER"]).optional(),
+  reference: z.string().trim().max(100).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+const paymentRecord = {
+  edit: z.object({ paidAt: date, method: z.enum(["BANK_TRANSFER", "CASH", "DIGITAL", "OTHER"]), reference: z.string().trim().max(100), note: z.string().trim().max(500) }).partial(),
+  async prepare(user: SessionUser, raw: z.infer<typeof paymentInput>): Promise<Prepared> {
+    const paidAt = raw.paidAt ?? today();
+    if (paidAt > today()) throw new ToolError("That date is in the future. A payment can only be recorded for money already received.");
+    const body = parseOrTell(createPaymentSchema, { amount: raw.amount, paidAt, method: raw.method, reference: raw.reference, note: raw.note });
+    const deal = await db.deal.findFirst({
+      where: { id: raw.dealId, deletedAt: null, ...ownerScope(user) },
+      select: { id: true, title: true, amount: true, currency: true, contact: { select: { firstName: true, lastName: true } } },
+    });
+    if (!deal) throw new ToolError("No deal with that id is visible to you. Use find_deals to find it.");
+    if (raw.currency && raw.currency.toUpperCase() !== deal.currency) {
+      throw new ToolError(`That deal is in ${deal.currency}, not ${raw.currency.toUpperCase()}. Payments are recorded in the deal's own currency, so tell the person and propose nothing.`);
+    }
+    const view = await dealPaymentsView(deal);
+    const { paid, balance } = view.summary;
+    if (body.amount > balance) throw new ToolError(`That is more than the balance of ${money(balance)} ${deal.currency} still owed on this deal, so it cannot be recorded. Tell the person.`);
+
+    const schedule = view.instalments.map((i) => ({ id: i.id, position: i.position, dueDate: i.dueDate, amount: i.amount }));
+    const after = summarize(view.dealAmount, paid + body.amount, schedule).instalments;
+    const clears = after
+      .map((a) => ({ a, before: view.instalments.find((b) => b.id === a.id)!.covered }))
+      .filter(({ a, before }) => a.covered > before)
+      .map(({ a }) => `No. ${a.position} due ${a.dueDate.toISOString().slice(0, 10)}: ${money(a.covered)} of ${money(a.amount)} covered`);
+
+    const since = new Date(Date.now() - 7 * 86_400_000);
+    const [same, openLink] = await Promise.all([
+      db.payment.findFirst({ where: { dealId: deal.id, tenantId: user.tenantId, amount: body.amount, paidAt: { gte: since } }, select: { paidAt: true } }),
+      db.paymentLink.findFirst({ where: { dealId: deal.id, tenantId: user.tenantId, status: "PENDING" }, select: { id: true } }),
+    ]);
+    const warnings = [
+      same && `A payment of exactly ${money(body.amount)} ${deal.currency} was already recorded on this deal on ${same.paidAt.toISOString().slice(0, 10)}. Make sure this is not the same money entered twice.`,
+      openLink && "This deal has an open online payment link. If the customer also pays through it, the money would be counted twice.",
+    ].filter(Boolean);
+
+    const who = fullName(deal.contact);
+    const amountText = `${money(body.amount)} ${deal.currency}`;
+    return {
+      params: { dealId: deal.id, amount: body.amount, paidAt, method: body.method, reference: body.reference ?? null, note: body.note ?? null, expect: { paid } },
+      preview: {
+        title: "Record a payment",
+        lines: [
+          ...line("Customer", who), ...line("Deal", deal.title), { label: "Amount", value: amountText }, { label: "Balance", value: `${money(balance)} → ${money(balance - body.amount)} ${deal.currency}` },
+          { label: "Date paid", value: paidAt }, { label: "Method", value: nice(body.method) }, ...line("Reference", body.reference), ...line("Notes", body.note), ...(clears.length ? [{ label: "Clears", value: clears.join("; ") }] : []),
+        ],
+        warning: warnings.length ? warnings.join(" ") : undefined,
+        confirm: { button: `Record ${amountText}`, message: `Record ${amountText}${who ? ` from ${who}` : ""} on "${deal.title}"? This changes what the customer owes, and takes ${money(balance)} ${deal.currency} down to ${money(balance - body.amount)} ${deal.currency}.` },
+      },
+    };
+  },
+  async apply(user: SessionUser, p: Record<string, unknown>): Promise<Applied> {
+    const { dealId, expect } = p as { dealId: string; expect: { paid: number } };
+    if (String(p.paidAt) > today()) throw new ApiError(422, "That date is in the future, so nothing was recorded.", "VALIDATION_ERROR");
+    const body = parseOrTell(createPaymentSchema, { amount: p.amount, paidAt: p.paidAt, method: p.method, reference: p.reference ?? undefined, note: p.note ?? undefined });
+    await recordPayment(user, dealId, body, { expectPaid: expect.paid });
+    return { entity: "deal", id: dealId, href: `/deals/${dealId}` };
+  },
+};
+
+// ─── Create a contact ───────────────────────────────────
+
+export const contactCreateInput = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+  email: z.string().trim().max(200).optional(),
+  phone: z.string().trim().max(40).optional().describe("With the country code if you know it, e.g. +2348012345678."),
+  type: z.enum(["LEAD", "PROSPECT", "CUSTOMER", "PARTNER", "OTHER"]).optional().describe("Defaults to LEAD."),
+  title: z.string().trim().max(100).optional(),
+  city: z.string().trim().max(100).optional(),
+  country: z.string().trim().max(100).optional(),
+  source: z.string().trim().max(100).optional().describe("Where they came from, only if the person said."),
+});
+
+const contactCreate = {
+  edit: z.object({ firstName: z.string().trim().min(1).max(100), lastName: z.string().trim().min(1).max(100), email: z.string().trim().max(200), phone: z.string().trim().max(40), city: z.string().trim().max(100), country: z.string().trim().max(100) }).partial(),
+  async prepare(user: SessionUser, raw: z.infer<typeof contactCreateInput>): Promise<Prepared> {
+    const body = parseOrTell(createContactSchema, raw);
+    await visible(() => assertWithinPlan(user.tenantId, "contacts"));
+    const matches = await findDuplicates(ownerScope(user), { firstName: body.firstName, lastName: body.lastName, phone: body.phone ?? undefined, email: body.email ?? undefined });
+    const sameEmail = matches.find((m) => m.reasons.includes("Same email"));
+    if (sameEmail) throw new ToolError(`A contact with that email already exists: ${fullName(sameEmail)}. Do not create another; use get_contact to look at them.`);
+    const warning = matches.length ? `Possible duplicate: ${matches.slice(0, 3).map((m) => `${fullName(m)} (${m.reasons.join(", ").toLowerCase()})`).join("; ")}. Check before approving.` : undefined;
+    const params = { firstName: body.firstName, lastName: body.lastName, email: body.email ?? null, phone: body.phone ?? null, type: body.type, title: body.title ?? null, city: body.city ?? null, country: body.country ?? null, source: body.source ?? null };
+    return {
+      params,
+      preview: { title: "Create a contact", lines: [{ label: "Name", value: `${body.firstName} ${body.lastName}` }, ...line("Email", body.email), ...line("Phone", body.phone), { label: "Type", value: nice(body.type) }, ...line("City", body.city), ...line("Country", body.country), ...line("Source", body.source), { label: "Owner", value: "You" }], warning },
+    };
+  },
+  async apply(user: SessionUser, p: Record<string, unknown>): Promise<Applied> {
+    const body = parseOrTell(createContactSchema, Object.fromEntries(Object.entries(p).filter(([, v]) => v !== null && v !== "")));
+    try {
+      const c = await createContact(user, body);
+      return { entity: "contact", id: c.id, href: `/contacts/${c.id}` };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ApiError(409, "A contact with that email already exists, so nothing was created.", "AI_PROPOSAL_STALE");
+      throw e;
+    }
+  },
+};
+
+// ─── Create a deal with its items ───────────────────────
+
+const dealItemInput = z.object({
+  productType: z.string().trim().min(1).max(100).describe("For example Body wave, Straight, Closure, Frontal."),
+  texture: z.string().trim().max(100).optional(),
+  lengthInches: z.string().trim().max(100).optional(),
+  color: z.string().trim().max(100).optional(),
+  laceType: z.string().trim().max(100).optional(),
+  quantity: z.number().int().min(1).max(100_000),
+  unitPrice: z.number().min(0).max(10_000_000).describe("Per unit, as the person said. Never guess a price: ask."),
+});
+
+export const dealCreateInput = z.object({
+  contactId: id.describe("The customer, from find_contacts."),
+  title: z.string().trim().min(1).max(200),
+  currency: z.string().trim().length(3).describe("The deal's currency, e.g. USD. One currency per deal. Ask if the person did not say."),
+  items: z.array(dealItemInput).min(1).max(20),
+  expectedCloseDate: date.optional().describe("YYYY-MM-DD"),
+});
+
+const dealCreate = {
+  edit: z.object({ title: z.string().trim().min(1).max(200), expectedCloseDate: date }).partial(),
+  async prepare(user: SessionUser, input: z.infer<typeof dealCreateInput>): Promise<Prepared> {
+    // The tool already validated this; checking again keeps `prepare` safe to call from anywhere (items, quantities and prices are required).
+    const raw = parseOrTell(dealCreateInput, input);
+    const body = parseOrTell(createDealSchema, { title: raw.title, currency: raw.currency, contactId: raw.contactId, expectedCloseDate: raw.expectedCloseDate, items: raw.items });
+    await visible(() => assertLinks(user, { contactId: raw.contactId }));
+    const who = await contactName(user, raw.contactId);
+    const total = itemsTotal(raw.items);
+    const dup = await db.deal.findFirst({
+      where: { tenantId: user.tenantId, contactId: raw.contactId, deletedAt: null, title: { equals: body.title, mode: "insensitive" }, createdAt: { gte: new Date(Date.now() - 86_400_000) } },
+      select: { id: true },
+    });
+    const describeItem = (i: z.infer<typeof dealItemInput>, n: number): PreviewLine => ({
+      label: `Item ${n + 1}`,
+      value: `${i.quantity} × ${[i.productType, i.texture, i.lengthInches && `${i.lengthInches}"`, i.color, i.laceType].filter(Boolean).join(" ")} at ${money(i.unitPrice)} = ${money(Math.round(i.quantity * i.unitPrice * 100) / 100)}`,
+    });
+    return {
+      params: { contactId: raw.contactId, title: body.title, currency: body.currency, expectedCloseDate: raw.expectedCloseDate ?? null, items: raw.items },
+      preview: {
+        title: "Create a deal",
+        lines: [...line("Customer", who), { label: "Deal", value: body.title }, ...raw.items.map(describeItem), { label: "Total", value: `${money(total)} ${body.currency}` }, { label: "Stage", value: "Qualification" }, ...line("Expected close", raw.expectedCloseDate)],
+        warning: dup ? "A deal with this title was already created for this customer in the last 24 hours. Make sure this is not a duplicate." : undefined,
+      },
+    };
+  },
+  async apply(user: SessionUser, p: Record<string, unknown>): Promise<Applied> {
+    const body = parseOrTell(createDealSchema, { ...p, expectedCloseDate: p.expectedCloseDate ?? undefined });
+    const d = await createDeal(user, body);
+    return { entity: "deal", id: d.id, href: `/deals/${d.id}` };
+  },
+};
+
 export type KindDef = {
   /** What a person may change on the card before approving; checked again on approval. */
   edit: z.ZodType<Record<string, unknown>>;
@@ -244,4 +425,7 @@ export const KINDS = {
   NOTE_CREATE: noteCreate,
   STAGE_CHANGE: stageChange,
   MESSAGE_DRAFT: messageDraft,
-} as unknown as Record<"TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT", KindDef>;
+  PAYMENT_RECORD: paymentRecord,
+  CONTACT_CREATE: contactCreate,
+  DEAL_CREATE: dealCreate,
+} as unknown as Record<"TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE", KindDef>;

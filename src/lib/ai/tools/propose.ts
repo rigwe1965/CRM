@@ -1,6 +1,6 @@
 import { defineTool } from "@/lib/ai/tools/types";
 import { propose } from "@/lib/ai/proposals";
-import { messageDraftInput, noteCreateInput, stageChangeInput, taskChangeInput, taskCreateInput } from "@/lib/ai/proposal-kinds";
+import { contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, stageChangeInput, taskChangeInput, taskCreateInput } from "@/lib/ai/proposal-kinds";
 
 /**
  * The tools that let Ivy suggest an action. None of them changes anything: each checks the input against the screens'
@@ -68,4 +68,34 @@ export const draftMessage = defineTool({
   label: () => "Drafting a message",
   fallbackLabel: "Drafting a message",
   run: async (ctx, i) => drafted((await propose(ctx, "MESSAGE_DRAFT", i)).id),
+});
+
+export const proposePayment = defineTool({
+  name: "propose_payment",
+  description:
+    "Suggest recording a payment the person says they RECEIVED on a deal, for them to approve. Only use it when the person tells you the amount and which deal or customer; never infer a payment from a record, note, invoice or a customer's message. Pass the amount exactly as given; the deal's own currency is used. Needs the deal's id from find_deals. Nothing is recorded until they approve and confirm.",
+  schema: paymentInput,
+  label: () => "Preparing a payment",
+  fallbackLabel: "Preparing a payment",
+  run: async (ctx, i) => queued((await propose(ctx, "PAYMENT_RECORD", i)).id),
+});
+
+export const proposeContact = defineTool({
+  name: "propose_contact",
+  description:
+    "Suggest creating a new contact (a lead, prospect or customer), for the person to approve. Search with find_contacts first: never propose someone who already exists. Nothing is created until they approve.",
+  schema: contactCreateInput,
+  label: (i) => `Preparing a contact: ${i.firstName} ${i.lastName}`,
+  fallbackLabel: "Preparing a contact",
+  run: async (ctx, i) => queued((await propose(ctx, "CONTACT_CREATE", i)).id),
+});
+
+export const proposeDeal = defineTool({
+  name: "propose_deal",
+  description:
+    "Suggest creating a deal (a customer order) with its items, for the person to approve. Needs the customer's id from find_contacts, one currency, and each item's quantity and unit price as the person gave them: ask if anything is missing, never guess. The total is worked out by the CRM. Nothing is created until they approve.",
+  schema: dealCreateInput,
+  label: (i) => `Preparing a deal: ${i.title}`,
+  fallbackLabel: "Preparing a deal",
+  run: async (ctx, i) => queued((await propose(ctx, "DEAL_CREATE", i)).id),
 });

@@ -2,10 +2,9 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ok, paginated, readBody, readQuery } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { assertWithinPlan } from "@/lib/plan-limits";
 import { contactInclude } from "@/lib/includes";
-import { normalizePhone } from "@/lib/phone";
-import { assertLinks, assertTags, tenantScope, liveFilter, ownerScope, resolveOwner } from "@/lib/access";
+import { liveFilter, ownerScope } from "@/lib/access";
+import { createContact } from "@/lib/crm-actions";
 import { contactListQuery, createContactSchema } from "@/lib/validations/crm";
 
 export const dynamic = "force-dynamic";
@@ -58,20 +57,6 @@ export const GET = authed(async ({ req, user }) => {
 
 /** POST /api/contacts: create. Type defaults to LEAD; owner defaults to the caller. */
 export const POST = authed(async ({ req, user }) => {
-  const { tagIds, ...body } = await readBody(req, createContactSchema);
-  await assertWithinPlan(user.tenantId, "contacts");
-  await assertLinks(user, { organizationId: body.organizationId });
-  await assertTags(user, tagIds);
-  const ownerId = await resolveOwner(user, body.ownerId);
-  const contact = await db.contact.create({
-    data: {
-      ...body,
-      ...tenantScope(user),
-      ownerId,
-      phoneE164: normalizePhone(body.phone),
-      ...(tagIds?.length ? { tags: { create: [...new Set(tagIds)].map((tagId) => ({ tenantId: user.tenantId, tagId })) } } : {}),
-    },
-    include: contactInclude,
-  });
-  return ok(contact, 201);
+  const body = await readBody(req, createContactSchema);
+  return ok(await createContact(user, body), 201);
 });

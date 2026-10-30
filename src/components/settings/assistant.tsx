@@ -39,7 +39,7 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -143,6 +143,26 @@ export function AssistantCard() {
             >
               {data.proposalsEnabled ? "Stop allowing proposed actions" : "Allow proposed actions"}
             </Button>
+          </div>
+
+          <div className="max-w-xl space-y-2 border-t pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-medium">Payment proposals</h3>
+              <Badge variant={data.paymentProposalsEnabled ? "default" : "secondary"}>{data.paymentProposalsEnabled ? "Allowed" : "Off"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              When allowed, Ivy can suggest recording a payment you tell her you received. It appears as a card showing the customer, the deal, the amount and the balance before and after, and nothing is recorded until the person presses
+              Record and confirms. Ivy can also suggest creating contacts and deals once proposed actions are allowed.
+            </p>
+            <Button
+              type="button"
+              variant={data.paymentProposalsEnabled ? "outline" : "default"}
+              disabled={saveSettings.isPending || !data.proposalsEnabled}
+              onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, paymentProposalsEnabled: !data.paymentProposalsEnabled })}
+            >
+              {data.paymentProposalsEnabled ? "Stop allowing payment proposals" : "Allow payment proposals"}
+            </Button>
+            {!data.proposalsEnabled && <p className="text-sm text-muted-foreground">Allow proposed actions first.</p>}
           </div>
         </CardContent>
       </Card>

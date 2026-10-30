@@ -144,6 +144,7 @@ export type AssistantStatus = {
   keySource: "settings" | "env" | null;
   enabled: boolean;
   proposalsEnabled: boolean;
+  paymentProposalsEnabled: boolean;
   monthlyCeilingUsd: number | null;
   level: "unset" | "ok" | "warn" | "reached";
   spentUsd: number;
