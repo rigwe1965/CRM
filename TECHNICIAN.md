@@ -173,6 +173,17 @@ A backup nobody has restored is a hope, not a backup.
 - **Where:** admins see it as "Money checks" at the top of Reports (`GET /api/reports/reconcile`, admin only). The daily cron (`/api/cron/task-reminders`) also runs it for every active business after the reminders and logs `[reconcile]` warnings (and returns a `reconciliation` summary) when something needs fixing. A failure there never stops reminders. No emails are sent yet.
 - **Adding a check:** add a `FindingKind`, a branch in `reconcileDeal()` (its `detail` says what is wrong, with no advice), the plain-words action in the `FIX` map, a label in `KIND_LABEL` (`reports/page.tsx`) and a test in `tests/reconcile.test.ts`.
 
+## Ivy (AI assistant)
+Plan and decisions: `AI_ASSISTANT_PLAN.md`. Phase 0 (this) is the groundwork: key, settings, spend ceiling, tables. There is no chat yet.
+- **Key:** each business adds its own Anthropic key (Settings → Ivy). It is stored like the Stripe and WhatsApp keys (`TenantIntegration`, kind `ANTHROPIC`, encrypted, write-only) and checked with Anthropic when saved (`verifyApiKey` in `src/lib/ai/client.ts`). The original business may use `ANTHROPIC_API_KEY` from `.env` until it saves its own. `anthropicFor(tenantId)` is the only place the key is read.
+- **Settings:** `src/lib/ai/settings.ts`, in `AutomationSetting` under the key `assistant`: `enabled` and `monthlyCeilingUsd`. Off by default, and **no default ceiling**: Ivy cannot be switched on without one, and an invalid stored value falls back to off.
+- **Spend ceiling:** every model call is recorded in `AiUsage` (tokens and an estimated cost, `src/lib/ai/usage.ts`). The price table is `src/lib/ai/pricing.ts` (an unknown model is billed at the dearest known price, never zero). `assertCanAsk` gates a new question (on, key, ceiling set and not reached, rate limit `LIMITS.assistant`); `assertUnderCeiling` re-checks before each model call. The month is counted in UTC. It is an estimate; Anthropic's invoice is the record.
+- **Changing the model or its price:** edit `IVY_MODEL` and `PRICES` in `pricing.ts`, and the cost tests in `tests/ai-pricing.test.ts`.
+- **Retention:** `AI_RETENTION_DAYS` (90) in `src/lib/ai/retention.ts`. The daily cron (`runDailyAiRetention`) deletes older conversations (their messages go with them); spend records are kept.
+- **Tables:** `AiConversation`, `AiMessage`, `AiUsage`, with row-level security like every business table, and in `ERASE_ORDER` so erasing a business removes them. Messages are kept verbatim (thinking blocks are only valid unedited), so history is never trimmed or summarised.
+- **Admin API:** `GET`/`PUT /api/admin/assistant` and `PUT`/`DELETE /api/admin/integrations/anthropic`. Neither ever returns the key.
+- **Tests:** `tests/ai-*.test.ts` (no database or network: the Anthropic client is faked).
+
 ## Automations
 - **Code:** `src/lib/automations/` (`config.ts` has the defaults, validation and title words; `stage-tasks.ts`, `quiet-leads.ts`, `settings.ts`; `index.ts` runs the daily part). Settings are stored in the `AutomationSetting` table (key `stage-tasks` or `quiet-leads`); no row means the defaults, which are all off. Admins edit them in Settings → Automations (`GET`/`PUT /api/admin/automations`).
 - **Stage tasks** run inside the request that moves the deal (`POST /api/deals/:id/stage` and `PATCH /api/deals/:id`), right after the stage email. They never fail the stage change. `Task.automationKey` (`stage:<dealId>:<stage>`) is how a rule sees that its task is already open.

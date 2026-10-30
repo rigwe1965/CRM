@@ -137,6 +137,20 @@ export type Reports = {
   topProducts: { product: string; pieces: number; revenue: MoneyMap }[];
   leadsBySource: { source: string; contacts: number; customers: number; conversion: number }[];
 };
+/** GET /api/admin/assistant: Ivy's state for the admin screen. Never contains the key. */
+export type AssistantStatus = {
+  model: string;
+  keyConfigured: boolean;
+  keySource: "settings" | "env" | null;
+  enabled: boolean;
+  monthlyCeilingUsd: number | null;
+  level: "unset" | "ok" | "warn" | "reached";
+  spentUsd: number;
+  ceilingUsd: number | null;
+  percent: number | null;
+  resetsOn: string;
+  retentionDays: number;
+};
 export type ReconcileFinding = {
   kind: string;
   severity: "high" | "low";

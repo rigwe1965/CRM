@@ -131,6 +131,7 @@ model User {
   recordedPayments   Payment[]         @relation("PaymentRecorder")
   paymentLinks       PaymentLink[]     @relation("PaymentLinkCreator")
   savedFilters       SavedFilter[]
+  aiConversations    AiConversation[]
 
   @@index([role])
   @@index([tenantId])
@@ -243,6 +244,9 @@ model Tenant {
   dealItems           DealItem[]
   stockAdjustments    StockAdjustment[]
   stockThresholds     StockThreshold[]
+  aiConversations     AiConversation[]
+  aiMessages          AiMessage[]
+  aiUsage             AiUsage[]
 }
 
 // ─── CRM core ───────────────────────────────────────────
@@ -531,6 +535,8 @@ enum IntegrationKind {
   STRIPE
   WHATSAPP
   LEAD_FORM
+  // The business's own Anthropic API key, used by the Ivy assistant (AI_ASSISTANT_PLAN.md).
+  ANTHROPIC
 }
 
 model TenantIntegration {
@@ -544,6 +550,67 @@ model TenantIntegration {
   updatedAt   DateTime        @updatedAt
 
   @@unique([tenantId, kind])
+}
+
+// ─── Ivy, the AI assistant (AI_ASSISTANT_PLAN.md) ───────
+
+enum AiRole {
+  USER
+  ASSISTANT
+}
+
+// One chat between a user and Ivy. Visible only to that user; purged after AI_RETENTION_DAYS (src/lib/ai/retention.ts).
+model AiConversation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String   @default("New conversation")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AiMessage[]
+
+  @@index([tenantId, userId, updatedAt])
+  @@index([updatedAt])
+}
+
+// Messages are kept exactly as the model sent and received them (`content` is the list of content blocks): thinking
+// blocks are only valid unedited, so history is never trimmed or summarised, only ended and restarted.
+model AiMessage {
+  id             String         @id @default(cuid())
+  tenantId       String
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  position       Int
+  role           AiRole
+  content        Json
+  createdAt      DateTime       @default(now())
+
+  @@unique([conversationId, position])
+  @@index([tenantId])
+}
+
+// One row per model call: tokens and an estimated cost, so the monthly ceiling can be enforced. userId and
+// conversationId are plain ids (no foreign keys) so the history of spend outlives a purged chat or a removed user.
+model AiUsage {
+  id               String   @id @default(cuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  userId           String?
+  conversationId   String?
+  model            String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  // Estimated cost in millionths of a US dollar (1_000_000 = $1), from the price table in src/lib/ai/pricing.ts.
+  costMicros       Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId, createdAt])
 }
 
 // ─── Invoices ───────────────────────────────────────────

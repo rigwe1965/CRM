@@ -52,7 +52,7 @@ export async function cancelDeletion(user: SessionUser, req: Request) {
 export const ERASE_ORDER = [
   "instalmentReminder", "instalment", "payment", "paymentLink", "invoiceItem", "invoice", "dealItem", "stockAdjustment", "stockThreshold",
   "activity", "task", "contactTag", "tag", "savedFilter", "deal", "contact", "organization", "emailTemplate",
-  "automationSetting", "tenantIntegration", "auditLog", "user",
+  "automationSetting", "tenantIntegration", "auditLog", "aiMessage", "aiConversation", "aiUsage", "user",
 ] as const;
 
 export async function eraseTenant(tenantId: string) {

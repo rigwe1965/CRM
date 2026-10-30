@@ -125,6 +125,9 @@ async function seedTenant(db: PrismaClient, k: string): Promise<TenantFixture> {
   await db.stockAdjustment.create({ data: { ...t, product: "Bundle", quantity: 1, reason: "Found", ownerId: sales.id } });
   await db.stockThreshold.create({ data: { ...t, key: `bundle||`, product: "Bundle", threshold: 2 } });
   await db.tenantIntegration.create({ data: { ...t, kind: "LEAD_FORM", config: "placeholder-not-real-ciphertext" } });
+  const chat = await db.aiConversation.create({ data: { ...t, userId: sales.id, title: `Chat ${k}` } });
+  await db.aiMessage.create({ data: { ...t, conversationId: chat.id, position: 0, role: "USER", content: [{ type: "text", text: `Hello ${k}` }] } });
+  await db.aiUsage.create({ data: { ...t, userId: sales.id, conversationId: chat.id, model: "claude-sonnet-5-5", inputTokens: 10, outputTokens: 5, costMicros: 80 } });
   await db.auditLog.create({ data: { ...t, action: `fixture.${k}`, actorId: adminUser.id } });
   void link;
 

@@ -23,6 +23,7 @@ import { errorMessage } from "@/lib/client/hooks";
 import type { Role, TeamUser } from "@/lib/client/types";
 import { useRouter } from "next/navigation";
 import { AuditLogCard } from "@/components/settings/audit-log";
+import { AssistantCard } from "@/components/settings/assistant";
 import { AutomationsCard } from "@/components/settings/automations";
 import { BillingCard } from "@/components/settings/billing";
 import { BusinessCard } from "@/components/settings/business";
@@ -389,6 +390,7 @@ export default function SettingsPage() {
           {user.role === "ADMIN" && <TabsTrigger value="tags">Tags</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="templates">Templates</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="automations">Automations</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="ivy">Ivy</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="leadform">Lead form</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="export">Data export</TabsTrigger>}
@@ -436,6 +438,11 @@ export default function SettingsPage() {
         {user.role === "ADMIN" && (
           <TabsContent value="automations">
             <AutomationsCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="ivy">
+            <AssistantCard />
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

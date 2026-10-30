@@ -36,6 +36,7 @@ const productionEnv = z
     WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
     WHATSAPP_APP_SECRET: z.string().optional(),
     WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     const add = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });

@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { db } = vi.hoisted(() => ({ db: { automationSetting: { findUnique: vi.fn(), upsert: vi.fn() } } }));
+vi.mock("@/lib/db", () => ({ db }));
+
+import { assistantSettingsSchema, DEFAULT_ASSISTANT, loadAssistantSettings, resolveAssistant, saveAssistantSettings } from "@/lib/ai/settings";
+
+describe("assistantSettingsSchema", () => {
+  it("accepts off with no ceiling, and on with one", () => {
+    expect(assistantSettingsSchema.parse({ enabled: false, monthlyCeilingUsd: null })).toEqual({ enabled: false, monthlyCeilingUsd: null });
+    expect(assistantSettingsSchema.parse({ enabled: true, monthlyCeilingUsd: 20 })).toEqual({ enabled: true, monthlyCeilingUsd: 20 });
+  });
+
+  it("will not switch Ivy on without a ceiling: there is no default amount", () => {
+    const r = assistantSettingsSchema.safeParse({ enabled: true, monthlyCeilingUsd: null });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0].path).toEqual(["monthlyCeilingUsd"]);
+  });
+
+  it("rejects zero, negative, huge and non-numeric ceilings", () => {
+    for (const bad of [0, -5, 10_001, "20", NaN]) expect(assistantSettingsSchema.safeParse({ enabled: false, monthlyCeilingUsd: bad }).success, String(bad)).toBe(false);
+  });
+
+  it("rounds a ceiling to whole cents", () => {
+    expect(assistantSettingsSchema.parse({ enabled: false, monthlyCeilingUsd: 12.3456 }).monthlyCeilingUsd).toBe(12.35);
+  });
+});
+
+describe("resolveAssistant", () => {
+  it("is off with no ceiling when nothing is stored", () => expect(resolveAssistant(undefined)).toEqual(DEFAULT_ASSISTANT));
+
+  it("falls back to off, never to something that spends, when the stored value is no longer valid", () => {
+    expect(resolveAssistant({ enabled: true })).toEqual(DEFAULT_ASSISTANT);
+    expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: null })).toEqual(DEFAULT_ASSISTANT);
+    expect(resolveAssistant("garbage")).toEqual(DEFAULT_ASSISTANT);
+  });
+});
+
+describe("load and save", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("reads the assistant row of that business", async () => {
+    db.automationSetting.findUnique.mockResolvedValue({ config: { enabled: true, monthlyCeilingUsd: 15 } });
+    expect(await loadAssistantSettings("t1")).toEqual({ enabled: true, monthlyCeilingUsd: 15 });
+    expect(db.automationSetting.findUnique).toHaveBeenCalledWith({ where: { tenantId_key: { tenantId: "t1", key: "assistant" } } });
+  });
+
+  it("saves under the assistant key for that business and returns what is stored", async () => {
+    db.automationSetting.findUnique.mockResolvedValue({ config: { enabled: false, monthlyCeilingUsd: 8 } });
+    const out = await saveAssistantSettings("t1", { enabled: false, monthlyCeilingUsd: 8 }, "u1");
+    expect(db.automationSetting.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_key: { tenantId: "t1", key: "assistant" } },
+        create: { tenantId: "t1", key: "assistant", config: { enabled: false, monthlyCeilingUsd: 8 }, updatedById: "u1" },
+      }),
+    );
+    expect(out).toEqual({ enabled: false, monthlyCeilingUsd: 8 });
+  });
+});

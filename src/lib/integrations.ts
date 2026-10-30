@@ -33,9 +33,12 @@ const origin = z
       return false;
     }
   }, "Must be a website address like https://www.example.com (no path)");
+export const anthropicSettings = z.object({
+  apiKey: z.string().trim().regex(/^sk-ant-[\w-]{20,}$/, "Must be an Anthropic API key (sk-ant-…)"),
+});
 export const leadFormSettings = z.object({ origins: z.array(origin).max(20) });
 
-export const SCHEMAS = { STRIPE: stripeSettings, WHATSAPP: whatsappSettings, LEAD_FORM: leadFormSettings } as const;
+export const SCHEMAS = { STRIPE: stripeSettings, WHATSAPP: whatsappSettings, LEAD_FORM: leadFormSettings, ANTHROPIC: anthropicSettings } as const;
 export type Settings = { [K in keyof typeof SCHEMAS]: z.infer<(typeof SCHEMAS)[K]> };
 export type Source = "settings" | "env";
 
@@ -47,6 +50,7 @@ function fromEnv<K extends IntegrationKind>(kind: K): Settings[K] | null {
   if (kind === "WHATSAPP" && e.WHATSAPP_ACCESS_TOKEN && e.WHATSAPP_PHONE_NUMBER_ID && e.WHATSAPP_APP_SECRET && e.WHATSAPP_VERIFY_TOKEN) {
     raw = { accessToken: e.WHATSAPP_ACCESS_TOKEN, phoneNumberId: e.WHATSAPP_PHONE_NUMBER_ID, appSecret: e.WHATSAPP_APP_SECRET, verifyToken: e.WHATSAPP_VERIFY_TOKEN } as Settings[K];
   }
+  if (kind === "ANTHROPIC" && e.ANTHROPIC_API_KEY) raw = { apiKey: e.ANTHROPIC_API_KEY } as Settings[K];
   if (kind === "LEAD_FORM") raw = { origins: (e.LEAD_FORM_ORIGINS ?? "").split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean) } as Settings[K];
   // Not re-validated: these values worked before settings existed, and a stricter rule must not switch them off.
   return raw;

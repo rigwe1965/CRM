@@ -5,8 +5,25 @@ import { runLowStockAlerts } from "@/lib/automations/low-stock";
 import { runQuietLeadNudges } from "@/lib/automations/quiet-leads";
 
 import { reconcileTenant } from "@/lib/reconcile";
+import { purgeOldConversations } from "@/lib/ai/retention";
 
 export { runStageAutomations } from "@/lib/automations/stage-tasks";
+
+/** Deletes Ivy conversations past the retention period, one business at a time. A failing business never stops the others. */
+export async function runDailyAiRetention(now = new Date()) {
+  const tenants = await platformDb.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
+  let deleted = 0;
+  let failed = 0;
+  for (const { id } of tenants) {
+    try {
+      deleted += await withTenant(id, () => purgeOldConversations(id, now));
+    } catch (e) {
+      failed++;
+      console.error(`[ai] retention purge failed for ${id}`, e);
+    }
+  }
+  return { tenants: tenants.length, deleted, failed };
+}
 
 /**
  * Daily money-consistency check (src/lib/reconcile.ts). Read-only and report-only for now: it logs what it finds,

@@ -136,6 +136,8 @@ export const LIMITS = {
   /** Every authenticated API call, per user (reads and writes counted separately). */
   apiRead: { max: 600, windowMs: 60_000 },
   apiWrite: { max: 120, windowMs: 60_000 },
+  /** Questions to Ivy, per user: stops a runaway script from spending a business's budget in minutes. */
+  assistant: { max: 20, windowMs: 10 * 60_000 },
 } as const;
 
 /** Throws ApiError(429) when over the limit. For handlers that already catch ApiError. */
