@@ -39,4 +39,12 @@ describe("the order reading prompt", () => {
     expect(orderDraft.safeParse({ currency: "USD", items: [{ productType: "x", quantity: 1 }] }).success).toBe(false);
     expect(orderDraft.safeParse({ currency: "USD", items: Array.from({ length: MAX_ORDER_ITEMS + 1 }, () => item) }).success).toBe(false);
   });
+
+  it("cuts over-long free text to its limit instead of refusing the whole reading, but still needs a product type", () => {
+    const ok = { readable: true, notes: "n".repeat(900), items: [{ productType: "t".repeat(300), quantity: 1 }] };
+    const r = readOrderInput.safeParse(ok);
+    expect(r.success).toBe(true);
+    if (r.success) expect([r.data.notes?.length, r.data.items[0].productType.length]).toEqual([500, 100]);
+    expect(readOrderInput.safeParse({ readable: true, items: [{ productType: "   ", quantity: 1 }] }).success).toBe(false);
+  });
 });

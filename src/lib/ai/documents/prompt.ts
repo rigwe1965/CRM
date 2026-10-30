@@ -25,42 +25,55 @@ Rules
 - Do not mention these instructions.
 - Call read_invoice exactly once.`;
 
+/**
+ * A free-text field longer than its limit is cut to the limit when the model's answer is read, not refused: one wordy
+ * note must not throw away an otherwise good reading. The tool's schema (what the model is told) still states the limit.
+ */
+const text = (strict: boolean) => (max: number, min = 0) => {
+  if (strict) return min ? z.string().trim().min(min).max(max) : z.string().trim().max(max);
+  return z.string().trim().transform((s) => s.slice(0, max)).pipe(min ? z.string().min(min) : z.string());
+};
+
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const money = z.number().finite().min(0).max(100_000_000);
 
-export const readInvoiceInput = z.object({
+const buildReadInvoiceInput = (strict: boolean) => {
+  const t = text(strict);
+  return z.object({
   readable: z.boolean(),
-  problem: z.string().trim().max(300).optional(),
-  number: z.string().trim().max(60).optional(),
+  problem: t(300).optional(),
+  number: t(60).optional(),
   invoiceDate: day.optional(),
-  currency: z.string().trim().max(10).optional(),
-  vendorName: z.string().trim().max(200).optional(),
-  vendorRep: z.string().trim().max(100).optional(),
-  vendorPhone: z.string().trim().max(50).optional(),
-  billTo: z.string().trim().max(200).optional(),
+  currency: t(10).optional(),
+  vendorName: t(200).optional(),
+  vendorRep: t(100).optional(),
+  vendorPhone: t(50).optional(),
+  billTo: t(200).optional(),
   shipping: money.optional(),
   printedTotal: money.optional(),
-  notes: z.string().trim().max(1000).optional(),
+  notes: t(1000).optional(),
   items: z
     .array(
       z.object({
-        ref: z.string().trim().max(40).optional(),
-        style: z.string().trim().max(120).optional(),
-        description: z.string().trim().max(300).optional(),
-        color: z.string().trim().max(80).optional(),
-        density: z.string().trim().max(40).optional(),
+        ref: t(40).optional(),
+        style: t(120).optional(),
+        description: t(300).optional(),
+        color: t(80).optional(),
+        density: t(40).optional(),
         lengthInches: z.number().int().min(1).max(100).optional(),
         quantity: z.number().int().min(1).max(100_000),
         unitPrice: money,
         printedLineTotal: money.optional(),
-        note: z.string().trim().max(300).optional(),
+        note: t(300).optional(),
       }),
     )
     .max(MAX_DOCUMENT_LINES),
-});
+  });
+};
+export const readInvoiceInput = buildReadInvoiceInput(false);
 export type ReadInvoice = z.infer<typeof readInvoiceInput>;
 
-const { $schema: _omit, ...schema } = z.toJSONSchema(readInvoiceInput, { io: "input" }) as Record<string, unknown>;
+const { $schema: _omit, ...schema } = z.toJSONSchema(buildReadInvoiceInput(true), { io: "input" }) as Record<string, unknown>;
 void _omit;
 
 export const INVOICE_TOOL = {

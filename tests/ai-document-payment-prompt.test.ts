@@ -31,6 +31,12 @@ describe("the payment receipt reading prompt", () => {
     expect(readPaymentInput.safeParse({ readable: true, paidAt: "03/11/2026" }).success).toBe(false);
   });
 
+  it("cuts over-long free text to its limit instead of refusing the whole reading (a wordy note must not lose the amount)", () => {
+    const r = readPaymentInput.safeParse({ readable: true, status: "COMPLETED", amount: 50, currency: "USD", notes: "n".repeat(900), problem: "p".repeat(900) });
+    expect(r.success).toBe(true);
+    if (r.success) expect([r.data.amount, r.data.notes?.length, r.data.problem?.length]).toEqual([50, 300, 300]);
+  });
+
   it("a draft that can become a card needs a positive amount, a 3-letter currency and a plain reference", () => {
     expect(paymentDraft.safeParse({ amount: 10, currency: "USD", reference: "TRX-1/2" }).success).toBe(true);
     expect(paymentDraft.safeParse({ amount: 0, currency: "USD" }).success).toBe(false);

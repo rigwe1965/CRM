@@ -33,6 +33,11 @@ describe("the invoice reading prompt", () => {
     expect(readInvoiceInput.safeParse({ ...ok, items: [{ ...line, quantity: 0 }] }).success).toBe(false);
     expect(readInvoiceInput.safeParse({ ...ok, invoiceDate: "05/11/2026" }).success).toBe(false);
     expect(readInvoiceInput.safeParse({ ...ok, items: Array.from({ length: MAX_DOCUMENT_LINES + 1 }, () => line) }).success).toBe(false);
-    expect(readInvoiceInput.safeParse({ ...ok, number: "x".repeat(61) }).success).toBe(false);
+  });
+
+  it("cuts over-long free text to its limit instead of refusing the whole reading", () => {
+    const r = readInvoiceInput.safeParse({ readable: true, number: "x".repeat(61), notes: "n".repeat(5000), items: [{ quantity: 1, unitPrice: 1, note: "z".repeat(900) }] });
+    expect(r.success).toBe(true);
+    if (r.success) expect([r.data.number?.length, r.data.notes?.length, r.data.items[0].note?.length]).toEqual([60, 1000, 300]);
   });
 });

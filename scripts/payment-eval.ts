@@ -161,6 +161,7 @@ async function main() {
       console.log(`      (unusable answer: stop_reason ${message.stop_reason}${parsed && !parsed.success ? `, first problems: ${JSON.stringify(parsed.error.issues.slice(0, 2)).slice(0, 300)}` : ""})`);
       return { read: null, unreadable: true };
     }
+    if (!parsed.data.readable) console.log(`      (said not readable: ${parsed.data.problem ?? "no reason given"})`);
     return parsed.data.readable ? { read: parsed.data, unreadable: false } : { read: null, unreadable: true };
   }
 

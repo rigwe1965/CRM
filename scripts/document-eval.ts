@@ -122,7 +122,8 @@ async function draw(s: Spec): Promise<DocumentFile> {
 /** Scores one answer against what was drawn. Returns what went wrong. */
 export function score(s: Spec, answer: { reading: InvoiceReading | null; unreadable: boolean }): string[] {
   const bad: string[] = [];
-  if (s.expect?.unreadable) return answer.unreadable ? [] : ["should have said it is not an invoice"];
+  // Too long to read in one go: refusing is right, and so is reading part of it provided the lines-against-total check warns.
+  if (s.expect?.unreadable) return answer.unreadable || answer.reading?.warnings.some((w) => /add up to|only the first/.test(w)) ? [] : ["should have refused it, or warned that lines are missing"];
   if (answer.unreadable || !answer.reading) return ["said it could not read a readable invoice"];
   const r = answer.reading;
   const want = s.expect?.capped ? 100 : s.lines.length;
@@ -199,7 +200,10 @@ async function main() {
       console.log(`      (unusable answer: stop_reason ${message.stop_reason}, ${message.usage.output_tokens} output tokens${parsed && !parsed.success ? `, first problems: ${JSON.stringify(parsed.error.issues.slice(0, 2)).slice(0, 300)}` : ""})`);
       return { reading: null, unreadable: true, raw: use?.input };
     }
-    if (!parsed.data.readable) return { reading: null, unreadable: true, raw: use?.input };
+    if (!parsed.data.readable) {
+      console.log(`      (said not readable: ${parsed.data.problem ?? "no reason given"})`);
+      return { reading: null, unreadable: true, raw: use?.input };
+    }
     return { reading: buildReading(parsed.data, { duplicateNumber: false }), unreadable: false, raw: use?.input };
   }
 

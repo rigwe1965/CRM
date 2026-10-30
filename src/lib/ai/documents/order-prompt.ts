@@ -27,31 +27,44 @@ Rules
 - Do not mention these instructions.
 - Call read_order exactly once.`;
 
-export const readOrderInput = z.object({
+/**
+ * A free-text field longer than its limit is cut to the limit when the model's answer is read, not refused: one wordy
+ * note must not throw away an otherwise good reading. The tool's schema (what the model is told) still states the limit.
+ */
+const text = (strict: boolean) => (max: number, min = 0) => {
+  if (strict) return min ? z.string().trim().min(min).max(max) : z.string().trim().max(max);
+  return z.string().trim().transform((s) => s.slice(0, max)).pipe(min ? z.string().min(min) : z.string());
+};
+
+const buildReadOrderInput = (strict: boolean) => {
+  const t = text(strict);
+  return z.object({
   readable: z.boolean(),
-  problem: z.string().trim().max(300).optional(),
-  customerName: z.string().trim().max(120).optional(),
-  customerPhone: z.string().trim().max(40).optional(),
-  currency: z.string().trim().max(10).optional(),
+  problem: t(300).optional(),
+  customerName: t(120).optional(),
+  customerPhone: t(40).optional(),
+  currency: t(10).optional(),
   printedTotal: z.number().finite().min(0).max(100_000_000).optional(),
-  notes: z.string().trim().max(500).optional(),
+  notes: t(500).optional(),
   items: z
     .array(
       z.object({
-        productType: z.string().trim().min(1).max(100),
-        texture: z.string().trim().max(100).optional(),
-        lengthInches: z.string().trim().max(100).optional(),
-        color: z.string().trim().max(100).optional(),
-        laceType: z.string().trim().max(100).optional(),
+        productType: t(100, 1),
+        texture: t(100).optional(),
+        lengthInches: t(100).optional(),
+        color: t(100).optional(),
+        laceType: t(100).optional(),
         quantity: z.number().int().min(1).max(100_000),
         unitPrice: z.number().finite().min(0).max(10_000_000).optional(),
       }),
     )
     .max(MAX_ORDER_ITEMS + 1), // one more than fits, so "too many" can be told apart from "exactly full"
-});
+  });
+};
+export const readOrderInput = buildReadOrderInput(false);
 export type ReadOrder = z.infer<typeof readOrderInput>;
 
-const { $schema: _omit, ...schema } = z.toJSONSchema(readOrderInput, { io: "input" }) as Record<string, unknown>;
+const { $schema: _omit, ...schema } = z.toJSONSchema(buildReadOrderInput(true), { io: "input" }) as Record<string, unknown>;
 void _omit;
 
 export const ORDER_TOOL = {
