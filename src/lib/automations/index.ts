@@ -4,7 +4,35 @@ import { runInstalmentEmails, runInstalmentWhatsapps } from "@/lib/automations/i
 import { runLowStockAlerts } from "@/lib/automations/low-stock";
 import { runQuietLeadNudges } from "@/lib/automations/quiet-leads";
 
+import { reconcileTenant } from "@/lib/reconcile";
+
 export { runStageAutomations } from "@/lib/automations/stage-tasks";
+
+/**
+ * Daily money-consistency check (src/lib/reconcile.ts). Read-only and report-only for now: it logs what it finds,
+ * and admins see the same list under Reports. One business failing never stops the others.
+ */
+export async function runDailyReconciliation() {
+  const tenants = await platformDb.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true }, orderBy: { createdAt: "asc" } });
+  let checked = 0;
+  let high = 0;
+  let low = 0;
+  let failed = 0;
+  for (const { id } of tenants) {
+    try {
+      const r = await withTenant(id, () => reconcileTenant({ tenantId: id }, Number.POSITIVE_INFINITY));
+      checked += r.checked;
+      const h = r.findings.filter((f) => f.severity === "high").length;
+      high += h;
+      low += r.findings.length - h;
+      if (h > 0) console.warn(`[reconcile] ${id}: ${h} money issue(s) need a look`, r.counts);
+    } catch (e) {
+      failed++;
+      console.error(`[reconcile] ${id} failed`, e);
+    }
+  }
+  return { tenants: tenants.length, deals: checked, high, low, failed };
+}
 
 /**
  * The daily automations. Run before the reminder emails so tasks created here are in today's digest.

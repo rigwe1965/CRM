@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common/page";
 import { money, moneyMap } from "@/lib/client/format";
-import { useReports } from "@/lib/client/hooks";
+import { useCurrentUser } from "@/components/providers";
+import { useReconcile, useReports } from "@/lib/client/hooks";
 import type { Reports } from "@/lib/client/types";
 
 const RANGES = [
@@ -56,9 +57,65 @@ function RevenueChart({ rows }: { rows: Reports["revenueByMonth"] }) {
   );
 }
 
+const KIND_LABEL: Record<string, string> = {
+  OVERPAID: "Overpaid",
+  SCHEDULE_MISMATCH: "Instalments don't match",
+  ITEMS_MISMATCH: "Line items don't match",
+  ORPHAN_ONLINE_PAYMENT: "Online payment unmatched",
+  PAID_LINK_WITHOUT_PAYMENT: "Paid link, no payment",
+  REFUND_NEEDED: "Refund needed",
+  STALE_PENDING_LINK: "Old payment link",
+  UNSCHEDULED_BALANCE: "Owed, no schedule",
+  CURRENCY_DRIFT: "Currency mismatch",
+};
+
+/** Admin-only: deals whose money doesn't add up. Read-only; a person fixes each one on the deal. */
+function MoneyChecks() {
+  const { data, isLoading, error } = useReconcile(true);
+  if (isLoading) return <Skeleton className="h-24" />;
+  if (error || !data) return null;
+  const high = data.findings.filter((f) => f.severity === "high").length;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Money checks</CardTitle>
+        <CardDescription>
+          {data.findings.length === 0
+            ? `All ${data.checked} deals add up.`
+            : `${high} to fix, ${data.findings.length - high} to tidy, across ${data.checked} deals. Nothing is changed automatically.`}
+        </CardDescription>
+      </CardHeader>
+      {data.findings.length > 0 && (
+        <CardContent className="px-0 pb-2">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Deal</TableHead>
+                <TableHead>Problem</TableHead>
+                <TableHead>What to do</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.findings.map((f, i) => (
+                <TableRow key={`${f.dealId}-${f.kind}-${i}`}>
+                  <TableCell className="font-medium">{f.dealTitle}</TableCell>
+                  <TableCell className={f.severity === "high" ? "text-destructive" : "text-muted-foreground"}>{KIND_LABEL[f.kind] ?? f.kind}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{f.detail}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {data.truncated && <p className="px-5 pt-2 text-sm text-muted-foreground">Showing the most serious {data.findings.length}. Fix these and refresh to see the rest.</p>}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export default function ReportsPage() {
   const [months, setMonths] = useState("12");
   const { data, isLoading, error, refetch } = useReports(Number(months));
+  const isAdmin = useCurrentUser().role === "ADMIN";
 
   return (
     <>
@@ -91,6 +148,7 @@ export default function ReportsPage() {
         </Card>
       ) : (
         <div className="space-y-6">
+          {isAdmin && <MoneyChecks />}
           <Card>
             <CardHeader>
               <CardTitle>Money received by month</CardTitle>

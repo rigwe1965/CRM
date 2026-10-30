@@ -153,6 +153,25 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 - Backup: `pg_dump "$DIRECT_URL" -Fc -f crm.dump`
 - Restore into an empty database: `pg_restore -d "<url>" --clean crm.dump`
 - Back up before any migration and before deleting sample data. Hosted providers (Neon, Supabase) also offer point-in-time restore.
+- Shortcut: `bash scripts/backup.sh` runs the same `pg_dump` into `backups/crm-<timestamp>.dump` (git-ignored; it holds real customer data, so keep it somewhere private).
+
+### Restore drill (do this once before launch, then every quarter)
+A backup nobody has restored is a hope, not a backup.
+1. Take a backup: `bash scripts/backup.sh`.
+2. Create an empty scratch database (a Neon branch, or `createdb crm_restore_test` locally). Never restore over the live one.
+3. Restore into it: `pg_restore -d "<scratch url>" --no-owner crm.dump` (use the dump file's real name).
+4. Compare row counts: `npm run db:verify -- "<live url>" "<scratch url>"`. It prints a table and exits 1 if any table differs. Counts can differ by a few rows only if people used the app between the backup and the check.
+5. Sign in to a copy of the app pointed at the scratch database and open a deal with payments.
+6. Delete the scratch database. Note the date in `LAUNCH_RUNBOOK.md`.
+
+### Commands that wipe data
+`npm run db:seed` and `npm run db:reset` both refuse unless `DATABASE_URL` points at localhost (and `NODE_ENV` is not production). To override on purpose, pass `--force` **and** set `CONFIRM_WIPE` to the database name, e.g. `CONFIRM_WIPE=crm_staging npm run db:reset -- --force`. Never do this against a database holding real work.
+
+## Money checks (reconciliation)
+- **Code:** `src/lib/reconcile.ts`. `reconcileDeal()` is a pure per-deal check; `reconcileTenant()` loads live deals in batches of 500 under the caller's scope. Read-only: it never changes data.
+- **Finds:** overpaid deals; instalments or line items that don't add up to the deal amount; online payments with no Stripe reference; paid links with no payment; `REFUND_NEEDED` links; payment links pending over 14 days; won deals that still owe money with no schedule; link/deal currency mismatches. Amounts are shown per deal in the deal's own currency, never summed across currencies.
+- **Where:** admins see it as "Money checks" at the top of Reports (`GET /api/reports/reconcile`, admin only). The daily cron (`/api/cron/task-reminders`) also runs it for every active business after the reminders and logs `[reconcile]` warnings (and returns a `reconciliation` summary) when something needs fixing. A failure there never stops reminders. No emails are sent yet.
+- **Adding a check:** add a `FindingKind`, a branch in `reconcileDeal()`, a label in `KIND_LABEL` (`reports/page.tsx`) and a test in `tests/reconcile.test.ts`.
 
 ## Automations
 - **Code:** `src/lib/automations/` (`config.ts` has the defaults, validation and title words; `stage-tasks.ts`, `quiet-leads.ts`, `settings.ts`; `index.ts` runs the daily part). Settings are stored in the `AutomationSetting` table (key `stage-tasks` or `quiet-leads`); no row means the defaults, which are all off. Admins edit them in Settings → Automations (`GET`/`PUT /api/admin/automations`).

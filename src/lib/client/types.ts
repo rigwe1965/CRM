@@ -137,6 +137,15 @@ export type Reports = {
   topProducts: { product: string; pieces: number; revenue: MoneyMap }[];
   leadsBySource: { source: string; contacts: number; customers: number; conversion: number }[];
 };
+export type ReconcileFinding = {
+  kind: string;
+  severity: "high" | "low";
+  dealId: string;
+  dealTitle: string;
+  currency: string;
+  detail: string;
+};
+export type ReconcileReport = { checked: number; findings: ReconcileFinding[]; truncated: boolean; counts: Record<string, number> };
 export type DuplicateMatch = { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; type: string; reasons: string[] };
 export type SavedFilter = {
   id: string;

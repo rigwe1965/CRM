@@ -3,19 +3,9 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { sampleInvoice } from "./sample-invoice";
 import { DEFAULT_TENANT_ID } from "../src/lib/tenant";
+import { assertSafeTarget } from "../scripts/safe-target";
 
-// The seed WIPES every table. Refuse unless the database is local (or --force is passed on purpose).
-function assertSafeTarget() {
-  if (process.argv.includes("--force")) return;
-  const url = process.env.DATABASE_URL ?? "";
-  const host = URL.canParse(url) ? new URL(url).hostname : "";
-  const local = ["localhost", "127.0.0.1", "::1", "[::1]", "db", "postgres"].includes(host);
-  if (process.env.NODE_ENV === "production" || !local) {
-    console.error(`Refusing to seed: DATABASE_URL host "${host || "unknown"}" is not local (or NODE_ENV=production).`);
-    console.error("The seed deletes all data. Pass --force only if you are sure.");
-    process.exit(1);
-  }
-}
+// The seed WIPES every table. Refuse unless the database is local (or --force and CONFIRM_WIPE are given on purpose).
 assertSafeTarget();
 
 const prisma = new PrismaClient();

@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, RemindersView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -32,6 +32,15 @@ export function useReports(months: number) {
     queryKey: ["reports", months],
     queryFn: async () => (await request<{ data: Reports }>("GET", `/api/reports?months=${months}`)).data,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Admin-only money-consistency findings; pass `enabled: false` for everyone else. */
+export function useReconcile(enabled: boolean) {
+  return useQuery({
+    queryKey: ["reports", "reconcile"],
+    queryFn: async () => (await request<{ data: ReconcileReport }>("GET", "/api/reports/reconcile")).data,
+    enabled,
   });
 }
 
