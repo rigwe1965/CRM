@@ -5,9 +5,9 @@ import { platformDb } from "@/lib/platform-db";
 import { withTenant } from "@/lib/tenant-context";
 import { ApiError } from "@/lib/api";
 import { audit } from "@/lib/audit";
+import { round2 } from "@/lib/money";
 import { ONLINE_CURRENCIES, stripe, stripeConfigured, toMinorUnits } from "@/lib/stripe";
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Takes the same row lock the manual payment route uses, so payments and links on one deal queue up. */
 const lockDeal = (tx: Prisma.TransactionClient, tenantId: string, dealId: string) =>

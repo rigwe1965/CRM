@@ -1,13 +1,17 @@
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import type { MoneyMap } from "@/lib/money";
 
-export const money = (n: number, currency = "USD", compact = false) =>
-  new Intl.NumberFormat("en-US", {
+export const money = (n: number, currency = "USD", compact = false) => {
+  const digits = compact ? 1 : 0;
+  // Anything that rounds to zero at this precision (-0, -0.3) shows as a plain zero, never "-$0".
+  const shown = Math.abs(n) < 0.5 * 10 ** -digits ? 0 : n;
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    maximumFractionDigits: compact ? 1 : 0,
+    maximumFractionDigits: digits,
     notation: compact ? "compact" : "standard",
-  }).format(n);
+  }).format(shown);
+};
 
 /** "$7,309 + €620": one figure per currency, never added together. USD first, then A to Z. */
 export const moneyMap = (m: MoneyMap, fallback = "USD", compact = false) => {

@@ -177,8 +177,7 @@ describe("summarize edge cases", () => {
 
   it("cent-level payments don't drift through float rounding", () => {
     const { summary } = summarize(0.3, 0.1 + 0.2, [{ id: "a", position: 1, dueDate: d("2026-01-01"), amount: 0.3 }], "2026-02-01");
-    // Numerically zero. (It comes back as -0, which `toBe(0)` rejects; see the note in the PR about formatting.)
-    expect(Math.abs(summary.balance)).toBe(0);
+    expect(summary.balance).toBe(0); // toBe uses Object.is, so this also rejects -0
     expect(summary.overdue).toBe(false);
   });
 });

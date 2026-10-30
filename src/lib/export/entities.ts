@@ -6,6 +6,7 @@ import { authorScope, liveFilter, ownerScope, taskScope } from "@/lib/access";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { loadStock } from "@/lib/stock";
 import { cashflow } from "@/lib/cashflow";
+import { round2 } from "@/lib/money";
 import { paymentSummaries, summarize } from "@/lib/payments";
 import { computed, listing, paged, pickedCount, type ExportEntity, type WithDeleted } from "@/lib/export/define";
 import {
@@ -37,7 +38,6 @@ const n = (d: Prisma.Decimal | null | undefined) => (d === null || d === undefin
 const name = (p: { name: string } | null | undefined) => p?.name ?? "";
 const customer = (c: { firstName: string; lastName: string } | null | undefined) =>
   c ? `${c.firstName} ${c.lastName}` : "";
-const round2 = (x: number) => Math.round(x * 100) / 100;
 /** Deals the caller may see: the same rule as the deals list. Deleted ones only when an admin asked for them. */
 const visibleDeal = (user: SessionUser, includeDeleted?: boolean): Prisma.DealWhereInput => ({
   AND: [liveFilter(user, includeDeleted), ownerScope(user)],

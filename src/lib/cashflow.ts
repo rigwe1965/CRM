@@ -1,11 +1,10 @@
 import { Prisma, type DealStage } from "@prisma/client";
 import { db } from "@/lib/db";
-import { addMoney, type MoneyMap } from "@/lib/money";
+import { addMoney, round2, type MoneyMap } from "@/lib/money";
 import { summarize } from "@/lib/payments";
 import type { OwnerScope } from "@/lib/access";
 
 const DAY = 86_400_000;
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Stages where the customer has agreed to buy, so an unpaid balance is genuinely owed to us. */
 const OWED_STAGES: DealStage[] = ["PROPOSAL", "NEGOTIATION", "CLOSED_WON"];

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import { ownerScope } from "@/lib/access";
+import { round2 } from "@/lib/money";
 import type { SessionUser } from "@/lib/auth-helpers";
 
 /** Prisma Decimal → JSON number (Decimal(14,2) is well inside double precision). */
@@ -35,7 +36,6 @@ export function invoiceDto<T extends InvoiceRow & { items?: ItemRow[] }>(invoice
   };
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 type ItemInput = { quantity: number; unitPrice: number; lineTotal?: number };
 
