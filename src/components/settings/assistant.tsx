@@ -39,7 +39,7 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -47,6 +47,7 @@ export function AssistantCard() {
   const [apiKey, setApiKey] = useState("");
   const [ceiling, setCeiling] = useState<string | null>(null);
   const [triageCap, setTriageCap] = useState<string | null>(null);
+  const [docCap, setDocCap] = useState<string | null>(null);
 
   if (isLoading) return <Skeleton className="h-64" />;
   if (error || !data) return <ErrorState message={error?.message} onRetry={() => refetch()} />;
@@ -221,6 +222,39 @@ export function AssistantCard() {
             </Button>
             {!data.proposalsEnabled && <p className="text-sm text-muted-foreground">Allow proposed actions first.</p>}
           </div>
+
+          <div className="max-w-xl space-y-2 border-t pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-medium">Read documents</h3>
+              <Badge variant={data.documentsEnabled ? "default" : "secondary"}>{data.documentsEnabled ? "Allowed" : "Off"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              When allowed, the Invoices page gains &quot;Read a PDF or photo&quot;: Ivy reads a supplier invoice and fills the New invoice form for the person to check and save. It can misread numbers, so it warns when the lines do not add up to the printed total, and
+              nothing is saved until the person presses Create. The file is read once and not kept. It costs roughly 2 to 6 cents a document, counted in your monthly limit.
+            </p>
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const n = Number(docCap ?? data.documentsDailyCap);
+                if (!Number.isInteger(n) || n < 1 || n > 500) return void toast.error("Enter a whole number from 1 to 500");
+                saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, documentsDailyCap: n });
+              }}
+            >
+              <FormField label="Most documents a day" hint="After this many in a day, people can still import a spreadsheet or type the invoice in.">
+                <Input type="number" inputMode="numeric" min="1" max="500" step="1" className="w-28" value={docCap ?? String(data.documentsDailyCap)} onChange={(e) => setDocCap(e.target.value)} />
+              </FormField>
+              <Button type="submit" variant="outline" disabled={saveSettings.isPending}>Save</Button>
+            </form>
+            <Button
+              type="button"
+              variant={data.documentsEnabled ? "outline" : "default"}
+              disabled={saveSettings.isPending}
+              onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, documentsEnabled: !data.documentsEnabled })}
+            >
+              {data.documentsEnabled ? "Stop reading documents" : "Allow reading documents"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -250,6 +284,7 @@ export function AssistantCard() {
                 Chat {dollars(data.spentByPurposeUsd.chat)}
                 {data.inboxEnabled || data.spentByPurposeUsd.inbox > 0 ? <> · Daily suggestions {dollars(data.spentByPurposeUsd.inbox)}</> : null}
                 {data.spentByPurposeUsd.triage > 0 ? <> · WhatsApp {dollars(data.spentByPurposeUsd.triage)}</> : null}
+                {data.spentByPurposeUsd.documents > 0 ? <> · Documents {dollars(data.spentByPurposeUsd.documents)}</> : null}
               </p>
               {data.level === "warn" && <p className="text-sm text-amber-600">You have used over 80% of this month&apos;s limit.</p>}
               {data.level === "reached" && <p className="text-sm text-destructive">The limit is reached, so Ivy is paused until {data.resetsOn}. Raise the limit above to resume sooner.</p>}
@@ -268,6 +303,7 @@ export function AssistantCard() {
           <p>When proposed actions are allowed, what Ivy suggests (the task, note or message text, and the names it refers to) is saved with the conversation and deleted with it. Approved actions are kept as ordinary records and in the audit log.</p>
           <p>Daily suggestions use only each person&apos;s own records and send the names, deals and amounts they involve to Anthropic under your key, in one short request a day per person.</p>
           <p>WhatsApp message help sends the customer&apos;s latest few messages in that one conversation, their first name, and their deals, balances and open tasks to Anthropic under your key, once per incoming message, so the customer&apos;s own words leave your system. Only turn it on if your customers expect that. The suggestions it makes quote up to 300 characters of the message, and a short summary of each message is kept; both are deleted after {data.retentionDays} days.</p>
+          <p>Reading documents sends the whole file (a PDF or photo), including any names, phone numbers or bank details printed on it, to Anthropic under your key, once for each document someone chooses to have read. The CRM does not keep the file or a copy of what was read, other than what the person then saves as an invoice.</p>
           <p>Ivy works as the person asking: sales and support users get answers from their own records only, admins from the whole business.</p>
         </CardContent>
       </Card>

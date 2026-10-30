@@ -211,7 +211,7 @@ describe("GET /api/assistant/status", () => {
 
   it("is ready when on, with a key and a ceiling not reached", async () => {
     assistantStatus.mockResolvedValue(base);
-    expect(await get()).toEqual({ ready: true, reason: null, resetsOn: null });
+    expect(await get()).toMatchObject({ ready: true, documents: false, reason: null, resetsOn: null });
   });
 
   it("says why not, in the order a person would fix things", async () => {
@@ -222,7 +222,7 @@ describe("GET /api/assistant/status", () => {
     assistantStatus.mockResolvedValue({ ...base, level: "unset" });
     expect((await get()).reason).toBe("AI_CEILING_UNSET");
     assistantStatus.mockResolvedValue({ ...base, level: "reached" });
-    expect(await get()).toEqual({ ready: false, reason: "AI_CEILING_REACHED", resetsOn: "2026-11-01" });
+    expect(await get()).toMatchObject({ ready: false, documents: false, reason: "AI_CEILING_REACHED", resetsOn: "2026-11-01" });
   });
 
   it("holds no spending figures, for everyone", async () => {

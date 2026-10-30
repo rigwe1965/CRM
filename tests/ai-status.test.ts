@@ -44,7 +44,9 @@ describe("assistantStatus", () => {
     settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10 });
     expect(await assistantStatus("t1", NOW)).toMatchObject({ proposalsEnabled: false, paymentProposalsEnabled: false, inboxEnabled: false, triageEnabled: false, triageDailyCap: 100 });
     settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, triageEnabled: true, triageDailyCap: 25 });
-    expect(await assistantStatus("t1", NOW)).toMatchObject({ triageEnabled: true, triageDailyCap: 25 });
+    expect(await assistantStatus("t1", NOW)).toMatchObject({ triageEnabled: true, triageDailyCap: 25, documentsEnabled: false, documentsDailyCap: 20 });
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, documentsEnabled: true, documentsDailyCap: 5 });
+    expect(await assistantStatus("t1", NOW)).toMatchObject({ documentsEnabled: true, documentsDailyCap: 5 });
   });
 
   it("reports an environment-supplied key as such", async () => {

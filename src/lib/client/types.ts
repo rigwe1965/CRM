@@ -148,7 +148,9 @@ export type AssistantStatus = {
   inboxEnabled: boolean;
   triageEnabled: boolean;
   triageDailyCap: number;
-  spentByPurposeUsd: { chat: number; inbox: number; triage: number };
+  documentsEnabled: boolean;
+  documentsDailyCap: number;
+  spentByPurposeUsd: { chat: number; inbox: number; triage: number; documents: number };
   monthlyCeilingUsd: number | null;
   level: "unset" | "ok" | "warn" | "reached";
   spentUsd: number;

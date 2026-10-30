@@ -11,5 +11,5 @@ export const dynamic = "force-dynamic";
 export const GET = authed(async ({ user }) => {
   const s = await assistantStatus(user.tenantId);
   const reason = !s.enabled ? "AI_DISABLED" : !s.keyConfigured ? "AI_NOT_CONFIGURED" : s.level === "unset" ? "AI_CEILING_UNSET" : s.level === "reached" ? "AI_CEILING_REACHED" : null;
-  return ok({ ready: reason === null, reason, resetsOn: reason === "AI_CEILING_REACHED" ? s.resetsOn : null });
+  return ok({ ready: reason === null, documents: reason === null && s.documentsEnabled === true, reason, resetsOn: reason === "AI_CEILING_REACHED" ? s.resetsOn : null });
 });

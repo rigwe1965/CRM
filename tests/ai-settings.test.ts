@@ -97,6 +97,18 @@ describe("load and save", () => {
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).triageEnabled).toBeUndefined();
   });
 
+  it("keeps the document-reading switch and its daily number separately, and a save that leaves them out changes neither", async () => {
+    db.automationSetting.findUnique.mockResolvedValue({ config: { enabled: true, monthlyCeilingUsd: 8, documentsEnabled: true, documentsDailyCap: 7 } });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9 }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[0][0].update.config).toEqual({ enabled: true, monthlyCeilingUsd: 9, documentsEnabled: true, documentsDailyCap: 7 });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9, documentsEnabled: false }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[1][0].update.config).toMatchObject({ documentsEnabled: false, documentsDailyCap: 7 });
+    expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).documentsEnabled).toBeUndefined();
+    const parse = (cap: unknown) => assistantSettingsSchema.safeParse({ enabled: false, monthlyCeilingUsd: null, documentsDailyCap: cap }).success;
+    expect([1, 20, 500].every(parse)).toBe(true);
+    expect([0, 501, 2.5, "20"].some(parse)).toBe(false);
+  });
+
   it("accepts a daily cap only as a whole number from 1 to 1000", () => {
     const parse = (cap: unknown) => assistantSettingsSchema.safeParse({ enabled: false, monthlyCeilingUsd: null, triageDailyCap: cap }).success;
     expect([1, 100, 1000].every(parse)).toBe(true);

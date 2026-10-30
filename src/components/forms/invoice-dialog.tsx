@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +14,7 @@ import { currencyOptions, INVOICE_STATUSES } from "@/lib/client/constants";
 import { toDateInput } from "@/lib/client/format";
 import { useList, useSave } from "@/lib/client/hooks";
 import type { ImportedItem } from "@/lib/client/invoice-import";
+import type { DocumentReading } from "@/lib/client/document-upload";
 import type { Deal, Invoice, InvoiceStatus } from "@/lib/client/types";
 import { FormShell, Grid2, nullable, useFormState } from "./form-kit";
 
@@ -53,39 +54,42 @@ export function InvoiceDialog({
   onOpenChange,
   invoice,
   initialItems,
+  reading,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   invoice?: Invoice;
   /** Lines read from an imported spreadsheet, to review before saving a new invoice. */
   initialItems?: ImportedItem[];
+  /** An invoice Ivy read from a PDF or photo: the header, the lines and what to double-check. Nothing is saved until the person saves the form. */
+  reading?: DocumentReading;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
-        <InvoiceForm invoice={invoice} initialItems={initialItems} onClose={() => onOpenChange(false)} />
+        <InvoiceForm invoice={invoice} initialItems={reading?.items ?? initialItems} reading={reading} onClose={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function InvoiceForm({ invoice, initialItems, onClose }: { invoice?: Invoice; initialItems?: ImportedItem[]; onClose: () => void }) {
+function InvoiceForm({ invoice, initialItems, reading, onClose }: { invoice?: Invoice; initialItems?: ImportedItem[]; reading?: DocumentReading; onClose: () => void }) {
   const save = useSave<Invoice>("invoices", invoice?.id);
   const form = useFormState();
   const deals = useList<Deal>("deals", { pageSize: 100, sort: "title", order: "asc" });
 
   const [v, setV] = useState({
-    number: invoice?.number ?? "",
+    number: invoice?.number ?? reading?.header.number ?? "",
     status: (invoice?.status ?? "DRAFT") as InvoiceStatus,
-    invoiceDate: toDateInput(invoice?.invoiceDate) || new Date().toISOString().slice(0, 10),
-    currency: invoice?.currency ?? "USD",
-    vendorName: invoice?.vendorName ?? "",
-    vendorRep: invoice?.vendorRep ?? "",
-    vendorPhone: invoice?.vendorPhone ?? "",
-    billTo: invoice?.billTo ?? "",
-    shipping: invoice ? String(invoice.shipping) : "",
+    invoiceDate: toDateInput(invoice?.invoiceDate) || reading?.header.invoiceDate || new Date().toISOString().slice(0, 10),
+    currency: invoice?.currency ?? reading?.header.currency ?? "USD",
+    vendorName: invoice?.vendorName ?? reading?.header.vendorName ?? "",
+    vendorRep: invoice?.vendorRep ?? reading?.header.vendorRep ?? "",
+    vendorPhone: invoice?.vendorPhone ?? reading?.header.vendorPhone ?? "",
+    billTo: invoice?.billTo ?? reading?.header.billTo ?? "",
+    shipping: invoice ? String(invoice.shipping) : reading?.header.shipping ?? "",
     total: invoice ? String(invoice.total) : "",
-    notes: invoice?.notes ?? "",
+    notes: invoice?.notes ?? reading?.header.notes ?? "",
   });
   const [dealIds, setDealIds] = useState<string[]>(invoice?.deals.map((d) => d.id) ?? []);
   const [items, setItems] = useState<ItemState[]>(() =>
@@ -137,7 +141,7 @@ function InvoiceForm({ invoice, initialItems, onClose }: { invoice?: Invoice; in
   return (
     <FormShell
       title={invoice ? "Edit invoice" : "New supplier invoice"}
-      description={invoice ? undefined : initialItems?.length ? `${initialItems.length} lines imported from your file. Check them, add the invoice details, then save.` : "Record a stock order from a supplier."}
+      description={invoice ? undefined : reading ? `Ivy read ${reading.items.length} line${reading.items.length === 1 ? "" : "s"} from your document. It can misread numbers, so check every field against the original before you save.` : initialItems?.length ? `${initialItems.length} lines imported from your file. Check them, add the invoice details, then save.` : "Record a stock order from a supplier."}
       submitLabel={invoice ? "Save changes" : "Create invoice"}
       pending={save.isPending}
       formError={form.formError}
@@ -181,6 +185,18 @@ function InvoiceForm({ invoice, initialItems, onClose }: { invoice?: Invoice; in
         }
       }}
     >
+      {reading && reading.warnings.length > 0 && (
+        <div role="alert" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <p className="flex items-center gap-1.5 font-medium">
+            <TriangleAlert className="size-4 shrink-0" /> Check these before saving
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {reading.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <Grid2>
         <FormField label="Invoice number" error={form.err("number")}>
           <Input value={v.number} onChange={(e) => set("number", e.target.value)} placeholder="PI-20250807-001" autoFocus />

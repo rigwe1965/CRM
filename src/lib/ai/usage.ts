@@ -6,7 +6,7 @@ export const monthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(),
 export const nextMonthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
 
 /** Records one model call and returns its estimated cost in micro-dollars. Call inside the business's context. */
-export async function recordUsage(input: { tenantId: string; userId?: string | null; conversationId?: string | null; model: string; usage: TokenUsage; /** What the call was for; defaults to CHAT. */ purpose?: "CHAT" | "INBOX" | "TRIAGE" }) {
+export async function recordUsage(input: { tenantId: string; userId?: string | null; conversationId?: string | null; model: string; usage: TokenUsage; /** What the call was for; defaults to CHAT. */ purpose?: "CHAT" | "INBOX" | "TRIAGE" | "DOCUMENT" }) {
   const cost = costMicros(input.model, input.usage);
   await db.aiUsage.create({
     data: {

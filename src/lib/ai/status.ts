@@ -3,7 +3,7 @@ import { getIntegration } from "@/lib/integrations";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
 import { IVY_MODEL } from "@/lib/ai/pricing";
-import { DEFAULT_TRIAGE_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
+import { DEFAULT_DOCUMENTS_DAILY_CAP, DEFAULT_TRIAGE_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
 import { ceilingState, monthToDateByPurpose, monthToDateMicros, nextMonthStart } from "@/lib/ai/usage";
 import { usd } from "@/lib/ai/pricing";
 
@@ -20,8 +20,10 @@ export async function assistantStatus(tenantId: string, now = new Date()) {
     inboxEnabled: settings.inboxEnabled === true,
     triageEnabled: settings.triageEnabled === true,
     triageDailyCap: settings.triageDailyCap ?? DEFAULT_TRIAGE_DAILY_CAP,
+    documentsEnabled: settings.documentsEnabled === true,
+    documentsDailyCap: settings.documentsDailyCap ?? DEFAULT_DOCUMENTS_DAILY_CAP,
     /** This month's estimated spend by what it was for. */
-    spentByPurposeUsd: { chat: usd(byPurpose.CHAT ?? 0), inbox: usd(byPurpose.INBOX ?? 0), triage: usd(byPurpose.TRIAGE ?? 0) },
+    spentByPurposeUsd: { chat: usd(byPurpose.CHAT ?? 0), inbox: usd(byPurpose.INBOX ?? 0), triage: usd(byPurpose.TRIAGE ?? 0), documents: usd(byPurpose.DOCUMENT ?? 0) },
     monthlyCeilingUsd: settings.monthlyCeilingUsd,
     ...ceilingState(settings.monthlyCeilingUsd, spent),
     resetsOn: nextMonthStart(now).toISOString().slice(0, 10),

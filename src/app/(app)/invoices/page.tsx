@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { Plus, Receipt, Upload } from "lucide-react";
+import { FileText, Loader2, Plus, Receipt, Upload } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,6 +14,9 @@ import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { InvoiceDialog } from "@/components/forms/invoice-dialog";
 import { invoiceStatusInfo } from "@/lib/client/constants";
 import { readTable, tableToItems, type ImportedItem } from "@/lib/client/invoice-import";
+import { readInvoiceDocument, type DocumentReading } from "@/lib/client/document-upload";
+import { request } from "@/lib/client/api";
+import type { IvyStatus } from "@/lib/client/ivy";
 import { dateOnly, money } from "@/lib/client/format";
 import { useList } from "@/lib/client/hooks";
 import type { Invoice } from "@/lib/client/types";
@@ -24,12 +28,35 @@ export default function InvoicesPage() {
   const [creating, setCreating] = useState(false);
   const [imported, setImported] = useState<ImportedItem[] | undefined>();
   const fileInput = useRef<HTMLInputElement>(null);
+  const docInput = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState<DocumentReading | undefined>();
+  const [readingBusy, setReadingBusy] = useState(false);
+  // "Read a PDF or photo" shows only where an admin has allowed it.
+  const ivy = useQuery({ queryKey: ["ivy-status"], queryFn: async () => (await request<{ data: IvyStatus }>("GET", "/api/assistant/status")).data, staleTime: 60_000 });
+
+  async function onDocument(file: File | undefined) {
+    if (!file) return;
+    setReadingBusy(true);
+    try {
+      const r = await readInvoiceDocument(file);
+      setImported(undefined);
+      setReading(r);
+      setCreating(true);
+      toast.success(`Ivy read ${r.items.length} line${r.items.length === 1 ? "" : "s"}. Check them before you save.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not read that file.");
+    } finally {
+      setReadingBusy(false);
+      if (docInput.current) docInput.current.value = "";
+    }
+  }
 
   async function onFile(file: File | undefined) {
     if (!file) return;
     try {
       const { items, skipped } = tableToItems(await readTable(file));
       setImported(items);
+      setReading(undefined);
       setCreating(true);
       toast.success(`Read ${items.length} lines${skipped ? ` (skipped ${skipped} rows without a quantity and price)` : ""}`);
     } catch (e) {
@@ -52,6 +79,14 @@ export default function InvoicesPage() {
             <Button variant="outline" onClick={() => fileInput.current?.click()}>
               <Upload /> Import from file
             </Button>
+            {ivy.data?.documents && (
+              <>
+                <input ref={docInput} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" className="sr-only" aria-label="Read an invoice from a PDF or photo" onChange={(e) => void onDocument(e.target.files?.[0])} />
+                <Button variant="outline" disabled={readingBusy} onClick={() => docInput.current?.click()}>
+                  {readingBusy ? <Loader2 className="animate-spin" /> : <FileText />} {readingBusy ? "Reading…" : "Read a PDF or photo"}
+                </Button>
+              </>
+            )}
             <ExportMenu
               items={[
                 { label: "Invoices (CSV)", entity: "invoices", count: data?.meta.total, params: { q, sort: "invoiceDate", order: "desc" }, choose: chooseRows<Invoice>("invoices", (i) => ({ title: i.number, detail: `${i.vendorName} · ${dateOnly(i.invoiceDate)} · ${money(i.total, i.currency)}` })) },
@@ -69,6 +104,7 @@ export default function InvoicesPage() {
             <Button
               onClick={() => {
                 setImported(undefined);
+                setReading(undefined);
                 setCreating(true);
               }}
             >
@@ -140,7 +176,7 @@ export default function InvoicesPage() {
         )}
       </Card>
 
-      <InvoiceDialog open={creating} onOpenChange={setCreating} initialItems={imported} />
+      <InvoiceDialog open={creating} onOpenChange={setCreating} initialItems={imported} reading={reading} />
     </>
   );
 }

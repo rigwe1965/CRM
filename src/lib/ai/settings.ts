@@ -28,12 +28,17 @@ export const assistantSettingsSchema = z
     triageEnabled: z.boolean().optional(),
     /** The most messages a day the model is called for (Phase 3c); left out means "keep what is stored", and nothing stored means DEFAULT_TRIAGE_DAILY_CAP. */
     triageDailyCap: z.number("Enter a whole number").int("Enter a whole number").min(1, "Must be at least 1").max(1000, "Must be 1,000 or fewer").optional(),
+    /** Whether people may have Ivy read a supplier invoice from a PDF or photo (Phase 4a). The whole document goes to Anthropic, so it is its own switch, off until an admin allows it; left out means "keep what is stored". */
+    documentsEnabled: z.boolean().optional(),
+    /** The most documents a day (Phase 4); left out means "keep what is stored", and nothing stored means DEFAULT_DOCUMENTS_DAILY_CAP. */
+    documentsDailyCap: z.number("Enter a whole number").int("Enter a whole number").min(1, "Must be at least 1").max(500, "Must be 500 or fewer").optional(),
   })
   .refine((v) => !v.enabled || v.monthlyCeilingUsd !== null, { path: ["monthlyCeilingUsd"], message: "Set a monthly ceiling before turning Ivy on" });
 
 export type AssistantSettings = z.infer<typeof assistantSettingsSchema>;
 
 export const DEFAULT_TRIAGE_DAILY_CAP = 100;
+export const DEFAULT_DOCUMENTS_DAILY_CAP = 20;
 
 export const DEFAULT_ASSISTANT: AssistantSettings = { enabled: false, monthlyCeilingUsd: null };
 
@@ -56,6 +61,8 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   const inboxEnabled = settings.inboxEnabled ?? stored.inboxEnabled;
   const triageEnabled = settings.triageEnabled ?? stored.triageEnabled;
   const triageDailyCap = settings.triageDailyCap ?? stored.triageDailyCap;
+  const documentsEnabled = settings.documentsEnabled ?? stored.documentsEnabled;
+  const documentsDailyCap = settings.documentsDailyCap ?? stored.documentsDailyCap;
   const config = {
     ...settings,
     ...(proposalsEnabled === undefined ? {} : { proposalsEnabled }),
@@ -63,6 +70,8 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
     ...(inboxEnabled === undefined ? {} : { inboxEnabled }),
     ...(triageEnabled === undefined ? {} : { triageEnabled }),
     ...(triageDailyCap === undefined ? {} : { triageDailyCap }),
+    ...(documentsEnabled === undefined ? {} : { documentsEnabled }),
+    ...(documentsDailyCap === undefined ? {} : { documentsDailyCap }),
   } as unknown as Prisma.InputJsonValue;
   await db.automationSetting.upsert({
     where: { tenantId_key: { tenantId, key: KEY } },
