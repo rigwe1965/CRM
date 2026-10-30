@@ -14,5 +14,8 @@ export async function purgeOldConversations(tenantId: string, now = new Date()) 
   // Proposals whose time ran out are closed first; the rest go with their conversation.
   await db.aiProposal.updateMany({ where: { tenantId, status: "PENDING", expiresAt: { lt: now } }, data: { status: "EXPIRED", decidedAt: now } });
   const { count } = await db.aiConversation.deleteMany({ where: { tenantId, updatedAt: { lt: cutoff } } });
+  // Suggestions Ivy made on her own belong to no conversation, so they go on their own clock, once decided or expired; so do the daily run records.
+  await db.aiProposal.deleteMany({ where: { tenantId, conversationId: null, status: { not: "PENDING" }, createdAt: { lt: cutoff } } });
+  await db.aiInboxRun.deleteMany({ where: { tenantId, startedAt: { lt: cutoff } } });
   return count;
 }

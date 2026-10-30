@@ -4,6 +4,7 @@ const { db } = vi.hoisted(() => ({
   db: {
     aiUsage: { count: vi.fn(), findMany: vi.fn() },
     aiConversation: { count: vi.fn(), findMany: vi.fn() },
+    aiProposal: { count: vi.fn(), findMany: vi.fn() },
   },
 }));
 vi.mock("@/lib/db", () => ({ db }));
@@ -23,6 +24,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   db.aiUsage.count.mockResolvedValue(1);
   db.aiConversation.count.mockResolvedValue(1);
+  db.aiProposal.count.mockResolvedValue(1);
 });
 
 describe("the AI export areas", () => {
@@ -54,7 +56,17 @@ describe("the AI export areas", () => {
     expect(db.aiConversation.count.mock.calls[0][0].where).toEqual({ tenantId: "t1" });
   });
 
+  it("ai-proposals lists kind, status, source, who and when, never the values, titles or notes proposed", async () => {
+    db.aiProposal.findMany.mockResolvedValueOnce([{ id: "p1", createdAt: new Date("2026-10-30"), decidedAt: new Date("2026-10-31"), kind: "TASK_CREATE", status: "APPLIED", source: "DAILY", conversationId: null, resultEntity: "task", resultId: "t9", user: { name: "Sam" } }]).mockResolvedValue([]);
+    const { plan, out } = await rowsOf("ai-proposals");
+    expect(plan.headers).toEqual(["id", "user", "createdAt", "decidedAt", "kind", "status", "source", "conversationId", "resultEntity", "resultId"]);
+    expect(out[0]).toEqual(["p1", "Sam", new Date("2026-10-30"), new Date("2026-10-31"), "TASK_CREATE", "APPLIED", "DAILY", null, "task", "t9"]);
+    const select = db.aiProposal.findMany.mock.calls[0][0].select;
+    for (const secret of ["params", "preview", "reason", "dedupeKey", "failure"]) expect(select).not.toHaveProperty(secret);
+    expect(db.aiProposal.count.mock.calls[0][0].where).toEqual({ tenantId: "t1" });
+  });
+
   it("are for admins only, and need no authenticator code", () => {
-    for (const key of ["ai-usage", "ai-conversations"]) expect(EXPORTS[key]).toMatchObject({ adminOnly: true, stepUp: false, softDeleted: false });
+    for (const key of ["ai-usage", "ai-conversations", "ai-proposals"]) expect(EXPORTS[key]).toMatchObject({ adminOnly: true, stepUp: false, softDeleted: false });
   });
 });

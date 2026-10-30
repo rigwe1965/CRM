@@ -162,12 +162,12 @@ const aiProposals = listing({
   fetch: (user, q, page) =>
     db.aiProposal.findMany({
       where: aiRange(user, q),
-      select: { id: true, createdAt: true, decidedAt: true, kind: true, status: true, conversationId: true, resultEntity: true, resultId: true, user: person },
+      select: { id: true, createdAt: true, decidedAt: true, kind: true, status: true, source: true, conversationId: true, resultEntity: true, resultId: true, user: person },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       ...page,
     }),
   columns: [
-    ["id", (p) => p.id], ["user", (p) => p.user.name], ["createdAt", (p) => p.createdAt], ["decidedAt", (p) => p.decidedAt], ["kind", (p) => p.kind], ["status", (p) => p.status],
+    ["id", (p) => p.id], ["user", (p) => p.user.name], ["createdAt", (p) => p.createdAt], ["decidedAt", (p) => p.decidedAt], ["kind", (p) => p.kind], ["status", (p) => p.status], ["source", (p) => p.source],
     ["conversationId", (p) => p.conversationId], ["resultEntity", (p) => p.resultEntity], ["resultId", (p) => p.resultId],
   ],
 });

@@ -77,6 +77,15 @@ describe("load and save", () => {
     expect(db.automationSetting.upsert.mock.calls[1][0].update.config).toEqual({ enabled: true, monthlyCeilingUsd: 8, proposalsEnabled: true, paymentProposalsEnabled: false });
   });
 
+  it("keeps the daily-suggestions choice separately too", async () => {
+    db.automationSetting.findUnique.mockResolvedValue({ config: { enabled: true, monthlyCeilingUsd: 8, proposalsEnabled: true, inboxEnabled: true } });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9 }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[0][0].update.config).toEqual({ enabled: true, monthlyCeilingUsd: 9, proposalsEnabled: true, inboxEnabled: true });
+    await saveAssistantSettings("t1", { enabled: true, monthlyCeilingUsd: 9, inboxEnabled: false }, "u1");
+    expect(db.automationSetting.upsert.mock.calls[1][0].update.config.inboxEnabled).toBe(false);
+    expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).inboxEnabled).toBeUndefined();
+  });
+
   it("is off until an admin allows it", () => {
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).paymentProposalsEnabled).toBeUndefined();
     expect(resolveAssistant({ enabled: true, monthlyCeilingUsd: 5 }).proposalsEnabled).toBeUndefined();

@@ -22,6 +22,8 @@ export const assistantSettingsSchema = z
     proposalsEnabled: z.boolean().optional(),
     /** Whether Ivy may also propose recording payments (Wave B). A separate switch, off until an admin allows it; left out means "keep what is stored". */
     paymentProposalsEnabled: z.boolean().optional(),
+    /** Whether Ivy makes a daily "Suggested actions" list for each person (Phase 3b). Off until an admin allows it; left out means "keep what is stored". */
+    inboxEnabled: z.boolean().optional(),
   })
   .refine((v) => !v.enabled || v.monthlyCeilingUsd !== null, { path: ["monthlyCeilingUsd"], message: "Set a monthly ceiling before turning Ivy on" });
 
@@ -45,10 +47,12 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   const stored = await loadAssistantSettings(tenantId);
   const proposalsEnabled = settings.proposalsEnabled ?? stored.proposalsEnabled;
   const paymentProposalsEnabled = settings.paymentProposalsEnabled ?? stored.paymentProposalsEnabled;
+  const inboxEnabled = settings.inboxEnabled ?? stored.inboxEnabled;
   const config = {
     ...settings,
     ...(proposalsEnabled === undefined ? {} : { proposalsEnabled }),
     ...(paymentProposalsEnabled === undefined ? {} : { paymentProposalsEnabled }),
+    ...(inboxEnabled === undefined ? {} : { inboxEnabled }),
   } as unknown as Prisma.InputJsonValue;
   await db.automationSetting.upsert({
     where: { tenantId_key: { tenantId, key: KEY } },

@@ -129,6 +129,7 @@ async function seedTenant(db: PrismaClient, k: string): Promise<TenantFixture> {
   const chat = await db.aiConversation.create({ data: { ...t, userId: sales.id, title: `Chat ${k}` } });
   await db.aiMessage.create({ data: { ...t, conversationId: chat.id, position: 0, role: "USER", content: [{ type: "text", text: `Hello ${k}` }] } });
   await db.aiUsage.create({ data: { ...t, userId: sales.id, conversationId: chat.id, model: "claude-sonnet-5-5", inputTokens: 10, outputTokens: 5, costMicros: 80 } });
+  await db.aiInboxRun.create({ data: { ...t, userId: sales.id, day: "2026-10-30", status: "DONE", candidates: 1, created: 1 } });
   await db.aiProposal.create({ data: { ...t, userId: sales.id, conversationId: chat.id, kind: "TASK_CREATE", params: { title: `Proposed ${k}` }, preview: { title: "Create a task", lines: [] }, expiresAt: new Date(Date.now() + 86_400_000) } });
   await db.auditLog.create({ data: { ...t, action: `fixture.${k}`, actorId: adminUser.id } });
   void link;

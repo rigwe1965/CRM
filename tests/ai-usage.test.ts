@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db } = vi.hoisted(() => ({ db: { aiUsage: { create: vi.fn(), aggregate: vi.fn() } } }));
+const { db } = vi.hoisted(() => ({ db: { aiUsage: { create: vi.fn(), aggregate: vi.fn(), groupBy: vi.fn() } } }));
 vi.mock("@/lib/db", () => ({ db }));
 
 import { IVY_MODEL } from "@/lib/ai/pricing";
-import { ceilingState, monthStart, monthToDateMicros, nextMonthStart, recordUsage } from "@/lib/ai/usage";
+import { ceilingState, monthStart, monthToDateByPurpose, monthToDateMicros, nextMonthStart, recordUsage } from "@/lib/ai/usage";
 
 describe("month boundaries", () => {
   it("count from the first of the month in UTC", () => {
@@ -62,8 +62,19 @@ describe("recording and summing usage", () => {
     });
     expect(cost).toBe(Math.ceil(1000 * 2 + 100 * 10 + 500 * 0.2));
     expect(db.aiUsage.create).toHaveBeenCalledWith({
-      data: { tenantId: "t1", userId: "u1", conversationId: "c1", model: IVY_MODEL, inputTokens: 1000, outputTokens: 100, cacheReadTokens: 500, cacheWriteTokens: 0, costMicros: cost },
+      data: { tenantId: "t1", userId: "u1", conversationId: "c1", model: IVY_MODEL, inputTokens: 1000, outputTokens: 100, cacheReadTokens: 500, cacheWriteTokens: 0, costMicros: cost, purpose: "CHAT" },
     });
+  });
+
+  it("records what a call was for, so Settings can show where the money goes", async () => {
+    await recordUsage({ tenantId: "t1", model: IVY_MODEL, purpose: "INBOX", usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } });
+    expect(db.aiUsage.create.mock.calls[0][0].data.purpose).toBe("INBOX");
+  });
+
+  it("adds up this month's spend by purpose", async () => {
+    db.aiUsage.groupBy.mockResolvedValue([{ purpose: "CHAT", _sum: { costMicros: 5000 } }, { purpose: "INBOX", _sum: { costMicros: null } }]);
+    expect(await monthToDateByPurpose("t1", new Date("2026-10-30T10:00:00Z"))).toEqual({ CHAT: 5000, INBOX: 0 });
+    expect(db.aiUsage.groupBy).toHaveBeenCalledWith({ by: ["purpose"], where: { tenantId: "t1", createdAt: { gte: new Date("2026-10-01T00:00:00Z") } }, _sum: { costMicros: true } });
   });
 
   it("allows usage without a user or conversation", async () => {

@@ -145,6 +145,8 @@ export type AssistantStatus = {
   enabled: boolean;
   proposalsEnabled: boolean;
   paymentProposalsEnabled: boolean;
+  inboxEnabled: boolean;
+  spentByPurposeUsd: { chat: number; inbox: number; triage: number };
   monthlyCeilingUsd: number | null;
   level: "unset" | "ok" | "warn" | "reached";
   spentUsd: number;

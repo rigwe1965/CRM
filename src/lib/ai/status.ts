@@ -4,11 +4,12 @@ import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
 import { IVY_MODEL } from "@/lib/ai/pricing";
 import { loadAssistantSettings } from "@/lib/ai/settings";
-import { ceilingState, monthToDateMicros, nextMonthStart } from "@/lib/ai/usage";
+import { ceilingState, monthToDateByPurpose, monthToDateMicros, nextMonthStart } from "@/lib/ai/usage";
+import { usd } from "@/lib/ai/pricing";
 
 /** Everything the admin screen (and the gates below) need to know about Ivy. Never contains the key. */
 export async function assistantStatus(tenantId: string, now = new Date()) {
-  const [settings, key, spent] = await Promise.all([loadAssistantSettings(tenantId), getIntegration(tenantId, "ANTHROPIC"), monthToDateMicros(tenantId, now)]);
+  const [settings, key, spent, byPurpose] = await Promise.all([loadAssistantSettings(tenantId), getIntegration(tenantId, "ANTHROPIC"), monthToDateMicros(tenantId, now), monthToDateByPurpose(tenantId, now)]);
   return {
     model: IVY_MODEL,
     keyConfigured: !!key,
@@ -16,6 +17,9 @@ export async function assistantStatus(tenantId: string, now = new Date()) {
     enabled: settings.enabled,
     proposalsEnabled: settings.proposalsEnabled === true,
     paymentProposalsEnabled: settings.paymentProposalsEnabled === true,
+    inboxEnabled: settings.inboxEnabled === true,
+    /** This month's estimated spend by what it was for. */
+    spentByPurposeUsd: { chat: usd(byPurpose.CHAT ?? 0), inbox: usd(byPurpose.INBOX ?? 0), triage: usd(byPurpose.TRIAGE ?? 0) },
     monthlyCeilingUsd: settings.monthlyCeilingUsd,
     ...ceilingState(settings.monthlyCeilingUsd, spent),
     resetsOn: nextMonthStart(now).toISOString().slice(0, 10),

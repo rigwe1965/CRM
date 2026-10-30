@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { settings, spent, integration, rate } = vi.hoisted(() => ({
+const { settings, spent, byPurpose, integration, rate } = vi.hoisted(() => ({
   settings: vi.fn(),
   spent: vi.fn(),
+  byPurpose: vi.fn(),
   integration: vi.fn(),
   rate: vi.fn(),
 }));
 vi.mock("@/lib/ai/settings", () => ({ loadAssistantSettings: settings }));
-vi.mock("@/lib/ai/usage", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/usage")>()), monthToDateMicros: spent }));
+vi.mock("@/lib/ai/usage", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/usage")>()), monthToDateMicros: spent, monthToDateByPurpose: byPurpose }));
 vi.mock("@/lib/integrations", () => ({ getIntegration: integration }));
 vi.mock("@/lib/rate-limit", async (orig) => ({ ...(await orig<typeof import("@/lib/rate-limit")>()), enforceRateLimit: rate }));
 
@@ -20,6 +21,7 @@ const ready = () => {
   settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10 });
   integration.mockResolvedValue({ settings: { apiKey: "sk-ant-very-secret-value-0123456789" }, source: "settings" });
   spent.mockResolvedValue(1_000_000);
+  byPurpose.mockResolvedValue({ CHAT: 800_000, INBOX: 200_000 });
 };
 
 beforeEach(() => {
@@ -33,6 +35,14 @@ describe("assistantStatus", () => {
     const s = await assistantStatus("t1", NOW);
     expect(s).toMatchObject({ keyConfigured: true, keySource: "settings", enabled: true, monthlyCeilingUsd: 10, level: "ok", spentUsd: 1, percent: 10, resetsOn: "2026-11-01", retentionDays: AI_RETENTION_DAYS });
     expect(JSON.stringify(s)).not.toContain("sk-ant");
+  });
+
+  it("shows what this month's spend went on, and which optional parts are allowed", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true, paymentProposalsEnabled: true, inboxEnabled: true });
+    const s = await assistantStatus("t1", NOW);
+    expect(s).toMatchObject({ proposalsEnabled: true, paymentProposalsEnabled: true, inboxEnabled: true, spentByPurposeUsd: { chat: 0.8, inbox: 0.2, triage: 0 } });
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10 });
+    expect(await assistantStatus("t1", NOW)).toMatchObject({ proposalsEnabled: false, paymentProposalsEnabled: false, inboxEnabled: false });
   });
 
   it("reports an environment-supplied key as such", async () => {

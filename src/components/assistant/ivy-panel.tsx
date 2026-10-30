@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Check, History, Loader2, Plus, Sparkles, Square, Trash2 } from "lucide-react";
+import { ArrowUp, Check, History, Inbox, Loader2, Plus, Sparkles, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/common/page";
-import { ProposalCards } from "@/components/assistant/proposal-cards";
+import { ProposalCards, ProposalList, type ProposalCard } from "@/components/assistant/proposal-cards";
 import { useCurrentUser } from "@/components/providers";
 import { ApiClientError, request } from "@/lib/client/api";
 import { errorMessage } from "@/lib/client/hooks";
@@ -20,6 +20,7 @@ const STARTERS = ["Who owes me money, and how late are they?", "Which stock is r
 type Activity = { id: string; label: string; status: "start" | "done" | "error" };
 type Bubble = IvyMessage & { activity?: Activity[] };
 type Problem = { code: string; message: string };
+type InboxData = { available: "ok" | "disabled" | "muted" | "read_only"; ranToday: boolean; running: boolean; pending: number; items: ProposalCard[] };
 
 /** The reasons Ivy cannot be used yet, in words, and whether an admin can fix them from Settings. */
 function notReady(reason: NonNullable<IvyStatus["reason"]>, resetsOn: string | null, isAdmin: boolean) {
@@ -67,7 +68,7 @@ export function AskIvy() {
   const isAdmin = user.role === "ADMIN";
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"chat" | "history">("chat");
+  const [view, setView] = useState<"chat" | "history" | "suggested">("chat");
   const [chat, setChat] = useState<{ id?: string; messages: Bubble[]; stale: boolean; full: boolean }>({ messages: [], stale: false, full: false });
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -87,6 +88,26 @@ export function AskIvy() {
     queryKey: ["ivy-chats"],
     queryFn: async () => (await request<{ data: IvyChatSummary[] }>("GET", "/api/assistant/conversations")).data,
     enabled: open && view === "history",
+  });
+  // The daily "Suggested actions": cheap to read, and off (nothing shown) until an admin allows it.
+  const inbox = useQuery({
+    queryKey: ["ivy-inbox"],
+    queryFn: async () => (await request<{ data: InboxData }>("GET", "/api/assistant/inbox")).data,
+    staleTime: 30_000,
+    refetchInterval: (q) => (q.state.data?.available === "disabled" ? false : q.state.data?.running ? 4_000 : 60_000),
+  });
+  // The first time someone uses the app each day, ask for today's suggestions (once per page load; the server makes them once a day).
+  const asked = useRef(false);
+  useEffect(() => {
+    const d = inbox.data;
+    if (!d || asked.current || d.available !== "ok" || d.ranToday || d.running) return;
+    asked.current = true;
+    void request("POST", "/api/assistant/inbox/refresh", {}).then(() => setTimeout(() => void qc.invalidateQueries({ queryKey: ["ivy-inbox"] }), 3_000), () => undefined);
+  }, [inbox.data, qc]);
+  const mute = useMutation({
+    mutationFn: (muted: boolean) => request("PUT", "/api/assistant/inbox/mute", { muted }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ivy-inbox"] }),
+    onError: (e) => toast.error(errorMessage(e)),
   });
   const remove = useMutation({
     mutationFn: (id: string) => request("DELETE", `/api/assistant/conversations/${id}`),
@@ -191,6 +212,7 @@ export function AskIvy() {
       <Button ref={trigger} variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)} aria-label="Ask Ivy">
         <Sparkles className="size-4" />
         <span className="hidden sm:inline">Ask Ivy</span>
+        {(inbox.data?.pending ?? 0) > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-medium text-primary-foreground" aria-label={`${inbox.data?.pending} suggestions waiting`}>{inbox.data?.pending}</span>}
         <kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-normal text-muted-foreground lg:inline">Ctrl K</kbd>
       </Button>
 
@@ -202,12 +224,44 @@ export function AskIvy() {
               <SheetDescription className="text-xs">Ask about your contacts, deals, payments and stock.</SheetDescription>
             </div>
             <div className="mr-8 flex gap-1">
+              {inbox.data && inbox.data.available !== "disabled" && (
+                <Button variant="ghost" size="icon" className="relative" aria-label="Suggested actions" onClick={() => setView(view === "suggested" ? "chat" : "suggested")}>
+                  <Inbox className="size-4" />
+                  {inbox.data.pending > 0 && <span className="absolute -right-0.5 -top-0.5 rounded-full bg-primary px-1 text-[9px] text-primary-foreground">{inbox.data.pending}</span>}
+                </Button>
+              )}
               <Button variant="ghost" size="icon" aria-label="Past conversations" onClick={() => setView(view === "history" ? "chat" : "history")}><History className="size-4" /></Button>
               <Button variant="ghost" size="icon" aria-label="New chat" onClick={reset}><Plus className="size-4" /></Button>
             </div>
           </div>
 
-          {view === "history" ? (
+          {view === "suggested" ? (
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              {inbox.data?.available === "muted" ? (
+                <div className="space-y-2 rounded-md border bg-muted/50 p-3 text-sm">
+                  <p>You have turned off the daily suggestions.</p>
+                  <Button size="sm" disabled={mute.isPending} onClick={() => mute.mutate(false)}>Turn them back on</Button>
+                </div>
+              ) : inbox.data?.available === "read_only" ? (
+                <p className="rounded-md border bg-muted/50 p-3 text-sm">This workspace is read-only, so there are no new suggestions.</p>
+              ) : (
+                <>
+                  {inbox.data?.running && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-3.5 animate-spin" /> Preparing today&apos;s suggestions…</p>}
+                  <ProposalList
+                    heading="Suggested for you"
+                    queryKey={["ivy-inbox"]}
+                    items={inbox.data?.items ?? []}
+                    onNavigate={closePanel}
+                    empty={inbox.data?.running ? undefined : "Nothing needs your attention right now. Ivy looks again each day."}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Ivy suggests these from your own records; nothing happens until you approve it.{" "}
+                    <button type="button" className="underline" disabled={mute.isPending} onClick={() => mute.mutate(true)}>Turn off daily suggestions</button>
+                  </p>
+                </>
+              )}
+            </div>
+          ) : view === "history" ? (
             <div className="flex-1 overflow-y-auto p-3">
               {history.isLoading ? <p className="p-2 text-sm text-muted-foreground">Loading…</p> : !history.data?.length ? <p className="p-2 text-sm text-muted-foreground">No conversations yet.</p> : (
                 <ul className="space-y-1">

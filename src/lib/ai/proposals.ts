@@ -1,4 +1,4 @@
-import type { AiProposal, AiProposalKind, AiProposalStatus, Prisma } from "@prisma/client";
+import { Prisma, type AiProposal, type AiProposalKind, type AiProposalSource, type AiProposalStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@/lib/auth-helpers";
@@ -14,6 +14,8 @@ import { ToolError } from "@/lib/ai/tools/types";
  */
 
 export const PROPOSAL_TTL_MS = 24 * 3_600_000;
+/** Suggestions Ivy makes on her own wait longer than a chat proposal: nobody is looking at them as they arrive. */
+export const INBOX_TTL_MS = 3 * 86_400_000;
 /** Cards waiting on one chat, and on one person overall: a runaway loop cannot bury them in suggestions. */
 export const MAX_PENDING_PER_CONVERSATION = 10;
 export const MAX_PENDING_PER_USER = 30;
@@ -22,7 +24,10 @@ const DRAFT: AiProposalKind = "MESSAGE_DRAFT";
 
 export type ProposalDto = {
   id: string;
-  conversationId: string;
+  conversationId: string | null;
+  source: AiProposalSource;
+  /** Why Ivy suggested it, built from data; null for chat proposals. */
+  reason: string | null;
   kind: AiProposalKind;
   status: AiProposalStatus;
   preview: Preview;
@@ -60,6 +65,8 @@ export function toDto(row: AiProposal): ProposalDto {
   return {
     id: row.id,
     conversationId: row.conversationId,
+    source: row.source,
+    reason: row.reason,
     kind: row.kind,
     status: row.status,
     preview: row.preview as unknown as Preview,
@@ -125,6 +132,53 @@ export async function propose(ctx: { user: SessionUser; conversationId?: string;
     },
   });
   return { id: row.id, preview: prepared.preview };
+}
+
+/**
+ * Saves a suggestion Ivy made on her own (the daily inbox, WhatsApp triage), for one person. The same checks and card
+ * building as a chat proposal (`prepare`), but it belongs to no chat and carries a dedupe key, so the same suggestion is
+ * never made twice. Returns null when that key already exists. Throws ToolError when `prepare` refuses.
+ */
+export async function createBackgroundProposal(
+  user: SessionUser,
+  input: { kind: AiProposalKind; raw: unknown; source: AiProposalSource; dedupeKey: string; reason: string; subject?: { type: string; id: string }; extraWarning?: string; now?: Date },
+): Promise<{ id: string; preview: Preview } | null> {
+  const now = input.now ?? new Date();
+  const prepared: Prepared = await KINDS[input.kind].prepare(user, input.raw as never);
+  const preview = input.extraWarning ? { ...prepared.preview, warning: [prepared.preview.warning, input.extraWarning].filter(Boolean).join(" ") } : prepared.preview;
+  try {
+    const row = await db.aiProposal.create({
+      data: {
+        tenantId: user.tenantId,
+        userId: user.id,
+        conversationId: null,
+        source: input.source,
+        dedupeKey: input.dedupeKey,
+        reason: input.reason,
+        subjectType: input.subject?.type,
+        subjectId: input.subject?.id,
+        kind: input.kind,
+        params: prepared.params as Prisma.InputJsonValue,
+        preview: preview as unknown as Prisma.InputJsonValue,
+        expiresAt: new Date(now.getTime() + INBOX_TTL_MS),
+      },
+    });
+    return { id: row.id, preview };
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return null;
+    throw e;
+  }
+}
+
+/** A person's own inbox: what Ivy suggested on her own and is still waiting, plus what they decided in the last day (so it shows as done, not vanished). */
+export async function listInbox(user: { id: string; tenantId: string }, now = new Date()) {
+  await expireDue(user.tenantId, now);
+  const rows = await db.aiProposal.findMany({
+    where: { tenantId: user.tenantId, userId: user.id, source: { in: ["DAILY", "WHATSAPP"] }, OR: [{ status: "PENDING" }, { decidedAt: { gte: new Date(now.getTime() - 86_400_000) } }] },
+    orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+    take: 50,
+  });
+  return rows.map(toDto);
 }
 
 const mine = (user: { id: string; tenantId: string }) => ({ tenantId: user.tenantId, userId: user.id });

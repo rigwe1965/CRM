@@ -18,6 +18,8 @@ export type ProposalCard = {
   status: "PENDING" | "APPLIED" | "DECLINED" | "EXPIRED" | "FAILED";
   preview: { title: string; lines: { label: string; value: string }[]; warning?: string; draft?: { text: string }; confirm?: { title?: string; button: string; message: string } };
   approvable: boolean;
+  /** Why Ivy suggested it, built from data; only for suggestions she made on her own. */
+  reason?: string | null;
   editable: Record<string, string | null>;
   result: { href: string; entity: string } | null;
   failure: string | null;
@@ -84,6 +86,8 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
           </span>
         )}
       </div>
+
+      {p.reason && <p className="text-xs text-muted-foreground">Why: {p.reason}</p>}
 
       <dl className="grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-1">
         {p.preview.lines.map((l, i) => (
@@ -162,13 +166,22 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
 
 /** The actions Ivy has proposed in this chat, as cards the person approves, edits or declines. Everything shown comes from the server's saved copy. */
 export function ProposalCards({ conversationId, onNavigate }: { conversationId: string | undefined; onNavigate: () => void }) {
+  return (
+    <ProposalList
+      heading="Ivy suggests"
+      queryKey={["ivy-proposals", conversationId]}
+      enabled={!!conversationId}
+      load={async () => (await request<{ data: ProposalCard[] }>("GET", `/api/assistant/proposals?conversationId=${encodeURIComponent(conversationId ?? "")}`)).data}
+      onNavigate={onNavigate}
+    />
+  );
+}
+
+/** The same cards for any list of proposals: a chat's, or the daily "Suggested actions" inbox. */
+export function ProposalList({ heading, queryKey: key, load, items, enabled = true, onNavigate, empty }: { heading: string; queryKey: unknown[]; /** Loads the cards, unless `items` already holds them. */ load?: () => Promise<ProposalCard[]>; items?: ProposalCard[]; enabled?: boolean; onNavigate: () => void; empty?: string }) {
   const qc = useQueryClient();
-  const key = ["ivy-proposals", conversationId];
-  const { data } = useQuery({
-    queryKey: key,
-    queryFn: async () => (await request<{ data: ProposalCard[] }>("GET", `/api/assistant/proposals?conversationId=${encodeURIComponent(conversationId ?? "")}`)).data,
-    enabled: !!conversationId,
-  });
+  const loaded = useQuery({ queryKey: key, queryFn: load ?? (async () => []), enabled: enabled && !items && !!load });
+  const data = items ?? loaded.data;
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const approve = useMutation({
@@ -194,14 +207,14 @@ export function ProposalCards({ conversationId, onNavigate }: { conversationId: 
     onSettled: () => setBusyId(null),
   });
 
-  if (!data?.length) return null;
+  if (!data?.length) return empty ? <p className="text-sm text-muted-foreground">{empty}</p> : null;
   // "Approve all" leaves out anything with a warning (such as closing a deal) and every payment: those are approved one by one.
   const waiting = data.filter((p) => p.status === "PENDING" && p.approvable && !p.preview.warning && !p.preview.confirm);
 
   return (
     <section aria-label="Actions Ivy suggested" className="space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ivy suggests</h3>
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{heading}</h3>
         {waiting.length > 1 && (
           <Button
             size="sm"

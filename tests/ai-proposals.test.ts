@@ -27,7 +27,8 @@ vi.mock("@/lib/ai/proposal-kinds", () => ({
 
 import { ApiError } from "@/lib/api";
 import { ToolError } from "@/lib/ai/tools/types";
-import { approveProposal, declineProposal, listProposals, MAX_PENDING_PER_CONVERSATION, MAX_PENDING_PER_USER, propose, PROPOSAL_TTL_MS, takeOutcomes, toDto } from "@/lib/ai/proposals";
+import { Prisma } from "@prisma/client";
+import { approveProposal, createBackgroundProposal, declineProposal, INBOX_TTL_MS, listInbox, listProposals, MAX_PENDING_PER_CONVERSATION, MAX_PENDING_PER_USER, propose, PROPOSAL_TTL_MS, takeOutcomes, toDto } from "@/lib/ai/proposals";
 
 const user = { id: "u1", tenantId: "t1", role: "SALES", tenantWritable: true } as never;
 const now = new Date("2026-10-30T12:00:00Z");
@@ -113,6 +114,60 @@ describe("propose", () => {
     taskCreate.prepare.mockRejectedValue(new ToolError("No contact with that id is visible to you."));
     await expect(propose(ctx, "TASK_CREATE", {})).rejects.toThrow(/No contact/);
     expect(db.aiProposal.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("createBackgroundProposal", () => {
+  const input = { kind: "TASK_CREATE" as const, raw: { title: "x" }, source: "DAILY" as const, dedupeKey: "inst:d1:2026-W44:task", reason: "Overdue for 5 days", subject: { type: "deal", id: "d1" }, now };
+
+  it("saves a suggestion that belongs to no chat, for three days, with its reason, source and dedupe key", async () => {
+    db.aiProposal.create.mockResolvedValue({ id: "p7" });
+    const out = await createBackgroundProposal(user, input);
+    expect(out).toEqual({ id: "p7", preview });
+    expect(taskCreate.prepare).toHaveBeenCalledWith(user, { title: "x" });
+    expect(db.aiProposal.create.mock.calls[0][0].data).toEqual({
+      tenantId: "t1", userId: "u1", conversationId: null, source: "DAILY", dedupeKey: "inst:d1:2026-W44:task", reason: "Overdue for 5 days", subjectType: "deal", subjectId: "d1",
+      kind: "TASK_CREATE", params: { title: "Call Ada" }, preview, expiresAt: new Date(now.getTime() + INBOX_TTL_MS),
+    });
+    expect(INBOX_TTL_MS).toBe(3 * 86_400_000);
+  });
+
+  it("does not need the chat switches: it is the inbox's own switch that gates it, upstream", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10 });
+    db.aiProposal.create.mockResolvedValue({ id: "p7" });
+    await expect(createBackgroundProposal(user, input)).resolves.toBeTruthy();
+  });
+
+  it("adds a warning to the card when asked, without losing the card's own", async () => {
+    taskCreate.prepare.mockResolvedValue({ params: {}, preview: { ...preview, warning: "A payment was already recorded." } });
+    db.aiProposal.create.mockResolvedValue({ id: "p7" });
+    const out = await createBackgroundProposal(user, { ...input, extraWarning: "Contains a link." });
+    expect(out!.preview.warning).toBe("A payment was already recorded. Contains a link.");
+    expect(db.aiProposal.create.mock.calls[0][0].data.preview.warning).toBe("A payment was already recorded. Contains a link.");
+  });
+
+  it("returns null, writing nothing new, when that suggestion was already made (the unique dedupe key)", async () => {
+    db.aiProposal.create.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "x" }));
+    expect(await createBackgroundProposal(user, input)).toBeNull();
+  });
+
+  it("lets other database errors through, and what the kind refuses (an invisible record)", async () => {
+    db.aiProposal.create.mockRejectedValue(new Error("connection lost"));
+    await expect(createBackgroundProposal(user, input)).rejects.toThrow("connection lost");
+    taskCreate.prepare.mockRejectedValue(new ToolError("No deal with that id is visible to you."));
+    await expect(createBackgroundProposal(user, input)).rejects.toBeInstanceOf(ToolError);
+  });
+});
+
+describe("listInbox", () => {
+  it("lists this person's own daily and WhatsApp suggestions that are waiting, or were decided in the last day", async () => {
+    db.aiProposal.findMany.mockResolvedValue([row({ source: "DAILY", reason: "Why", conversationId: null })]);
+    const out = await listInbox({ id: "u1", tenantId: "t1" }, now);
+    const where = db.aiProposal.findMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ tenantId: "t1", userId: "u1", source: { in: ["DAILY", "WHATSAPP"] } });
+    expect(where.OR).toEqual([{ status: "PENDING" }, { decidedAt: { gte: new Date(now.getTime() - 86_400_000) } }]);
+    expect(out[0]).toMatchObject({ source: "DAILY", reason: "Why", conversationId: null });
+    expect(db.aiProposal.updateMany.mock.calls[0][0]).toMatchObject({ where: { tenantId: "t1", status: "PENDING" }, data: { status: "EXPIRED" } });
   });
 });
 

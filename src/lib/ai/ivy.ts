@@ -21,7 +21,7 @@ export const MAX_ROUNDS = 6;
 /** Wall-clock budget for one answer, kept inside the host's function time limit (the chat route sets maxDuration to 60s). */
 export const DEADLINE_MS = 50_000;
 /** Anthropic's server-side fallback for requests its safety classifiers decline; needs this beta header. */
-const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 type Param = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;

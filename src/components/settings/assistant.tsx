@@ -39,7 +39,7 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -164,6 +164,27 @@ export function AssistantCard() {
             </Button>
             {!data.proposalsEnabled && <p className="text-sm text-muted-foreground">Allow proposed actions first.</p>}
           </div>
+
+          <div className="max-w-xl space-y-2 border-t pt-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-medium">Daily suggestions</h3>
+              <Badge variant={data.inboxEnabled ? "default" : "secondary"}>{data.inboxEnabled ? "Allowed" : "Off"}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              When allowed, the first time each person uses the app in a day, Ivy looks through their own records for things that need attention (an overdue instalment nobody has followed up, a deal gone quiet, a won deal with no payment plan) and
+              puts suggestions in their Suggested list, each with a reason. They approve, edit or decline them like any other suggestion; nothing is sent to a customer. It costs a few cents per person per day, counted in your monthly limit, and each person can
+              turn it off for themselves.
+            </p>
+            <Button
+              type="button"
+              variant={data.inboxEnabled ? "outline" : "default"}
+              disabled={saveSettings.isPending || !data.proposalsEnabled}
+              onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, inboxEnabled: !data.inboxEnabled })}
+            >
+              {data.inboxEnabled ? "Stop daily suggestions" : "Allow daily suggestions"}
+            </Button>
+            {!data.proposalsEnabled && <p className="text-sm text-muted-foreground">Allow proposed actions first.</p>}
+          </div>
         </CardContent>
       </Card>
 
@@ -189,6 +210,11 @@ export function AssistantCard() {
                   style={{ width: `${Math.min(100, data.percent ?? 0)}%` }}
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Chat {dollars(data.spentByPurposeUsd.chat)}
+                {data.inboxEnabled || data.spentByPurposeUsd.inbox > 0 ? <> · Daily suggestions {dollars(data.spentByPurposeUsd.inbox)}</> : null}
+                {data.spentByPurposeUsd.triage > 0 ? <> · WhatsApp {dollars(data.spentByPurposeUsd.triage)}</> : null}
+              </p>
               {data.level === "warn" && <p className="text-sm text-amber-600">You have used over 80% of this month&apos;s limit.</p>}
               {data.level === "reached" && <p className="text-sm text-destructive">The limit is reached, so Ivy is paused until {data.resetsOn}. Raise the limit above to resume sooner.</p>}
             </>
@@ -204,6 +230,7 @@ export function AssistantCard() {
           <p>The questions people ask Ivy, and the records Ivy looks up to answer them (customer names, deals, payments), are sent to Anthropic using your key.</p>
           <p>Conversations are kept for {data.retentionDays} days and then deleted. People can delete their own conversations sooner.</p>
           <p>When proposed actions are allowed, what Ivy suggests (the task, note or message text, and the names it refers to) is saved with the conversation and deleted with it. Approved actions are kept as ordinary records and in the audit log.</p>
+          <p>Daily suggestions use only each person&apos;s own records and send the names, deals and amounts they involve to Anthropic under your key, in one short request a day per person.</p>
           <p>Ivy works as the person asking: sales and support users get answers from their own records only, admins from the whole business.</p>
         </CardContent>
       </Card>
