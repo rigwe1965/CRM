@@ -12,6 +12,7 @@ import { IVY_PROMPT_VERSION } from "@/lib/ai/prompt";
 import { propose } from "@/lib/ai/proposals";
 import { loadAssistantSettings } from "@/lib/ai/settings";
 import { recordUsage } from "@/lib/ai/usage";
+import { reserveDocument } from "@/lib/ai/documents/reserve";
 import { ToolError } from "@/lib/ai/tools/types";
 import { assertCanReadDocument } from "@/lib/ai/documents/invoice";
 import type { DocumentFile } from "@/lib/ai/documents/file";
@@ -159,14 +160,20 @@ export async function readOrderFile(user: SessionUser, file: DocumentFile, opts:
   const chat = await chatFor(user, opts.conversationId); // before the paid call, so a stale chat costs nothing
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
+  const release = await reserveDocument(user, now);
   let message;
   try {
     message = await client.beta.messages.create(orderRequest(file), { timeout: 55_000 });
   } catch (e) {
     console.error("[ivy-documents] order read failed", e instanceof Error ? e.message : e);
+    await release();
     throw new ApiError(502, "Ivy could not read that picture just now. Try again in a moment, or create the deal yourself.", "AI_DOCUMENT_FAILED");
   }
-  await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
+  try {
+    await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
+  } finally {
+    await release();
+  }
 
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === ORDER_TOOL.name);
   const parsed = use ? readOrderInput.safeParse(use.input) : null;

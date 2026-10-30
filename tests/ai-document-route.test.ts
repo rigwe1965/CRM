@@ -34,7 +34,7 @@ const post = (fields: Record<string, string | Blob>, headers: Record<string, str
     if (typeof v === "string") form.set(k, v);
     else form.set(k, v, "invoice.pdf");
   }
-  return (POST as unknown as (r: Request) => Promise<Response>)(new Request("http://x.test/api/assistant/documents", { method: "POST", body: form, headers }));
+  return (POST as unknown as (r: Request) => Promise<Response>)(new Request("http://x.test/api/assistant/documents", { method: "POST", body: form, headers: { "content-length": "1000", ...headers } }));
 };
 
 beforeEach(() => {
@@ -64,6 +64,15 @@ describe("POST /api/assistant/documents", () => {
     const res = await post({ kind: "invoice", file: new Blob([PDF]) });
     expect(res.status).toBe(403);
     expect(read).not.toHaveBeenCalled();
+  });
+
+  it("refuses an upload that does not declare its size, before the gates or the body", async () => {
+    const form = new FormData();
+    form.set("kind", "invoice");
+    form.set("file", new Blob([PDF]), "invoice.pdf");
+    const res = await (POST as unknown as (r: Request) => Promise<Response>)(new Request("http://x.test/api/assistant/documents", { method: "POST", body: form }));
+    expect(res.status).toBe(411);
+    expect([gate, orderGate, payGate, read, readOrder, readPay].some((f) => f.mock.calls.length > 0)).toBe(false);
   });
 
   it("refuses an oversized upload from its declared size, before the gates or the body", async () => {

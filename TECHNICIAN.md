@@ -357,3 +357,13 @@ There is no public sign-up: admins create users in Settings → Team (`POST /api
 4. Run `npm run typecheck` if code changed.
 5. Back up before any data fix. Never fix by seeding.
 6. Escalate with: steps, user, time, log lines, screenshots.
+
+## Ivy security review (October 2026)
+
+A read-only review of the Ivy code found no flaw in key storage, scoping, approvals or how replies are shown. Fixed:
+
+- **Upload size:** `POST /api/assistant/documents` now refuses a request that does not declare its size (411), so the body is never read without a bound (declared size is capped at 4 MB plus framing).
+- **Parallel requests:** `src/lib/ai/documents/reserve.ts` saves a placeholder usage record (about $0.05 held) before every document read, then checks the day's number and the month's ceiling with calls in flight counted. The placeholder is removed once the real usage is recorded or the call fails. Pinned by `tests/ai-document-reserve.test.ts`.
+- **One person using the whole day's number:** a person who is not an admin may use half of it (rounded up, at least 1); admins may use all of it.
+- **Keys:** the eval scripts read `ANTHROPIC_API_KEY` from `.env.eval` (git-ignored, loaded by `scripts/eval-env.ts`), so a key is never typed into a command or chat. `tests/no-secret-keys.test.ts` fails if a real-looking `sk-ant-` key is in any tracked file.
+- **Still true:** record text read by chat Ivy can try to steer it. The prompt says it is data and nothing happens without a person's approval.

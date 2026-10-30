@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ai/settings", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/settings")>()), loadAssistantSettings: settings }));
 vi.mock("@/lib/ai/status", () => status);
 vi.mock("@/lib/ai/usage", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/usage")>()), recordUsage: usageRecord }));
+vi.mock("@/lib/ai/documents/reserve", () => ({ reserveDocument: async () => async () => undefined }));
 vi.mock("@/lib/ai/client", () => ({ anthropicFor: clientFor }));
 
 import { assertCanReadDocument, buildReading, readInvoiceFile } from "@/lib/ai/documents/invoice";

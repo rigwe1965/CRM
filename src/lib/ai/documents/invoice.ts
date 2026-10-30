@@ -9,6 +9,7 @@ import { FALLBACK_BETA, IVY_EFFORT } from "@/lib/ai/ivy";
 import { DEFAULT_DOCUMENTS_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
 import { assertCanAsk } from "@/lib/ai/status";
 import { recordUsage } from "@/lib/ai/usage";
+import { reserveDocument } from "@/lib/ai/documents/reserve";
 import type { DocumentFile } from "@/lib/ai/documents/file";
 import { INVOICE_PROMPT, INVOICE_TOOL, MAX_DOCUMENT_LINES, readInvoiceInput, type ReadInvoice } from "@/lib/ai/documents/prompt";
 
@@ -163,14 +164,20 @@ export async function readInvoiceFile(user: SessionUser, file: DocumentFile, opt
   if (!opts.gated) await assertCanReadDocument(user, now);
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
+  const release = await reserveDocument(user, now);
   let message;
   try {
     message = await client.beta.messages.create(invoiceRequest(file), { timeout: 55_000 });
   } catch (e) {
     console.error("[ivy-documents] read failed", e instanceof Error ? e.message : e);
+    await release();
     throw new ApiError(502, "Ivy could not read that document just now. Try again in a moment, or import a spreadsheet or type the invoice in.", "AI_DOCUMENT_FAILED");
   }
-  await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
+  try {
+    await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
+  } finally {
+    await release();
+  }
 
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === INVOICE_TOOL.name);
   const parsed = use ? readInvoiceInput.safeParse(use.input) : null;

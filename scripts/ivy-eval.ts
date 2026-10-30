@@ -4,12 +4,13 @@
 //
 //   npx tsx scripts/ivy-eval.ts --dry-run
 //       Seeds the made-up business and checks the expected answers against the tools themselves. No API key, no cost.
-//   ANTHROPIC_API_KEY=sk-ant-... npx tsx scripts/ivy-eval.ts --budget-usd 2
+//   (put ANTHROPIC_API_KEY=... in .env.eval, which git ignores) npx tsx scripts/ivy-eval.ts --budget-usd 2
 //       The real run. It SPENDS MONEY on your Anthropic account, and refuses to start without a budget. The budget is
 //       enforced by the same monthly-ceiling code Ivy uses in the app, so the run stops itself when it is used up.
 //   Add --only <id>[,<id>] to run chosen questions, and --effort <low|medium|high> is set in src/lib/ai/ivy.ts (IVY_EFFORT).
 //
 // Needs TEST_DATABASE_URL: a Postgres where it may create (and then drop) a throwaway schema.
+import "./eval-env";
 import Anthropic from "@anthropic-ai/sdk";
 import { createTwoTenants } from "../tests/helpers/two-tenants";
 

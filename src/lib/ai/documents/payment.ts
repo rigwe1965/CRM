@@ -10,6 +10,7 @@ import { appendMessages } from "@/lib/ai/conversations";
 import { propose } from "@/lib/ai/proposals";
 import { loadAssistantSettings } from "@/lib/ai/settings";
 import { recordUsage } from "@/lib/ai/usage";
+import { reserveDocument } from "@/lib/ai/documents/reserve";
 import { ToolError } from "@/lib/ai/tools/types";
 import { paymentSummaries } from "@/lib/payments";
 import type { DocumentFile } from "@/lib/ai/documents/file";
@@ -131,14 +132,20 @@ export async function readPaymentFile(user: SessionUser, file: DocumentFile, opt
   const chat = await chatFor(user, opts.conversationId); // before the paid call, so a stale chat costs nothing
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
+  const release = await reserveDocument(user, now);
   let message;
   try {
     message = await client.beta.messages.create(paymentRequest(file), { timeout: 55_000 });
   } catch (e) {
     console.error("[ivy-documents] payment read failed", e instanceof Error ? e.message : e);
+    await release();
     throw new ApiError(502, "Ivy could not read that picture just now. Try again in a moment, or record the payment yourself on the deal's page.", "AI_DOCUMENT_FAILED");
   }
-  await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
+  try {
+    await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
+  } finally {
+    await release();
+  }
 
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === PAYMENT_TOOL.name);
   const parsed = use ? readPaymentInput.safeParse(use.input) : null;

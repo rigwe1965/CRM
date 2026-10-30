@@ -6,9 +6,10 @@
 //
 //   npx tsx scripts/triage-eval.ts --dry-run
 //       Checks the cases and the scorer against known good and bad answers. No API key, no cost.
-//   ANTHROPIC_API_KEY=sk-ant-... npx tsx scripts/triage-eval.ts --budget-usd 1
+//   (put ANTHROPIC_API_KEY=... in .env.eval, which git ignores) npx tsx scripts/triage-eval.ts --budget-usd 1
 //       The real run. It SPENDS MONEY on your Anthropic account, and refuses to start without a budget; it stops by itself
 //       when the budget is used up. Add --only <id>[,<id>] to run chosen cases.
+import "./eval-env";
 import Anthropic from "@anthropic-ai/sdk";
 import { flagForeignContent } from "../src/lib/ai/draft-check";
 import { costMicros, tokenUsage } from "../src/lib/ai/pricing";

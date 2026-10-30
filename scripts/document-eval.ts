@@ -7,9 +7,10 @@
 //
 //   npx tsx scripts/document-eval.ts --dry-run
 //       Draws the documents, checks they pass the app's file check, and checks the scorer against the truth. No key, no cost.
-//   ANTHROPIC_API_KEY=sk-ant-... npx tsx scripts/document-eval.ts --budget-usd 1
+//   (put ANTHROPIC_API_KEY=... in .env.eval, which git ignores) npx tsx scripts/document-eval.ts --budget-usd 1
 //       The real run. It SPENDS MONEY on your Anthropic account, refuses to start without a budget, and stops by itself
 //       when the budget is used up. Add --only <id>[,<id>] to run chosen documents, --folder <dir> to also read your own files.
+import "./eval-env";
 import { readdirSync, readFileSync } from "node:fs";
 import { extname, join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
