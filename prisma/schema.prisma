@@ -567,6 +567,9 @@ model AiConversation {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String   @default("New conversation")
+  // The version of Ivy's instructions and tools this chat was started with (src/lib/ai/prompt.ts). A chat can only be
+  // continued while it matches: the model's thinking blocks are only valid if the prompt and tools are unchanged.
+  promptVersion String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -61,6 +61,9 @@ export function accessOf(t: TenantBilling, now = new Date()): Access {
   }
 }
 
-/** Paths a read-only business may still write to: paying, exporting its data, cancelling its deletion, and the signed-in user's own account. */
-export const READ_ONLY_ALLOWED = ["/api/billing", "/api/me", "/api/export", "/api/admin/tenant/deletion"] as const;
+/**
+ * Paths a read-only business may still write to: paying, exporting its data, cancelling its deletion, the signed-in
+ * user's own account, and chatting with Ivy (which only reads business data; its chats are the user's own).
+ */
+export const READ_ONLY_ALLOWED = ["/api/billing", "/api/me", "/api/export", "/api/admin/tenant/deletion", "/api/assistant"] as const;
 export const allowedWhenReadOnly = (pathname: string) => READ_ONLY_ALLOWED.some((p) => pathname === p || pathname.startsWith(`${p}/`));

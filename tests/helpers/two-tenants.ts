@@ -37,7 +37,7 @@ const withSchema = (url: string, schema: string) => {
 };
 
 export type TenantFixture = { tenantId: string; admin: string; sales: string; contact: string; deal: string; invoice: string; tag: string };
-export type TwoTenants = { db: PrismaClient; appDb: PrismaClient; rls: boolean; a: TenantFixture; b: TenantFixture; dispose: () => Promise<void> };
+export type TwoTenants = { db: PrismaClient; appDb: PrismaClient; rls: boolean; /** The throwaway schema's connection string (owner role). */ url: string; a: TenantFixture; b: TenantFixture; dispose: () => Promise<void> };
 
 /** Creates the schema, migrates it and seeds tenants A and B. Call `dispose()` when done. */
 export async function createTwoTenants(): Promise<TwoTenants> {
@@ -75,6 +75,7 @@ export async function createTwoTenants(): Promise<TwoTenants> {
     db,
     appDb,
     rls,
+    url,
     a,
     b,
     dispose: async () => {

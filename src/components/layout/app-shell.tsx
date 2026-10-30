@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useCurrentUser } from "@/components/providers";
+import { AskIvy } from "@/components/assistant/ivy-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { initials } from "@/lib/client/format";
 import { cn } from "@/lib/utils";
@@ -145,6 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
           <div className="hidden lg:block" />
           <div className="flex items-center gap-1">
+            <AskIvy />
             <ThemeToggle />
             <UserMenu />
           </div>

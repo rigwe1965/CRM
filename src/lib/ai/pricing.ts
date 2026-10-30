@@ -11,6 +11,8 @@ type Price = { input: number; output: number; cacheRead: number; cacheWrite: num
 export const PRICES: Record<string, Price> = {
   // Cache writes are billed at 1.25x the input price (5-minute cache); reads at a tenth.
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  // The model Anthropic's server-side fallback can switch to for some declined requests; same prices.
+  "claude-sonnet-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
 };
 
 /** A model we have no price for (for example one a fallback switched to) is billed at the dearest price we know, never at zero. */

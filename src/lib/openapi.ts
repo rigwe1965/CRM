@@ -120,7 +120,7 @@ const OPERATIONS: Op[] = [
     method: "get", path: "/export/{entity}", tag: "Export", file: "text/csv", query: exportFormatQuery,
     summary: "Download an area as a CSV file",
     description:
-      "`entity` is one of organizations, deals, deal-items, payments, instalments, invoices, invoice-items, stock, tasks, activities, cashflow, or (admins only) contacts and audit-log. Takes the same filters as the matching list endpoint, without paging. Scoped exactly like the list (your own data; admins everything); deleted records are never included over GET. At most 50,000 rows (422 `EXPORT_TOO_LARGE` otherwise), 5 exports per user per 10 minutes (429), and every export is written to the audit log first. Customers appear by name only. The audit log needs a code, so it answers 422 `STEP_UP_REQUIRED` here: use POST.",
+      "`entity` is one of organizations, deals, deal-items, payments, instalments, invoices, invoice-items, stock, tasks, activities, cashflow, or (admins only) contacts, audit-log, ai-usage (what Ivy has cost) and ai-conversations (who chatted and when, never the text). Takes the same filters as the matching list endpoint, without paging. Scoped exactly like the list (your own data; admins everything); deleted records are never included over GET. At most 50,000 rows (422 `EXPORT_TOO_LARGE` otherwise), 5 exports per user per 10 minutes (429), and every export is written to the audit log first. Customers appear by name only. The audit log needs a code, so it answers 422 `STEP_UP_REQUIRED` here: use POST.",
   },
   {
     method: "post", path: "/export/{entity}", tag: "Export", file: "text/csv", body: exportPostBody, admin: true,

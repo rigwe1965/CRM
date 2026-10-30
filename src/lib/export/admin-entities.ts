@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { liveFilter, ownerScope, tenantScope } from "@/lib/access";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { listing, type ExportEntity, type WithDeleted } from "@/lib/export/define";
-import { exportAuditQuery, exportContactsQuery } from "@/lib/validations/crm";
+import { exportAiQuery, exportAuditQuery, exportContactsQuery } from "@/lib/validations/crm";
 
 /**
  * Areas only admins may export. They hold the most personal data, so they live apart from the
@@ -104,4 +104,50 @@ const audit = listing({
   ],
 });
 
-export const ADMIN_EXPORTS: Readonly<Record<string, ExportEntity>> = { contacts, "audit-log": audit };
+const aiRange = (user: SessionUser, q: z.infer<typeof exportAiQuery>) => ({
+  ...tenantScope(user),
+  ...((q.from || q.to) && { createdAt: { gte: q.from, lte: q.to } }),
+});
+
+/** What Ivy has cost: tokens and an estimated cost per model call. No conversation text, and no questions. */
+const aiUsage = listing({
+  file: "ai-usage",
+  adminOnly: true,
+  schema: exportAiQuery,
+  count: (user, q) => db.aiUsage.count({ where: aiRange(user, q) }),
+  fetch: (user, q, page) =>
+    db.aiUsage.findMany({
+      where: aiRange(user, q),
+      select: { id: true, createdAt: true, userId: true, conversationId: true, model: true, inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true, costMicros: true },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      ...page,
+    }),
+  columns: [
+    ["id", (u) => u.id], ["createdAt", (u) => u.createdAt], ["userId", (u) => u.userId], ["conversationId", (u) => u.conversationId], ["model", (u) => u.model],
+    ["inputTokens", (u) => u.inputTokens], ["outputTokens", (u) => u.outputTokens], ["cacheReadTokens", (u) => u.cacheReadTokens], ["cacheWriteTokens", (u) => u.cacheWriteTokens],
+    ["estimatedCostUsd", (u) => u.costMicros / 1_000_000],
+  ],
+});
+
+/**
+ * Who chatted with Ivy and when. Deliberately metadata only: the title comes from what the person asked and the
+ * messages hold customer data, so neither is exported (chats are kept in the app for AI_RETENTION_DAYS and then deleted).
+ */
+const aiConversations = listing({
+  file: "ai-conversations",
+  adminOnly: true,
+  schema: exportAiQuery,
+  count: (user, q) => db.aiConversation.count({ where: aiRange(user, q) }),
+  fetch: (user, q, page) =>
+    db.aiConversation.findMany({
+      where: aiRange(user, q),
+      select: { id: true, createdAt: true, updatedAt: true, promptVersion: true, user: person, _count: { select: { messages: true } } },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      ...page,
+    }),
+  columns: [
+    ["id", (c) => c.id], ["user", (c) => c.user.name], ["createdAt", (c) => c.createdAt], ["updatedAt", (c) => c.updatedAt], ["messages", (c) => c._count.messages], ["promptVersion", (c) => c.promptVersion],
+  ],
+});
+
+export const ADMIN_EXPORTS: Readonly<Record<string, ExportEntity>> = { contacts, "audit-log": audit, "ai-usage": aiUsage, "ai-conversations": aiConversations };

@@ -46,12 +46,18 @@ Plan agreed with the owner. Phase 0 and Phase 1 are in scope; later phases need 
 - Admin screen "Ivy": key status, on/off, ceiling, month-to-date spend, and a note that questions and the records Ivy
   looks up go to Anthropic under the business's own key.
 
-## Phase 1: Ask Ivy (read-only) — not started, needs its own approval
+## Phase 1: Ask Ivy (read-only): built
 
-A streaming loop (hand-written, so every iteration is metered), about ten read-only tools wrapping existing scoped
-code (contacts, deals and payments, overdue instalments, stock, cash flow, reports, Money checks, tasks), a side panel
-opened from the header or Ctrl/Cmd+K, injection and tenant-isolation tests, and a ~40-question eval script that runs
-against a real key (each run spends money, so it needs approval and a budget first).
+Decisions taken when the owner approved the build without answering the five open questions (the plan's own recommendations):
+effort starts at `low`; Anthropic's server-side fallback is on; the tools are the eleven in `src/lib/ai/tools/index.ts`; the data export carries
+spend records and chat metadata only (no titles, no text); an answer is limited to 50 seconds and 6 tool rounds, held in
+`DEADLINE_MS` and `MAX_ROUNDS`, to be tuned to the hosting plan.
+
+A streaming loop (hand-written, so every iteration is metered), eleven read-only tools wrapping existing scoped code
+(contacts, deals and payments, overdue instalments, stock, cash flow, reports, Money checks, tasks, supplier invoices), a
+side panel opened from the header or Ctrl/Cmd+K, injection and tenant-isolation tests, and a 43-question eval script
+(`scripts/ivy-eval.ts`) that runs against a real key. Each real run spends money, so it needs approval and a budget; its
+`--dry-run` is free. The real eval has not been run yet.
 
 ## Later phases (each needs its own approval)
 

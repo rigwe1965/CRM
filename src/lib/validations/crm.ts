@@ -467,6 +467,8 @@ export const exportAuditQuery = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
 });
+/** Ivy's spend records and chat metadata: a date range only. */
+export const exportAiQuery = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 /** Body of the POST export calls (the ones that need a fresh authenticator code). */
 export const exportPostBody = z.object({
   code: z.string().trim().max(32).optional(),
