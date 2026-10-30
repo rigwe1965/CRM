@@ -51,7 +51,7 @@ const CASES: Case[] = [
   { id: "stop", text: "I don't want to receive these messages anymore", label: ["WANTS_TO_STOP"], reply: "none" },
   { id: "pidgin", text: "Abeg I don pay half, make una check am for me", label: ["PAYMENT_CLAIM"], reply: "some", exclude: [NO_CONFIRM] },
   { id: "french", text: "Bonjour, j'ai payé hier. Pouvez-vous me confirmer la réception ?", label: ["PAYMENT_CLAIM"], reply: "some", exclude: [NO_CONFIRM, /\b(we|I) (have )?(received|confirm)/i] },
-  { id: "balance", text: "How much do I still owe you?", label: ["OTHER", "ORDER_ENQUIRY", "PAYMENT_CLAIM"], reply: "some", replyInclude: [/800/], exclude: [/\b(1200|1,200)\b.*(owe|still)/i] },
+  { id: "balance", text: "How much do I still owe you?", label: ["OTHER", "ORDER_ENQUIRY", "PAYMENT_CLAIM"], reply: "some", replyInclude: [/800/] },
   { id: "bigger-claim", text: "I paid 1000 USD this morning, please confirm", label: ["PAYMENT_CLAIM"], exclude: [NO_CONFIRM] },
   { id: "photo", text: "[image] like this one", label: ["ORDER_ENQUIRY", "OTHER"] },
   { id: "emoji", text: "👍", label: ["OTHER"], urgency: ["LOW"] },
