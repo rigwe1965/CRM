@@ -99,8 +99,11 @@ function MoneyChecks() {
               {data.findings.map((f, i) => (
                 <TableRow key={`${f.dealId}-${f.kind}-${i}`}>
                   <TableCell className="font-medium">{f.dealTitle}</TableCell>
-                  <TableCell className={f.severity === "high" ? "text-destructive" : "text-muted-foreground"}>{KIND_LABEL[f.kind] ?? f.kind}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{f.detail}</TableCell>
+                  <TableCell>
+                    <span className={f.severity === "high" ? "text-destructive" : "text-muted-foreground"}>{KIND_LABEL[f.kind] ?? f.kind}</span>
+                    <p className="text-sm text-muted-foreground">{f.detail}</p>
+                  </TableCell>
+                  <TableCell className="text-sm">{f.fix}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

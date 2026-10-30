@@ -99,6 +99,48 @@ describe("reconcileDeal", () => {
   });
 });
 
+describe("what to do", () => {
+  const ALL_KINDS = [
+    "OVERPAID",
+    "SCHEDULE_MISMATCH",
+    "ITEMS_MISMATCH",
+    "ORPHAN_ONLINE_PAYMENT",
+    "PAID_LINK_WITHOUT_PAYMENT",
+    "REFUND_NEEDED",
+    "STALE_PENDING_LINK",
+    "UNSCHEDULED_BALANCE",
+    "CURRENCY_DRIFT",
+  ] as const;
+
+  // One deal that trips every check, so each kind is produced by the real code.
+  const everything = deal({
+    stage: "CLOSED_WON",
+    amount: 200,
+    payments: [{ amount: 250, source: "ONLINE", providerRef: null }],
+    instalments: [{ amount: 100 }],
+    items: [{ quantity: 1, unitPrice: 150 }],
+    paymentLinks: [
+      { amount: 50, currency: "USD", status: "PAID", createdAt: NOW, hasPayment: false },
+      { amount: 50, currency: "USD", status: "REFUND_NEEDED", createdAt: NOW, hasPayment: false },
+      { amount: 50, currency: "USD", status: "PENDING", createdAt: new Date(NOW.getTime() - 20 * 86_400_000), hasPayment: false },
+      { amount: 50, currency: "EUR", status: "CANCELLED", createdAt: NOW, hasPayment: false },
+    ],
+  });
+
+  it("gives every kind of finding a plain-words action", () => {
+    // Without payments or a schedule the same deal is a won deal that is owed money and has no reminders.
+    const unscheduled = reconcileDeal({ ...everything, payments: [], instalments: [] }, NOW);
+    const all = [...reconcileDeal(everything, NOW), ...unscheduled];
+    expect(new Set(all.map((f) => f.kind))).toEqual(new Set(ALL_KINDS));
+    for (const f of all) expect(f.fix.length).toBeGreaterThan(20);
+  });
+
+  it("keeps advice out of `detail`, which only says what is wrong", () => {
+    const advice = /\b(refund|cancel|edit|delete|check|confirm|choose|should|must)\b/i;
+    for (const f of reconcileDeal(everything, NOW)) expect(f.detail, f.kind).not.toMatch(advice);
+  });
+});
+
 const row = (id: string, over: Record<string, unknown> = {}) => ({
   id,
   title: `Deal ${id}`,

@@ -27,7 +27,25 @@ export type Finding = {
   dealId: string;
   dealTitle: string;
   currency: string;
+  /** What is wrong, with the amounts. */
   detail: string;
+  /** What the owner should do about it, in plain words. */
+  fix: string;
+};
+
+/** What to do for each kind of finding. Names the buttons as they appear on the deal's Payments dialog. */
+export const FIX: Record<FindingKind, string> = {
+  OVERPAID:
+    "On the deal's Payments, delete the mistaken or duplicate payment, or raise the deal amount if the customer really paid more. If money has to go back, refund it.",
+  SCHEDULE_MISMATCH: "On the deal's Payments, edit the instalments so they add up to the deal amount, or change the deal amount to match them.",
+  ITEMS_MISMATCH: "Edit the line items or the deal amount so they agree. A deal with line items is worth the sum of its lines.",
+  ORPHAN_ONLINE_PAYMENT:
+    "Check the payment in your Stripe dashboard. If it isn't there, delete it on the deal's Payments and add it again as a manual payment.",
+  PAID_LINK_WITHOUT_PAYMENT: "Confirm the payment in Stripe, then record it with Add payment on the deal's Payments.",
+  REFUND_NEEDED: "Refund the customer in Stripe. They paid after the balance had dropped, so the payment was not recorded.",
+  STALE_PENDING_LINK: "On the deal's Payments, choose Cancel link if the customer isn't going to pay. It is still holding back part of the balance.",
+  UNSCHEDULED_BALANCE: "On the deal's Payments, add an instalment schedule, or record the payment when it arrives, so a reminder can go out.",
+  CURRENCY_DRIFT: "On the deal's Payments, choose Cancel link and create a new one in the deal's currency.",
 };
 
 export type DealForCheck = {
@@ -51,13 +69,13 @@ const fmt = (n: number, cur: string) => `${n.toFixed(2)} ${cur}`;
 export function reconcileDeal(deal: DealForCheck, now = new Date()): Finding[] {
   const out: Finding[] = [];
   const add = (kind: FindingKind, severity: Finding["severity"], detail: string, currency = deal.currency) =>
-    out.push({ kind, severity, dealId: deal.id, dealTitle: deal.title, currency, detail });
+    out.push({ kind, severity, dealId: deal.id, dealTitle: deal.title, currency, detail, fix: FIX[kind] });
 
   const total = cents(deal.amount);
   const paid = deal.payments.reduce((s, p) => s + cents(p.amount), 0);
 
   if (paid > total) {
-    add("OVERPAID", "high", `Payments (${fmt(paid / 100, deal.currency)}) are more than the deal (${fmt(total / 100, deal.currency)}). Refund or correct the amount.`);
+    add("OVERPAID", "high", `Payments (${fmt(paid / 100, deal.currency)}) are more than the deal (${fmt(total / 100, deal.currency)}).`);
   }
 
   if (deal.instalments.length > 0) {
@@ -84,10 +102,10 @@ export function reconcileDeal(deal: DealForCheck, now = new Date()): Finding[] {
       add("PAID_LINK_WITHOUT_PAYMENT", "high", `A payment link for ${fmt(link.amount, link.currency)} is marked paid but no payment was recorded.`, link.currency);
     }
     if (link.status === "REFUND_NEEDED") {
-      add("REFUND_NEEDED", "high", `A customer paid ${fmt(link.amount, link.currency)} online after the balance had dropped. It was not recorded and must be refunded in Stripe.`, link.currency);
+      add("REFUND_NEEDED", "high", `A customer paid ${fmt(link.amount, link.currency)} online after the balance had dropped. It was not recorded.`, link.currency);
     }
     if (link.status === "PENDING" && now.getTime() - link.createdAt.getTime() > STALE_LINK_DAYS * 86_400_000) {
-      add("STALE_PENDING_LINK", "low", `A payment link for ${fmt(link.amount, link.currency)} has been waiting more than ${STALE_LINK_DAYS} days and still reserves part of the balance. Cancel it if it is dead.`, link.currency);
+      add("STALE_PENDING_LINK", "low", `A payment link for ${fmt(link.amount, link.currency)} has been waiting more than ${STALE_LINK_DAYS} days and still reserves part of the balance.`, link.currency);
     }
     if (link.currency !== deal.currency) {
       add("CURRENCY_DRIFT", "high", `A payment link is in ${link.currency} but the deal is in ${deal.currency}.`, link.currency);
