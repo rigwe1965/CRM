@@ -66,6 +66,23 @@ describe("buildPayment", () => {
     expect(buildPayment(receipt({ status: undefined }), NOW).draft).toBeNull();
   });
 
+  it("refuses a picture that lists several payments, asking for a crop, whatever else it says", () => {
+    const out = buildPayment(receipt({ severalPayments: true }), NOW);
+    expect(out.draft).toBeNull();
+    expect(out.blocking.join(" ")).toMatch(/more than one payment/);
+  });
+
+  it("takes the date from the clock, with a warning, when the picture only says today, and never when it shows nothing", () => {
+    const today = buildPayment(receipt({ paidAt: undefined, shownAsToday: true }), NOW);
+    expect(today.draft?.paidAt).toBe(NOW.toISOString().slice(0, 10));
+    expect(today.warnings.join(" ")).toMatch(/says the money arrived today/);
+    const none = buildPayment(receipt({ paidAt: undefined }), NOW);
+    expect(none.draft?.paidAt).toBeUndefined();
+    expect(none.warnings.join(" ")).toMatch(/No date is shown/);
+    // A calendar date in the picture wins over "today".
+    expect(buildPayment(receipt({ paidAt: "2026-11-03", shownAsToday: true }), NOW).draft?.paidAt).toBe("2026-11-03");
+  });
+
   it("refuses a missing or zero amount, a missing currency and a date in the future", () => {
     expect(buildPayment(receipt({ amount: undefined }), NOW).blocking.join(" ")).toMatch(/No amount/);
     expect(buildPayment(receipt({ amount: 0 }), NOW).draft).toBeNull();

@@ -7,14 +7,15 @@ import { z } from "zod";
  * data-extraction step only, with one tool that returns a fixed shape. The server decides which deal it could belong to,
  * refuses anything not shown as completed, and the person approves and confirms the card. Pinned by a fingerprint test.
  */
-export const PAYMENT_PROMPT_VERSION = "1";
+export const PAYMENT_PROMPT_VERSION = "2";
 
 export const PAYMENT_PROMPT = `You read a bank transfer receipt or payment confirmation (a screenshot or photo) for a hair retailer and copy what is shown into fixed fields by calling read_payment once.
 
 Copy exactly what the picture shows. Do not calculate, correct, estimate or fill in anything that is not shown.
-- status: COMPLETED only if the picture clearly says the transfer was successful, completed, sent or credited. PENDING if it says processing, pending, in progress, queued or awaiting confirmation. FAILED if it says failed, declined, reversed or cancelled. UNCLEAR if you cannot tell. A screenshot that merely looks like a receipt, with no such word, is UNCLEAR.
+- status: COMPLETED only if the picture clearly says the transfer was successful, completed, sent or credited, or it is an entry in the business's own bank app showing money received (an amount with a plus sign, such as +€150, which appears only once the money has arrived). An amount with a minus sign, or words such as sent to or paid to, is money going out, not received: UNCLEAR. PENDING if it says processing, pending, in progress, queued or awaiting confirmation. FAILED if it says failed, declined, reversed or cancelled. UNCLEAR if you cannot tell. A screenshot that merely looks like a receipt, with neither such a word nor an incoming amount, is UNCLEAR.
 - amount: the amount transferred, as a number, exactly as shown (no fees added, no rounding). currency: a 3-letter code, only if the picture makes it clear (a symbol or a word such as naira, dollars, pounds, euros); leave it out otherwise.
-- paidAt: the date of the transfer as YYYY-MM-DD, only if shown. senderName: the name of the person or business that PAID, only if shown. reference: the transaction or bank reference, only if shown. notes: anything else worth keeping, briefly.
+- paidAt: the date of the transfer as YYYY-MM-DD, only if the full calendar date, including the year, is shown. Words such as today, yesterday or 7 minutes ago are not dates: leave paidAt out. Set shownAsToday to true only if the picture says today, just now, or a number of minutes or hours ago. senderName: the name of the person or business that PAID, only if shown. reference: the transaction or bank reference, only if shown. notes: anything else worth keeping, briefly.
+- severalPayments: true if the picture lists more than one separate payment or transaction (for example a list of recent transactions); then fill the other fields from the first one only.
 - If the picture is not a payment receipt, or is unreadable, set readable to false and say why in problem.
 
 Rules
@@ -41,6 +42,8 @@ const buildReadPaymentInput = (strict: boolean) => {
   amount: z.number().finite().min(0).max(100_000_000).optional(),
   currency: t(10).optional(),
   paidAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  shownAsToday: z.boolean().optional(),
+  severalPayments: z.boolean().optional(),
   senderName: t(120).optional(),
   reference: t(100).optional(),
   notes: t(300).optional(),

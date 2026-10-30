@@ -367,3 +367,13 @@ A read-only review of the Ivy code found no flaw in key storage, scoping, approv
 - **One person using the whole day's number:** a person who is not an admin may use half of it (rounded up, at least 1); admins may use all of it.
 - **Keys:** the eval scripts read `ANTHROPIC_API_KEY` from `.env.eval` (git-ignored, loaded by `scripts/eval-env.ts`), so a key is never typed into a command or chat. `tests/no-secret-keys.test.ts` fails if a real-looking `sk-ant-` key is in any tracked file.
 - **Still true:** record text read by chat Ivy can try to steer it. The prompt says it is data and nothing happens without a person's approval.
+
+## Receipts from a bank app (payment prompt v2, fingerprint `befd83751dd52e8c`)
+
+Found by running real receipts: bank-app screens show money received as a plus-signed amount with no "successful" word, so every one was refused. Changes:
+
+- **Received credits count as completed:** an entry in the business's own bank app with a plus-signed amount (`+€150`) is read as COMPLETED. A minus sign or "sent to / paid to" is money going out and stays UNCLEAR. The card still says a screenshot is not proof.
+- **Dates:** "today", "yesterday" and "7 minutes ago" are not dates. The model leaves the date out and sets `shownAsToday`; the server then uses its own clock for today's date and says so on the card. A date without a year is not guessed.
+- **Several payments:** a picture that lists more than one payment (`severalPayments`) makes no card: "Crop it to the one payment and try again."
+- **Known gap:** a bank statement line from the customer's own account (`-€422.00`, "SEPA Credit Transfer to ...") is a debit in their account, so it is refused as UNCLEAR. The reader is not told the business's name, so it cannot tell that the money went to you.
+- **Eval:** `scripts/payment-eval.ts` now has 17 drawn receipts (credit today, credit with a date, debit, a list of credits); the real run passed them all, apart from one scoring mistake in the new `debit-out` spec, now corrected.

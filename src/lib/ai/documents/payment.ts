@@ -46,6 +46,7 @@ const NOT_PROOF = "A screenshot is not proof of payment. Check your bank before 
 export function buildPayment(r: ReadPayment, today: Date): { draft: PaymentDraft | null; blocking: string[]; warnings: string[] } {
   const blocking: string[] = [];
   const warnings: string[] = [];
+  if (r.severalPayments) blocking.push("The picture shows more than one payment. Crop it to the one payment and try again.");
   if (r.status === "PENDING") blocking.push("The receipt shows the transfer as still pending, so no money has arrived yet.");
   else if (r.status === "FAILED") blocking.push("The receipt shows the transfer as failed or reversed.");
   else if (r.status !== "COMPLETED") blocking.push("The receipt does not clearly say the transfer was completed.");
@@ -54,10 +55,13 @@ export function buildPayment(r: ReadPayment, today: Date): { draft: PaymentDraft
   if (!currency) blocking.push("The currency is not shown.");
   if (r.paidAt && r.paidAt > isoDay(today)) blocking.push(`The date on the receipt (${r.paidAt}) is in the future.`);
   if (blocking.length) return { draft: null, blocking, warnings };
-  if (!r.paidAt) warnings.push("No date is shown on the receipt, so today's date is used. Change it if the money arrived earlier.");
+  // "Today" or "7 minutes ago" is not a date in the picture: the date comes from the server's clock, never from the model.
+  const paidAt = r.paidAt ?? (r.shownAsToday ? isoDay(today) : undefined);
+  if (!r.paidAt && r.shownAsToday) warnings.push("The receipt says the money arrived today but shows no calendar date, so today's date is used. Change it if that is wrong.");
+  else if (!r.paidAt) warnings.push("No date is shown on the receipt, so today's date is used. Change it if the money arrived earlier.");
   // A bank reference is letters, digits and a few separators. Anything else on the receipt is not carried into the record.
   const reference = r.reference && /^[A-Za-z0-9 \-_/.#]{1,60}$/.test(r.reference) ? r.reference : undefined;
-  return { draft: { amount: r.amount as number, currency: currency as string, ...(r.paidAt ? { paidAt: r.paidAt } : {}), ...(reference ? { reference } : {}) }, blocking, warnings };
+  return { draft: { amount: r.amount as number, currency: currency as string, ...(paidAt ? { paidAt } : {}), ...(reference ? { reference } : {}) }, blocking, warnings };
 }
 
 type OpenDeal = { id: string; title: string; balance: number; customer: string };
