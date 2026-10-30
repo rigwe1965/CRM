@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-const { db, settings, taskCreate, taskChange, noteCreate, draft, paymentRecord } = vi.hoisted(() => ({
+const { db, settings, taskCreate, taskChange, noteCreate, draft, paymentRecord, scheduleReplace } = vi.hoisted(() => ({
+  scheduleReplace: { prepare: vi.fn(), apply: vi.fn(), edit: undefined as unknown },
   paymentRecord: { prepare: vi.fn(), apply: vi.fn(), edit: undefined as unknown },
   db: { aiProposal: { count: vi.fn(), create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), update: vi.fn() } },
   settings: vi.fn(),
@@ -12,6 +13,7 @@ const { db, settings, taskCreate, taskChange, noteCreate, draft, paymentRecord }
 }));
 taskCreate.edit = z.object({ title: z.string().min(1) }).partial();
 taskChange.edit = z.object({ status: z.string() }).partial();
+scheduleReplace.edit = z.object({});
 paymentRecord.edit = z.object({ note: z.string() }).partial();
 noteCreate.edit = z.object({ subject: z.string().min(1) }).partial();
 draft.edit = z.object({});
@@ -19,7 +21,7 @@ draft.edit = z.object({});
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/ai/settings", () => ({ loadAssistantSettings: settings }));
 vi.mock("@/lib/ai/proposal-kinds", () => ({
-  KINDS: { PAYMENT_RECORD: paymentRecord, TASK_CREATE: taskCreate, TASK_CHANGE: taskChange, NOTE_CREATE: noteCreate, MESSAGE_DRAFT: draft },
+  KINDS: { SCHEDULE_REPLACE: scheduleReplace, PAYMENT_RECORD: paymentRecord, TASK_CREATE: taskCreate, TASK_CHANGE: taskChange, NOTE_CREATE: noteCreate, MESSAGE_DRAFT: draft },
   nice: (s: string) => s.toLowerCase(),
 }));
 
@@ -66,12 +68,21 @@ describe("propose", () => {
   it("refuses a payment unless the admin allowed payment proposals too, even with proposed actions on", async () => {
     taskCreate.prepare.mockClear();
     paymentRecord.prepare.mockResolvedValue({ params: { dealId: "d1" }, preview });
-    await expect(propose(ctx, "PAYMENT_RECORD", { dealId: "d1", amount: 5 })).rejects.toThrow(/Payment proposals are switched off/);
+    await expect(propose(ctx, "PAYMENT_RECORD", { dealId: "d1", amount: 5 })).rejects.toThrow(/Payment proposals .*switched off/);
     expect(paymentRecord.prepare).not.toHaveBeenCalled();
     expect(db.aiProposal.create).not.toHaveBeenCalled();
     settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true, paymentProposalsEnabled: true });
     db.aiProposal.create.mockResolvedValue({ id: "p5" });
     expect((await propose(ctx, "PAYMENT_RECORD", { dealId: "d1", amount: 5 })).id).toBe("p5");
+  });
+
+  it("treats an instalment schedule like a payment: it needs the payment switch too", async () => {
+    scheduleReplace.prepare.mockResolvedValue({ params: { dealId: "d1" }, preview });
+    await expect(propose(ctx, "SCHEDULE_REPLACE", { dealId: "d1" })).rejects.toThrow(/Payment proposals \(which include instalment schedules\) are switched off/);
+    expect(scheduleReplace.prepare).not.toHaveBeenCalled();
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true, paymentProposalsEnabled: true });
+    db.aiProposal.create.mockResolvedValue({ id: "p6" });
+    expect((await propose(ctx, "SCHEDULE_REPLACE", { dealId: "d1" })).id).toBe("p6");
   });
 
   it("refuses in a read-only workspace", async () => {

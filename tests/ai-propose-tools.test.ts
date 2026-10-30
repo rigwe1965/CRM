@@ -27,6 +27,7 @@ describe("the proposal tools", () => {
       ["draft_message", "MESSAGE_DRAFT", { contactId: "c1", channel: "EMAIL", message: "Hello" }],
       ["propose_payment", "PAYMENT_RECORD", { dealId: "d1", amount: 400 }],
       ["propose_contact", "CONTACT_CREATE", { firstName: "Ada", lastName: "Okafor" }],
+      ["propose_schedule", "SCHEDULE_REPLACE", { dealId: "d1", even: { count: 3, firstDueDate: "2026-12-01", every: "MONTH" } }],
       ["propose_deal", "DEAL_CREATE", { contactId: "c1", title: "Order", currency: "USD", items: [{ productType: "Closure", quantity: 1, unitPrice: 100 }] }],
     ];
     for (const [name, kind, input] of cases) {
@@ -67,7 +68,7 @@ describe("the proposal tools", () => {
       expect(src, file).not.toMatch(/crm-actions|\.apply\(|sendWhatsApp|sendMail/);
     }
     // The model-facing file imports only schemas from the kinds file, never its `apply`.
-    expect(readFileSync(join(dir, "propose.ts"), "utf8")).toMatch(/import \{ contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, stageChangeInput, taskChangeInput, taskCreateInput \} from "@\/lib\/ai\/proposal-kinds"/);
+    expect(readFileSync(join(dir, "propose.ts"), "utf8")).toMatch(/import \{ contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, scheduleInput, stageChangeInput, taskChangeInput, taskCreateInput \} from "@\/lib\/ai\/proposal-kinds"/);
   });
 
   it("are the only code that runs a proposal's action: the approval library and nothing the model can call", () => {

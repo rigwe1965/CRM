@@ -118,7 +118,7 @@ run("Ivy's proposals across two businesses", () => {
   it("refuses a payment above the balance, and another currency, and a business without payment proposals", async () => {
     await expect(proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 1000 })).rejects.toThrow(/more than the balance/);
     await expect(proposeAs(t.a, "PAYMENT_RECORD", { dealId: t.a.deal, amount: 10, currency: "EUR" })).rejects.toThrow(/not EUR/);
-    await expect(proposeAs(t.b, "PAYMENT_RECORD", { dealId: t.b.deal, amount: 10 })).rejects.toThrow(/Payment proposals are switched off/);
+    await expect(proposeAs(t.b, "PAYMENT_RECORD", { dealId: t.b.deal, amount: 10 })).rejects.toThrow(/Payment proposals .*switched off/);
   });
 
   it("an approved payment lands once, in the person's business only, and warns about the open payment link first", async () => {
@@ -170,6 +170,49 @@ run("Ivy's proposals across two businesses", () => {
     expect(deal).toMatchObject({ tenantId: t.a.tenantId, ownerId: t.a.admin, stage: "QUALIFICATION", currency: "USD", contactId: t.a.contact });
     expect(Number(deal!.amount)).toBe(100.5);
     expect(deal!.items).toHaveLength(1);
+  });
+
+  // ── Phase 3a: instalment schedules ──────────────────────────────────────────────────────────────────────────
+  const dueDates = async (dealId: string) => (await t.db.instalment.findMany({ where: { dealId }, orderBy: { position: "asc" } })).map((i) => `${i.dueDate.toISOString().slice(0, 10)}:${Number(i.amount).toFixed(2)}`);
+  const future = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+
+  it("will not propose a schedule on the other business's deal, or in a business without payment proposals", async () => {
+    await expect(proposeAs(t.a, "SCHEDULE_REPLACE", { dealId: t.b.deal, even: { count: 3, firstDueDate: future(30), every: "MONTH" } })).rejects.toThrow(/No deal with that id is visible/);
+    await expect(proposeAs(t.b, "SCHEDULE_REPLACE", { dealId: t.b.deal, even: { count: 3, firstDueDate: future(30), every: "MONTH" } })).rejects.toThrow(/switched off/);
+  });
+
+  it("an approved schedule replaces the old one in the person's business only, and records the before and after", async () => {
+    const bBefore = await dueDates(t.b.deal);
+    const p = await proposeAs(t.a, "SCHEDULE_REPLACE", { dealId: t.a.deal, even: { count: 3, firstDueDate: future(30), every: "MONTH" } });
+    expect(p.preview.warning).toMatch(/replaces the current schedule of 1 instalment/);
+    expect(p.preview.lines).toContainEqual({ label: "Scheduled", value: "300.00 USD in 3 instalments" });
+    const done = await inTenant(t.a, () => approveProposal(user(t.a), p.id, {}));
+    expect(done.status).toBe("APPLIED");
+    const now = await dueDates(t.a.deal);
+    expect(now).toHaveLength(3);
+    expect(now.map((x) => x.split(":")[1])).toEqual(["100.00", "100.00", "100.00"]);
+    expect(await dueDates(t.b.deal)).toEqual(bBefore);
+    const entry = await t.db.auditLog.findFirst({ where: { tenantId: t.a.tenantId, action: "schedule.replaced", entityId: t.a.deal }, orderBy: { createdAt: "desc" } });
+    expect(entry).not.toBeNull();
+  });
+
+  it("a payment or a schedule change in between makes the approval do nothing", async () => {
+    const p = await proposeAs(t.a, "SCHEDULE_REPLACE", { dealId: t.a.deal, even: { count: 2, firstDueDate: future(45), every: "WEEK" } });
+    await t.db.instalment.create({ data: { tenantId: t.a.tenantId, dealId: t.a.deal, position: 4, dueDate: new Date(Date.now() + 90 * 86_400_000), amount: 1 } });
+    const before = await dueDates(t.a.deal);
+    const out = await inTenant(t.a, () => approveProposal(user(t.a), p.id, {}));
+    expect(out.status).toBe("FAILED");
+    expect(out.failure).toMatch(/changed after Ivy suggested this/);
+    expect(await dueDates(t.a.deal)).toEqual(before);
+  });
+
+  it("two approvals at once replace the schedule once", async () => {
+    await t.db.instalment.deleteMany({ where: { dealId: t.a.deal, position: 4 } });
+    const p = await proposeAs(t.a, "SCHEDULE_REPLACE", { dealId: t.a.deal, even: { count: 2, firstDueDate: future(60), every: "WEEK" } });
+    const results = await Promise.allSettled([inTenant(t.a, () => approveProposal(user(t.a), p.id, {})), inTenant(t.a, () => approveProposal(user(t.a), p.id, {}))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    expect(await dueDates(t.a.deal)).toHaveLength(2);
   });
 
   it("a business that has not allowed proposed actions gets none", async () => {

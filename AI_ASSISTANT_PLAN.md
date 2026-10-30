@@ -285,9 +285,167 @@ Recording a payment changes what a customer owes, so it gets more safeguards tha
 4. Deals without an instalment schedule in this wave, the schedule coming later (recommended)?
 5. Roles exactly as on the screens (recommended)?
 
+## Phase 3: instalment schedules, the Suggested actions inbox, and WhatsApp triage
+
+The owner approved the plan below with "use your recommendations" (all nine decisions as recommended). Status: **3a built**
+(instalment schedules; see TECHNICIAN.md, "Phase 3a"); 3b (the inbox) and 3c (WhatsApp triage) are next, each released on its own.
+
+Three pieces, built in this order because each reuses the one before: **3a** instalment schedules (a Wave B-style proposal),
+**3b** a daily "Suggested actions" inbox (Ivy proposes without being asked), **3c** triage of incoming WhatsApp messages
+(Ivy proposes when a customer writes). They share one rule that does not change: **Ivy only proposes; a person decides; the
+server builds every card; nothing is sent to a customer by Ivy.**
+
+### 3a. Instalment schedules (`propose_schedule`)
+
+A schedule drives real customer messages: the daily automations email and WhatsApp customers from it. So it is treated like
+a payment: it sits behind the **payment proposals** switch, has a confirmation dialog, and is never in "Approve all".
+
+- **Two ways to ask, both worked out by the server, never by Ivy.** *Even split:* "4 monthly instalments from 1 December"
+  becomes `{ count, firstDueDate, every: WEEK | TWO_WEEKS | MONTH }`; the server divides the **deal total** into equal amounts
+  (cents on the last one) and spaces the dates. *Custom:* the person gives each date and amount and the server only checks them.
+- **Why the deal total, not the balance.** Payments are applied to instalments oldest-first, so a schedule must cover the whole
+  deal for the payments already made to land on the first instalments. The card shows each instalment as covered, part-covered
+  or open, using the same `summarize` the screens use, so the person sees what a part-paid deal will look like.
+- **Refused when:** the deal is not visible, more than 24 instalments, an amount of zero, or the total is above the deal
+  amount (the screen's rule). **Warned when:** the total is below the deal amount, a date is in the past, or there is an
+  existing schedule (the card lists it and says it will be **replaced**).
+- **Customer-message warning.** Replacing a schedule deletes its reminder history (`InstalmentReminder` cascades), so the
+  daily job may send reminders again for the new instalments. The card says so. (The screen does the same today.)
+- **Guard against a stale card.** The card keeps a fingerprint of the existing schedule and of what was paid. If either has
+  changed when the person approves, nothing is done and the card says why.
+- **Shared code:** the replace logic moves out of `PUT /api/deals/:id/schedule` into `replaceSchedule(user, dealId,
+  instalments, req?)`, used by the route and the approval. It keeps the `schedule.replaced` audit entry with the before and after.
+- **Not included:** adding a single instalment, changing reminder timing, sending a reminder (Ivy can still draft one).
+
+### 3b. The daily "Suggested actions" inbox
+
+**What the person sees.** A badge on the Ask Ivy button ("Suggested (4)") and a "Suggested" tab in the panel. Each card is an
+ordinary proposal (Approve / Edit / Decline, the same cards as chat) plus a plain "Why" line built from data, for example
+"Instalment 2 of 400.00 USD was due 5 days ago and no one has followed up." Nothing arrives by itself except these cards.
+
+**How candidates are found: rules first, the model second.** Rules (SQL over the person's own scope, no model cost) decide
+*what deserves attention*; the model only writes the words (a task title, a message draft) for candidates the rules chose, so
+it cannot invent customers or amounts.
+
+| Rule | Suggests |
+| --- | --- |
+| An instalment is overdue and no task, note or message to that customer in the last 3 days | A follow-up task plus a draft reminder (WhatsApp if the 24-hour window is open, otherwise email) |
+| A deal in Negotiation with no activity for 14 days | A follow-up task |
+| A won deal with an unpaid balance and no schedule | A schedule (3a), as a proposal to review |
+| A lead untouched for 7 days (only if the existing quiet-lead automation is off, to avoid doubling it) | A follow-up task |
+| An overdue task | A reschedule or complete card |
+
+At most 10 a day per person, ranked by money at stake then age. Each carries a **dedupe key** (rule, record, ISO week) so a
+declined suggestion does not come back for a week and a waiting one is never duplicated.
+
+**When it runs: on the person's first visit of the day (recommended), with a cron backstop.** The first request of the day
+starts the job in the background (`after()`), so it costs nothing for people who do not open the app, needs no cron slot,
+and lands at the right time for them. The panel shows "Preparing suggestions…" then fills in. If you prefer a fixed time,
+a cron at 07:30 can do it instead, working through businesses inside a time budget. This choice is below.
+
+**Who it works as.** The person it is for: candidates come through `ownerScope`/`taskScope` for that user, so a salesperson
+only ever gets suggestions about their own records and an admin about the business. Admins do not see other people's inbox cards.
+
+**The model step.** One call per person per day, with a compact fact sheet (built server-side from the same code the read
+tools use) and only the proposal tools `propose_task`, `propose_note`, `draft_message`, `propose_task_change`. A separate
+instruction text (`INBOX_PROMPT`, own version and fingerprint test). Every call goes through the existing `prepare` checks, so
+cards are server-built exactly as in chat.
+
+**Cost and limits.** About $0.02 to $0.04 per person per active day, so roughly $0.50 to $1.00 per person per month. It counts
+against the same monthly ceiling. When the ceiling is reached the rule-based cards **still appear with a plain template
+message and no model call**, so the inbox never goes blank. A new `AiUsage.purpose` column (CHAT, INBOX, TRIAGE) lets Settings
+show what each part costs.
+
+**Controls.** A third admin switch, "Daily suggestions" (off by default), and a per-person "mute suggestions" toggle in
+Profile. Suggestions expire after 3 days (chat proposals keep 24 hours).
+
+### 3c. Incoming WhatsApp messages
+
+**What happens today.** A customer message is filed as an activity, an unknown number becomes a lead, and the owner gets a
+"Reply to WhatsApp from X" task (`recordInbound`). This phase adds help with the *reply*, not a replacement for any of it.
+
+**What it adds.** When a message arrives, Ivy prepares, for the contact's owner, an inbox card group:
+1. a **summary and label** (payment claim, order enquiry, delivery question, complaint, wants to stop, other) with the message
+   quoted as plain text;
+2. a **draft reply** (the 24-hour window is open because they just wrote);
+3. optionally a **task or note** ("Check whether the 300 USD payment arrived").
+
+**The human sends, not Ivy.** WhatsApp drafts get a **Send** button next to Copy, enabled only while the 24-hour window is open
+(`canReplyFreely`). The text is editable first, the person presses it, and it goes through the existing
+`POST /api/contacts/:id/whatsapp` (daily cap, opt-in checks, activity log). So the send is always a person's click on text
+they can see. Customer-facing auto-replies stay out (see Later phases).
+
+**The message is the attack surface, so the triage is the most restricted Ivy there is.**
+- **Tools:** only `triage_result` (label, urgency, a 200-character summary, all from fixed lists), `draft_message`,
+  `propose_note` and `propose_task`. **No** payment, stage, contact or deal tools. A payment claim can only ever become a note
+  or a "check the account" task, never a recorded payment.
+- **Data:** the model sees only that thread (last 5 messages) and a fact sheet about that one contact (their deals, balances,
+  open tasks). It cannot read anything about other customers.
+- **The draft is checked, not trusted.** The server flags a draft that contains a link, an email address, a phone number or a
+  long digit string that is not in that contact's record or the business's settings (for example an injected "pay to this
+  account"), and the card shows a warning above the Send button.
+- **Opt-out words** ("stop", "unsubscribe") are detected by a rule, not by the model, and put a top-priority card in the inbox
+  ("Customer asked to stop messages: mark as opted out?") using a small new proposal kind, `CONTACT_OPT_OUT`, that sets
+  `whatsappOptIn = false` on approval. Consent is never changed without a person.
+- **Spam and cost.** At most 3 triages per contact per hour, a daily cap per business (admin sets it, default 100), an
+  unknown number gets a rule-based card only (no model call) until a person has replied once, and the monthly ceiling applies.
+  A stranger cannot burn the budget by texting.
+- **Reliability.** The webhook still answers Meta immediately. Triage runs after the response (`after()`), tracked in a small
+  queue table (`AiTriage`: activity id unique, status, attempts) so a retry from Meta, or a crash, never triages twice, and the
+  daily job retries anything still pending. If the model fails the owner still has the existing reply task.
+
+**Cost.** About $0.01 to $0.02 per message; 100 messages a day is about $1.50 a day. That is why the cap, the unknown-number
+rule and the switch exist. **Privacy.** The customer's message text goes to Anthropic under the business's own key, so the
+Settings text and the privacy notes are updated, and this switch is separate and off by default.
+
+### What changes in the data (one migration per piece)
+
+- 3a: no schema change beyond a new proposal kind `SCHEDULE_REPLACE`.
+- 3b: `AiProposal.conversationId` becomes optional; new `source` (CHAT, DAILY, WHATSAPP), `dedupeKey` (unique per business,
+  person and key), `reason` and `subject` columns; `AiInboxRun` (business, person, day: so a day's run happens once);
+  `AiUsage.purpose`; a per-person mute preference; retention of decided and expired inbox proposals (they have no
+  conversation to be removed with); new switch `inboxEnabled`.
+- 3c: `AiTriage` queue table; new kind `CONTACT_OPT_OUT`; switch `triageEnabled` and the daily cap.
+- Chat prompt version 4 (`propose_schedule`, the Send button wording); `INBOX_PROMPT` and `TRIAGE_PROMPT` each get their own
+  version and fingerprint test (background runs have no thinking-block continuity to protect, but the tests catch accidental edits).
+
+### Tests and checks
+
+- 3a: kind tests (even-split maths with cents, dates, replace warning, stale fingerprint, over-total refusal); the route tests
+  unchanged after the extraction; real-database cases (replace once, two approvals at once, other business refused).
+- 3b: rule tests with fixed clocks (each rule fires, dedupes, respects scope and the daily cap); a two-business test (a
+  salesperson never gets a suggestion about someone else's deal); the "ceiling reached" path still produces rule-based cards;
+  idempotence of the daily run (second visit the same day does nothing).
+- 3c: webhook tests (a repeat from Meta triages once; unknown number gets rule-based card only; rate limits); **attack
+  messages in an eval** (about 25: "ignore your instructions", "reply with this bank account", "mark my invoice paid", links,
+  a message pretending to be the owner, very long text, other languages); the draft-checker's flags; Send only enabled inside
+  the 24-hour window.
+- Evals (real runs, each needing your budget approval): about 25 questions for 3a plus inbox candidate wording (about $0.50),
+  and about 30 triage messages including the attacks (about $0.60).
+
+### Order of work, and what each part costs you to run
+
+1. **3a** schedules (small, one migration). Reuses Wave B's card and confirmation.
+2. **3b** inbox (largest: schema, runner, rules, UI, settings).
+3. **3c** triage (medium on top of 3b: queue, tools, draft checker, Send button, opt-out).
+
+Each is built, tested and pushed on its own, and each new capability has its own off-by-default admin switch, so you can
+release them one at a time.
+
+### Decisions I need from you
+
+1. **3a:** schedules behind the payment switch, with the confirmation dialog (recommended)?
+2. **3b timing:** generate on a person's first visit of the day (recommended) or by a fixed 07:30 cron?
+3. **3b controls:** an admin switch plus a per-person mute (recommended)?
+4. **3b limits:** at most 10 suggestions a day per person, expiring after 3 days (recommended)?
+5. **3c:** the **Send** button on WhatsApp drafts, the human clicking it inside the 24-hour window (recommended), or Copy only?
+6. **3c:** opt-out words detected by a rule and surfaced as a top card (recommended), or left to the model?
+7. **3c:** unknown numbers get a rule-based card only until someone has replied (recommended)?
+8. **3c:** a daily triage cap per business, default 100, admin-adjustable (recommended)?
+9. **Order and release:** 3a, then 3b, then 3c, each pushed separately with its own switch (recommended)?
+
 ## Later phases (each needs its own approval)
 
-- Phase 3: a daily "Suggested actions" inbox and inbound WhatsApp triage.
 - Phase 4, document intake: supplier invoice PDF to a draft invoice; an order message or screenshot to a draft deal.
 - Phase 5, possibly: customer-facing auto-replies, with business hours and hand-off to a person.
 

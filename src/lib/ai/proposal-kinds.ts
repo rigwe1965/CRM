@@ -6,11 +6,12 @@ import type { SessionUser } from "@/lib/auth-helpers";
 import { assertLinks, ownerScope, resolveOwner, taskScope, tenantScope } from "@/lib/access";
 import { changeDealStage, createContact, createDeal, createTask, logActivity, updateTask } from "@/lib/crm-actions";
 import { recordPayment } from "@/lib/record-payment";
+import { replaceSchedule, scheduleKey } from "@/lib/replace-schedule";
 import { assertWithinPlan } from "@/lib/plan-limits";
 import { findDuplicates } from "@/lib/duplicates";
 import { itemsTotal } from "@/lib/deals";
 import { dealPaymentsView, summarize } from "@/lib/payments";
-import { createActivitySchema, createContactSchema, createDealSchema, createPaymentSchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
+import { createActivitySchema, createContactSchema, createDealSchema, createPaymentSchema, createTaskSchema, dealStageSchema, scheduleSchema, updateTaskSchema } from "@/lib/validations/crm";
 import { ToolError } from "@/lib/ai/tools/types";
 import { fullName } from "@/lib/ai/tools/result";
 
@@ -29,7 +30,7 @@ export type Preview = {
   warning?: string;
   draft?: { text: string };
   /** Money actions: the words on the button and in the confirmation dialog, with the exact amount, built by the server. */
-  confirm?: { button: string; message: string };
+  confirm?: { title?: string; button: string; message: string };
 };
 export type Prepared = { params: Record<string, unknown>; preview: Preview };
 export type Applied = { entity: string; id: string; href: string };
@@ -304,7 +305,7 @@ const paymentRecord = {
           { label: "Date paid", value: paidAt }, { label: "Method", value: nice(body.method) }, ...line("Reference", body.reference), ...line("Notes", body.note), ...(clears.length ? [{ label: "Clears", value: clears.join("; ") }] : []),
         ],
         warning: warnings.length ? warnings.join(" ") : undefined,
-        confirm: { button: `Record ${amountText}`, message: `Record ${amountText}${who ? ` from ${who}` : ""} on "${deal.title}"? This changes what the customer owes, and takes ${money(balance)} ${deal.currency} down to ${money(balance - body.amount)} ${deal.currency}.` },
+        confirm: { title: "Record this payment?", button: `Record ${amountText}`, message: `Record ${amountText}${who ? ` from ${who}` : ""} on "${deal.title}"? This changes what the customer owes, and takes ${money(balance)} ${deal.currency} down to ${money(balance - body.amount)} ${deal.currency}.` },
       },
     };
   },
@@ -411,6 +412,103 @@ const dealCreate = {
   },
 };
 
+// ─── Replace a deal's instalment schedule (Phase 3a) ────
+
+/** The date `k` months after `d`, in UTC, landing on the last day of a shorter month rather than spilling into the next. */
+export function addMonthsUtc(d: Date, k: number): Date {
+  const out = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + k, 1));
+  const lastDay = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate();
+  out.setUTCDate(Math.min(d.getUTCDate(), lastDay));
+  return out;
+}
+
+/** Splits `total` into `count` equal instalments, any odd cents on the last, spaced from `first` by the chosen step. Worked out here, never by the model. */
+export function evenSchedule(total: number, count: number, first: Date, every: "WEEK" | "TWO_WEEKS" | "MONTH") {
+  const base = Math.floor((total * 100) / count) / 100;
+  const last = Math.round((total - base * (count - 1)) * 100) / 100;
+  return Array.from({ length: count }, (_, k) => ({
+    dueDate: every === "MONTH" ? addMonthsUtc(first, k) : new Date(first.getTime() + k * (every === "WEEK" ? 7 : 14) * 86_400_000),
+    amount: k === count - 1 ? last : base,
+  }));
+}
+
+export const scheduleInput = z.object({
+  dealId: id.describe("From find_deals."),
+  even: z
+    .object({
+      count: z.number().int().min(2).max(24),
+      firstDueDate: date.describe("YYYY-MM-DD"),
+      every: z.enum(["WEEK", "TWO_WEEKS", "MONTH"]),
+    })
+    .optional()
+    .describe("Use for 'N equal instalments': the CRM splits the deal total and spaces the dates. Give this OR custom, not both."),
+  custom: z
+    .array(z.object({ dueDate: date, amount: z.number().positive().max(100_000_000) }))
+    .min(1)
+    .max(24)
+    .optional()
+    .describe("Use only when the person gave each date and exact amount. Give this OR even, not both."),
+});
+
+const dayStr = (d: Date) => d.toISOString().slice(0, 10);
+
+const scheduleReplace = {
+  edit: z.object({}),
+  async prepare(user: SessionUser, input: z.infer<typeof scheduleInput>): Promise<Prepared> {
+    const raw = parseOrTell(scheduleInput, input);
+    if (!!raw.even === !!raw.custom) throw new ToolError("Give either `even` (equal instalments) or `custom` (each date and amount), not both and not neither.");
+    const deal = await db.deal.findFirst({
+      where: { id: raw.dealId, deletedAt: null, ...ownerScope(user) },
+      select: { id: true, title: true, amount: true, currency: true, contact: { select: { firstName: true, lastName: true } } },
+    });
+    if (!deal) throw new ToolError("No deal with that id is visible to you. Use find_deals to find it.");
+    const dealAmount = Number(deal.amount);
+    if (dealAmount <= 0) throw new ToolError("This deal has no amount yet, so there is nothing to split into instalments.");
+
+    const rows = (raw.even ? evenSchedule(dealAmount, raw.even.count, new Date(raw.even.firstDueDate), raw.even.every) : raw.custom!.map((c) => ({ dueDate: new Date(c.dueDate), amount: c.amount })))
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    parseOrTell(scheduleSchema, { instalments: rows.map((r) => ({ dueDate: dayStr(r.dueDate), amount: r.amount })) });
+    const total = Math.round(rows.reduce((s, r) => s + r.amount, 0) * 100) / 100;
+    if (total > dealAmount) throw new ToolError(`Those instalments add up to ${money(total)}, more than the deal amount of ${money(dealAmount)} ${deal.currency}. Tell the person.`);
+
+    const view = await dealPaymentsView(deal);
+    const { paid } = view.summary;
+    const shown = summarize(dealAmount, paid, rows.map((r, i) => ({ id: `n${i}`, position: i + 1, dueDate: r.dueDate, amount: r.amount }))).instalments;
+    const lines: PreviewLine[] = shown.map((s) => ({
+      label: `No. ${s.position}`,
+      value: `due ${dayStr(s.dueDate)}: ${money(s.amount)} ${deal.currency} (${s.covered >= s.amount ? "already covered by payments" : s.covered > 0 ? `part covered: ${money(s.covered)} paid` : "open"})`,
+    }));
+    const existing = view.instalments;
+    const today = dayStr(new Date());
+    const warnings = [
+      existing.length > 0 && `This replaces the current schedule of ${existing.length} instalment${existing.length === 1 ? "" : "s"} (${existing.map((e) => money(e.amount)).join(", ")}). Replacing it also clears the reminder history, so customers may be sent reminders again for the new dates.`,
+      total < dealAmount && `The instalments cover ${money(total)} of the ${money(dealAmount)} ${deal.currency} deal; ${money(dealAmount - total)} is not scheduled.`,
+      rows.some((r) => dayStr(r.dueDate) < today) && "Some due dates are in the past, so they count as overdue straight away.",
+    ].filter(Boolean);
+    const who = fullName(deal.contact);
+    const verb = existing.length ? "Replace schedule" : "Set schedule";
+    return {
+      params: { dealId: deal.id, instalments: rows.map((r) => ({ dueDate: dayStr(r.dueDate), amount: r.amount })), expect: { paid, scheduleKey: scheduleKey(existing) } },
+      preview: {
+        title: existing.length ? "Replace the instalment schedule" : "Set an instalment schedule",
+        lines: [...line("Customer", who), ...line("Deal", deal.title), { label: "Deal total", value: `${money(dealAmount)} ${deal.currency}` }, ...(paid > 0 ? [{ label: "Paid so far", value: `${money(paid)} ${deal.currency}` }] : []), ...lines, { label: "Scheduled", value: `${money(total)} ${deal.currency} in ${rows.length} instalments` }],
+        warning: warnings.length ? warnings.join(" ") : undefined,
+        confirm: {
+          title: existing.length ? "Replace this schedule?" : "Set this schedule?",
+          button: verb,
+          message: `${verb} on "${deal.title}"${who ? ` for ${who}` : ""}: ${rows.length} instalments totalling ${money(total)} ${deal.currency}. Customers are sent reminders based on these dates.`,
+        },
+      },
+    };
+  },
+  async apply(user: SessionUser, p: Record<string, unknown>): Promise<Applied> {
+    const { dealId, expect } = p as { dealId: string; expect: { paid: number; scheduleKey: string } };
+    const body = parseOrTell(scheduleSchema, { instalments: p.instalments });
+    await replaceSchedule(user, dealId, body.instalments, { expect });
+    return { entity: "deal", id: dealId, href: `/deals/${dealId}` };
+  },
+};
+
 export type KindDef = {
   /** What a person may change on the card before approving; checked again on approval. */
   edit: z.ZodType<Record<string, unknown>>;
@@ -428,4 +526,5 @@ export const KINDS = {
   PAYMENT_RECORD: paymentRecord,
   CONTACT_CREATE: contactCreate,
   DEAL_CREATE: dealCreate,
-} as unknown as Record<"TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE", KindDef>;
+  SCHEDULE_REPLACE: scheduleReplace,
+} as unknown as Record<"TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE" | "SCHEDULE_REPLACE", KindDef>;

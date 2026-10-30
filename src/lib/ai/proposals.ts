@@ -46,6 +46,7 @@ const EDITABLE: Record<AiProposalKind, string[]> = {
   PAYMENT_RECORD: ["paidAt", "method", "reference", "note"],
   CONTACT_CREATE: ["firstName", "lastName", "email", "phone", "city", "country"],
   DEAL_CREATE: ["title", "expectedCloseDate"],
+  SCHEDULE_REPLACE: [],
 };
 
 function editableValues(row: Pick<AiProposal, "kind" | "params">): Record<string, string | null> {
@@ -97,8 +98,8 @@ export async function propose(ctx: { user: SessionUser; conversationId?: string;
   if (settings.proposalsEnabled !== true) {
     throw new ToolError("Proposed actions are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under Ivy, and describe what they can do themselves instead.");
   }
-  if (kind === "PAYMENT_RECORD" && settings.paymentProposalsEnabled !== true) {
-    throw new ToolError("Payment proposals are switched off for this business, so you cannot propose recording a payment. Tell the person an admin can allow them in Settings, under Ivy, and that they can record it themselves on the deal's page.");
+  if ((kind === "PAYMENT_RECORD" || kind === "SCHEDULE_REPLACE") && settings.paymentProposalsEnabled !== true) {
+    throw new ToolError("Payment proposals (which include instalment schedules) are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under Ivy, and that they can do it themselves on the deal's page.");
   }
   if (user.tenantWritable === false) throw new ToolError("This workspace is read-only until its subscription is renewed, so nothing can be changed. Say so plainly.");
 

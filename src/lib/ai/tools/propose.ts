@@ -1,6 +1,6 @@
 import { defineTool } from "@/lib/ai/tools/types";
 import { propose } from "@/lib/ai/proposals";
-import { contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, stageChangeInput, taskChangeInput, taskCreateInput } from "@/lib/ai/proposal-kinds";
+import { contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, scheduleInput, stageChangeInput, taskChangeInput, taskCreateInput } from "@/lib/ai/proposal-kinds";
 
 /**
  * The tools that let Ivy suggest an action. None of them changes anything: each checks the input against the screens'
@@ -98,4 +98,14 @@ export const proposeDeal = defineTool({
   label: (i) => `Preparing a deal: ${i.title}`,
   fallbackLabel: "Preparing a deal",
   run: async (ctx, i) => queued((await propose(ctx, "DEAL_CREATE", i)).id),
+});
+
+export const proposeSchedule = defineTool({
+  name: "propose_schedule",
+  description:
+    "Suggest setting or replacing a deal's instalment schedule, for the person to approve. For 'N equal instalments' pass `even` (count, first due date, WEEK, TWO_WEEKS or MONTH) and the CRM splits the deal total and spaces the dates; pass `custom` only when the person gave every date and exact amount. Never work out amounts yourself. Customers are sent reminders from a schedule, so only propose it when the person asked. Needs the deal's id from find_deals. Nothing changes until they approve and confirm.",
+  schema: scheduleInput,
+  label: () => "Preparing an instalment schedule",
+  fallbackLabel: "Preparing an instalment schedule",
+  run: async (ctx, i) => queued((await propose(ctx, "SCHEDULE_REPLACE", i)).id),
 });

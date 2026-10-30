@@ -14,9 +14,9 @@ import { cn } from "@/lib/utils";
 
 export type ProposalCard = {
   id: string;
-  kind: "TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE";
+  kind: "TASK_CREATE" | "TASK_CHANGE" | "NOTE_CREATE" | "STAGE_CHANGE" | "MESSAGE_DRAFT" | "PAYMENT_RECORD" | "CONTACT_CREATE" | "DEAL_CREATE" | "SCHEDULE_REPLACE";
   status: "PENDING" | "APPLIED" | "DECLINED" | "EXPIRED" | "FAILED";
-  preview: { title: string; lines: { label: string; value: string }[]; warning?: string; draft?: { text: string }; confirm?: { button: string; message: string } };
+  preview: { title: string; lines: { label: string; value: string }[]; warning?: string; draft?: { text: string }; confirm?: { title?: string; button: string; message: string } };
   approvable: boolean;
   editable: Record<string, string | null>;
   result: { href: string; entity: string } | null;
@@ -145,7 +145,7 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
         <ConfirmDialog
           open={confirming}
           onOpenChange={setConfirming}
-          title="Record this payment?"
+          title={p.preview.confirm.title ?? "Please confirm"}
           description={p.preview.confirm.message}
           confirmLabel={p.preview.confirm.button}
           pending={busy}

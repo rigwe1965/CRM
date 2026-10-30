@@ -570,6 +570,7 @@ enum AiProposalKind {
   PAYMENT_RECORD
   CONTACT_CREATE
   DEAL_CREATE
+  SCHEDULE_REPLACE
 }
 
 enum AiProposalStatus {
