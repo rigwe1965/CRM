@@ -55,6 +55,7 @@ const PLATFORM_USERS: Record<string, string> = {
   "src/lib/sender.ts": "registers, verifies and removes the business's sending domain with the email provider; only the server may write the verified state, so the app role gets no grant",
   "src/lib/billing.ts": "Stripe Billing events name a Stripe customer, which is matched to its business; checkout stores that customer on the business",
   "src/lib/payment-links.ts": "a Stripe event names no business; the payment link says which, and the rest runs as that business",
+  "src/lib/order-links.ts": "a customer opens an order link without signing in; the token says which business it is, and the rest runs as that business",
 };
 
 const MODELS = businessModels().map(delegateName);

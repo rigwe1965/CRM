@@ -130,6 +130,7 @@ model User {
   stockAdjustments   StockAdjustment[] @relation("StockAdjustmentOwner")
   recordedPayments   Payment[]         @relation("PaymentRecorder")
   paymentLinks       PaymentLink[]     @relation("PaymentLinkCreator")
+  customerOrderLinks CustomerOrderLink[] @relation("CustomerOrderLinkCreator")
   savedFilters       SavedFilter[]
   aiConversations    AiConversation[]
   // Mutes the daily "Suggested actions" for this person (they can turn them back on in the Ivy panel).
@@ -244,6 +245,7 @@ model Tenant {
   invoiceItems        InvoiceItem[]
   payments            Payment[]
   paymentLinks        PaymentLink[]
+  customerOrderLinks  CustomerOrderLink[]
   instalments         Instalment[]
   instalmentReminders InstalmentReminder[]
   dealItems           DealItem[]
@@ -378,6 +380,7 @@ model Deal {
   invoices     Invoice[]
   payments     Payment[]
   paymentLinks PaymentLink[]
+  customerOrderLinks CustomerOrderLink[]
   instalments  Instalment[]
   items        DealItem[]
 
@@ -944,6 +947,31 @@ model PaymentLink {
   @@index([dealId, status])
   @@index([createdById])
   @@index([tenantId])
+}
+
+// A private link a customer opens to see one order: what is paid, what is due and when (Plan A: customer payment
+// page). The token is shown to staff and sent to the customer, never stored in the clear: `tokenHash` (SHA-256) is
+// how a visit finds the row, and `tokenSealed` (encrypted, same key as the other secrets) lets staff and reminders
+// show the same link again. Making a new link revokes the old one. An expired or revoked link shows nothing.
+model CustomerOrderLink {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  dealId       String
+  tokenHash    String    @unique
+  tokenSealed  String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  lastViewedAt DateTime?
+  viewCount    Int       @default(0)
+  createdById  String
+  createdAt    DateTime  @default(now())
+
+  deal      Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  createdBy User @relation("CustomerOrderLinkCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, dealId])
+  @@index([createdById])
 }
 
 // Optional agreed due dates for a deal. Payments are applied to these oldest-first.

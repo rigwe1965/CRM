@@ -382,6 +382,11 @@ export const createPaymentLinkSchema = z.object({
   note: text(200),
 });
 
+/** A private link for the customer to see one order. Lasts 90 days unless told otherwise (1 to 365). */
+export const createCustomerLinkSchema = z.object({
+  expiresInDays: z.number().int("Whole days").min(1, "At least 1 day").max(365, "At most 365 days").optional(),
+});
+
 export const sendReminderSchema = z.object({
   instalmentId: z.string().trim().min(1, "Required").max(64),
   channel: z.enum(["EMAIL", "WHATSAPP"]).default("EMAIL"),
