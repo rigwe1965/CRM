@@ -24,6 +24,7 @@ import type { Role, TeamUser } from "@/lib/client/types";
 import { useRouter } from "next/navigation";
 import { AuditLogCard } from "@/components/settings/audit-log";
 import { AssistantCard } from "@/components/settings/assistant";
+import { KnowledgeCard } from "@/components/settings/knowledge";
 import { AutomationsCard } from "@/components/settings/automations";
 import { BillingCard } from "@/components/settings/billing";
 import { BusinessCard } from "@/components/settings/business";
@@ -442,7 +443,10 @@ export default function SettingsPage() {
         )}
         {user.role === "ADMIN" && (
           <TabsContent value="ivy">
-            <AssistantCard />
+            <div className="space-y-6">
+              <AssistantCard />
+              <KnowledgeCard />
+            </div>
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

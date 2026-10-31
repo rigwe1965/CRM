@@ -16,6 +16,7 @@ import { ceilingState, monthToDateMicros, recordUsage } from "@/lib/ai/usage";
 import { ToolError } from "@/lib/ai/tools/types";
 import { clip } from "@/lib/ai/tools/result";
 import { TRIAGE_PROMPT, TRIAGE_TOOL, triageResultInput, type TriageResult } from "@/lib/ai/triage/prompt";
+import { searchKnowledge } from "@/lib/ai/knowledge/search";
 import { asksToStop } from "@/lib/ai/triage/rules";
 
 /**
@@ -174,7 +175,9 @@ async function triageOne(tenantId: string, activityId: string, opts: { now?: Dat
   await db.aiTriage.updateMany({ where: { tenantId, activityId }, data: { modelCalled: true } });
 
   const sheet = await factSheet(user, contact, activityId);
-  const message = await client.beta.messages.create(triageRequest(sheet), { timeout: 40_000 });
+  // The customer's recent words pick the policy entries the model gets to read; the model never searches by itself.
+  const policy = (await searchKnowledge(tenantId, sheet.thread.filter((m) => m.from === "customer").slice(-3).map((m) => m.text).join(" "), 5)).results;
+  const message = await client.beta.messages.create(triageRequest(sheet, policy), { timeout: 40_000 });
   const cost = await recordUsage({ tenantId, userId: owner.id, model: message.model, usage: tokenUsage(message.usage), purpose: "TRIAGE" });
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === TRIAGE_TOOL.name);
   const parsed = use ? triageResultInput.safeParse(use.input) : null;
@@ -199,6 +202,14 @@ async function triageOne(tenantId: string, activityId: string, opts: { now?: Dat
   if (r.task) {
     await card({ kind: "TASK_CREATE", dedupeKey: `wa:${activityId}:task`, raw: { title: r.task.title, priority: r.task.priority, dueDate: isoDay(now), contactId: contact.id }, reason, extraLines: r.reply ? undefined : theyWrote });
   }
+  if (r.escalation) {
+    const e = r.escalation;
+    const label = e.category.toLowerCase().replaceAll("_", " ");
+    const lines = [["Category", label], ["Customer", `${contact.firstName} ${contact.lastName}`.trim()], ["Order", e.orderNumber], ["Customer said", clip(text, 300)], ["Summary", r.summary], ["Evidence", e.evidence], ["Why escalated", e.reason], ["Suggested next step", e.recommendedAction]]
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`);
+    await card({ kind: "TASK_CREATE", dedupeKey: `wa:${activityId}:escalation`, raw: { title: `Escalation: ${label} - ${contact.firstName}`.slice(0, 200), description: lines.join("\n").slice(0, 1000), priority: "HIGH", dueDate: isoDay(now), contactId: contact.id }, reason, extraLines: r.reply ? undefined : theyWrote });
+  }
   if (r.note) {
     await card({ kind: "NOTE_CREATE", dedupeKey: `wa:${activityId}:note`, raw: { subject: r.note.subject, body: r.note.body, type: "NOTE", contactId: contact.id }, reason, extraLines: r.reply || r.task ? undefined : theyWrote });
   }
@@ -210,13 +221,16 @@ async function triageOne(tenantId: string, activityId: string, opts: { now?: Dat
 }
 
 /** The one request triage makes. Exported so the quality check (scripts/triage-eval.ts) sends exactly what the app sends. */
-export function triageRequest(sheet: { customer: unknown; thread: unknown }) {
+export function triageRequest(sheet: { customer: unknown; thread: unknown }, policy: readonly { title: string; basis: string; body: string }[] = []) {
   return {
     model: IVY_MODEL,
     max_tokens: 2000,
     system: TRIAGE_PROMPT,
     tools: [TRIAGE_TOOL] as unknown as Anthropic.Beta.BetaToolUnion[],
-    messages: [{ role: "user" as const, content: [{ type: "text" as const, text: `<customer>\n${JSON.stringify(sheet.customer)}\n</customer>\n<thread>\n${JSON.stringify(sheet.thread)}\n</thread>` }] }],
+    messages: [{ role: "user" as const, content: [{ type: "text" as const, text: `<customer>\n${JSON.stringify(sheet.customer)}\n</customer>\n<thread>\n${JSON.stringify(sheet.thread)}\n</thread>
+<policy_excerpts>
+${JSON.stringify(policy.map((p) => ({ title: p.title, basis: p.basis, text: p.body })))}
+</policy_excerpts>` }] }],
     output_config: { effort: IVY_EFFORT },
     betas: [FALLBACK_BETA],
     fallbacks: "default" as const,

@@ -28,6 +28,7 @@ describe("the proposal tools", () => {
       ["propose_payment", "PAYMENT_RECORD", { dealId: "d1", amount: 400 }],
       ["propose_contact", "CONTACT_CREATE", { firstName: "Ada", lastName: "Okafor" }],
       ["propose_schedule", "SCHEDULE_REPLACE", { dealId: "d1", even: { count: 3, firstDueDate: "2026-12-01", every: "MONTH" } }],
+      ["propose_escalation", "TASK_CREATE", { category: "DISPUTED_REFUND", customerMessage: "Wants a refund", reason: "Disputed", recommendedAction: "Call them" }],
       ["propose_deal", "DEAL_CREATE", { contactId: "c1", title: "Order", currency: "USD", items: [{ productType: "Closure", quantity: 1, unitPrice: 100 }] }],
     ];
     for (const [name, kind, input] of cases) {

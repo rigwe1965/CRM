@@ -552,6 +552,6 @@ in `AiUsage` (one row per document), so it needs nothing extra. 4c would add no 
 
 ## Later phases (each needs its own approval)
 
-- Phase 5, possibly: customer-facing auto-replies, with business hours and hand-off to a person.
+- Phase 5, possibly: customer-facing auto-replies, with business hours and hand-off to a person. Not started. The knowledge base (policy and FAQs, see TECHNICIAN.md) already exists for staff-reviewed drafts and would be what auto-replies answer from; letting Ivy send is a separate decision that needs its own plan.
 
 Not doing: free-form SQL, autonomous money changes, sending to customers without approval, anything across businesses.

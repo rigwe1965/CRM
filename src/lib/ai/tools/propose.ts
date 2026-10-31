@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { defineTool } from "@/lib/ai/tools/types";
 import { propose } from "@/lib/ai/proposals";
 import { contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, scheduleInput, stageChangeInput, taskChangeInput, taskCreateInput } from "@/lib/ai/proposal-kinds";
@@ -108,4 +109,36 @@ export const proposeSchedule = defineTool({
   label: () => "Preparing an instalment schedule",
   fallbackLabel: "Preparing an instalment schedule",
   run: async (ctx, i) => queued((await propose(ctx, "SCHEDULE_REPLACE", i)).id),
+});
+
+export const ESCALATION_CATEGORIES = ["DISPUTED_REFUND", "QUALITY_COMPLAINT", "LEGAL_OR_CONSUMER_RIGHTS", "MISSING_OR_INCOMPLETE_ORDER", "OUTSIDE_POLICY", "UNRESOLVED_DISSATISFACTION", "OTHER"] as const;
+const cut = (s: string | undefined, n: number) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** Hands a customer case to a person: a high-priority task carrying everything they need, built from fixed fields. */
+export const proposeEscalation = defineTool({
+  name: "propose_escalation",
+  description:
+    "Hand a customer case to a person at the business, as a high-priority task for them to approve. Use it when a customer's case needs a human decision: a disputed refund, a complex quality complaint, a legal or consumer-rights dispute, a missing or incomplete order, a request outside the policy, or a customer who is still unhappy. Give what the customer told you; leave out anything you do not know rather than guessing. Nothing is created until the person approves.",
+  schema: z.object({
+    category: z.enum(ESCALATION_CATEGORIES),
+    customerName: z.string().trim().max(120).optional(),
+    orderNumber: z.string().trim().max(60).optional().describe("Only if the customer or the records gave it."),
+    customerMessage: z.string().trim().min(1).max(300).describe("What the customer asked or complained about, in brief."),
+    conversationSummary: z.string().trim().max(250).optional().describe("What has been said so far, if more than one message."),
+    evidence: z.string().trim().max(150).optional().describe("Photos, videos or documents the customer mentioned or sent."),
+    reason: z.string().trim().min(1).max(200).describe("Why a person has to decide this."),
+    recommendedAction: z.string().trim().min(1).max(200).describe("What you suggest the person does next."),
+    contactId: z.string().trim().max(60).optional().describe("From find_contacts."),
+    dealId: z.string().trim().max(60).optional().describe("From find_deals."),
+  }),
+  label: (i) => `Preparing a hand-off to a person (${i.category.toLowerCase().replaceAll("_", " ")})`,
+  fallbackLabel: "Preparing a hand-off to a person",
+  run: async (ctx, i) => {
+    const lines = [
+      ["Category", i.category.toLowerCase().replaceAll("_", " ")], ["Customer", i.customerName], ["Order", i.orderNumber], ["Customer said", i.customerMessage],
+      ["So far", i.conversationSummary], ["Evidence", i.evidence], ["Why escalated", i.reason], ["Suggested next step", i.recommendedAction],
+    ].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
+    const title = cut(`Escalation: ${i.category.toLowerCase().replaceAll("_", " ")}${i.customerName ? ` - ${i.customerName}` : ""}`, 200);
+    return queued((await propose(ctx, "TASK_CREATE", { title, description: cut(lines.join("\n"), 1000), priority: "HIGH", contactId: i.contactId, dealId: i.dealId })).id);
+  },
 });

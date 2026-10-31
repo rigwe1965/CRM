@@ -9,6 +9,7 @@ const { db, settings, proposals, integ, usage, record, pay, clientFor } = vi.hoi
     tenant: { findFirst: vi.fn() },
     deal: { findMany: vi.fn() },
     task: { findMany: vi.fn() },
+    knowledgeEntry: { findMany: vi.fn() },
   },
   settings: vi.fn(),
   proposals: { createBackgroundProposal: vi.fn() },
@@ -56,6 +57,7 @@ beforeEach(() => {
   db.tenant.findFirst.mockResolvedValue(null);
   db.deal.findMany.mockResolvedValue([{ id: "d1", title: "Wholesale", stage: "CLOSED_WON", amount: "300", currency: "USD" }]);
   db.task.findMany.mockResolvedValue([]);
+  db.knowledgeEntry.findMany.mockResolvedValue([]);
   pay.paymentSummaries.mockResolvedValue(new Map([["d1", { paid: 0, balance: 300, overdue: false }]]));
   proposals.createBackgroundProposal.mockResolvedValue({ id: "p" });
   integ.mockResolvedValue({ settings: { apiKey: "k" } });
@@ -100,6 +102,34 @@ describe("processTriage: a message that is worth the model", () => {
     expect(proposals.createBackgroundProposal.mock.calls[0][0]).toMatchObject({ id: "u-sales", tenantId: T, role: "SALES" });
     expect(lastUpdate().data).toMatchObject({ status: "DONE", label: "PAYMENT_CLAIM", urgency: "HIGH", summary: "Says they paid 300 USD.", cards: 2, costMicros: 15_000 });
     expect(record.mock.calls[0][0]).toMatchObject({ tenantId: T, userId: "u-sales", purpose: "TRIAGE" });
+  });
+
+  it("sends the policy entries that match what the customer wrote, scoped to this business, as data", async () => {
+    text = "My wig arrived damaged, can I get a refund?";
+    db.activity.findMany.mockResolvedValue([{ id: "a1", direction: "IN", body: text, occurredAt: NOW }]);
+    db.knowledgeEntry.findMany.mockResolvedValue([
+      { key: "damaged-defective", category: "DAMAGED", title: "Damaged and defective products", body: "Damaged products are investigated.", basis: "STATUTORY", keywords: ["damaged"], version: 1, updatedAt: NOW },
+      { key: "support-hours", category: "SUPPORT", title: "Hours", body: "Open Monday to Friday.", basis: "INFO", keywords: ["hours"], version: 1, updatedAt: NOW },
+    ]);
+    const create = modelSays(verdict());
+    await processTriage(T, ["a1"], { now: NOW, client: clientWith(create) });
+    expect(db.knowledgeEntry.findMany.mock.calls[0][0].where).toEqual({ tenantId: T, status: "ACTIVE" });
+    const sent = (create.mock.calls[0][0] as { messages: { content: { text: string }[] }[] }).messages[0].content[0].text;
+    expect(sent).toContain("<policy_excerpts>");
+    expect(sent).toContain("Damaged products are investigated.");
+    expect(sent).not.toContain("Open Monday to Friday.");
+  });
+
+  it("turns an escalation into one high-priority task that carries the case details", async () => {
+    text = "Order IC-1042 is wrong and I want my money back, I will go to a lawyer";
+    const create = modelSays(verdict({ label: "COMPLAINT", reply: undefined, task: undefined, escalation: { category: "LEGAL_OR_CONSUMER_RIGHTS", orderNumber: "IC-1042", reason: "Customer mentions a lawyer", recommendedAction: "Call the customer today" } }));
+    await processTriage(T, ["a1"], { now: NOW, client: clientWith(create) });
+    const cards = cardsMade();
+    expect(cards.map((c) => c.kind)).toEqual(["TASK_CREATE"]);
+    expect(cards[0]).toMatchObject({ dedupeKey: "wa:a1:escalation", raw: { priority: "HIGH", contactId: "c1" } });
+    expect(String(cards[0].raw.title)).toContain("legal or consumer rights");
+    expect(String(cards[0].raw.description)).toContain("Order: IC-1042");
+    expect(String(cards[0].raw.description)).toContain("Why escalated: Customer mentions a lawyer");
   });
 
   it("only ever offers the model one verdict tool, and sends it this thread and this customer, nothing else", async () => {

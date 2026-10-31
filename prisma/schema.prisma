@@ -252,6 +252,8 @@ model Tenant {
   aiProposals        AiProposal[]
   aiInboxRuns        AiInboxRun[]
   aiTriages          AiTriage[]
+  knowledgeEntries    KnowledgeEntry[]
+  knowledgeVersions   KnowledgeEntryVersion[]
   aiMessages          AiMessage[]
   aiUsage             AiUsage[]
 }
@@ -744,6 +746,53 @@ model AiTriage {
   @@index([tenantId, createdAt])
   @@index([tenantId, contactId, createdAt])
   @@index([status, createdAt])
+}
+
+// The business's own written answers (return policy, FAQs) that Ivy looks up before it answers or drafts a reply. An admin
+// edits them in Settings; every edit keeps the old text in KnowledgeEntryVersion. Entries are archived, never deleted.
+model KnowledgeEntry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  // A stable slug, unique per business, so importing the default policy twice never makes a duplicate.
+  key         String
+  category    String
+  title       String
+  body        String
+  // STATUTORY (a legal right), VOLUNTARY (the store's own policy), PROCESS (how to do something), INFO (facts).
+  basis       String   @default("INFO")
+  // Words customers use for this topic; searched along with the title and body.
+  keywords    String[]
+  // ACTIVE or ARCHIVED
+  status      String   @default("ACTIVE")
+  version     Int      @default(1)
+  // Set when the entry came from the shipped default policy and has not been edited since.
+  fromDefault Boolean  @default(false)
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  versions KnowledgeEntryVersion[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status, category])
+}
+
+model KnowledgeEntryVersion {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  entryId     String
+  entry       KnowledgeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  version     Int
+  title       String
+  body        String
+  status      String
+  editedById  String?
+  createdAt   DateTime       @default(now())
+
+  @@unique([entryId, version])
+  @@index([tenantId, entryId])
 }
 
 // ─── Invoices ───────────────────────────────────────────

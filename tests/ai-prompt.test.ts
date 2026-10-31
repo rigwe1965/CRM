@@ -12,7 +12,7 @@ import { IVY_TOOLS, PROPOSAL_TOOLS, READ_TOOLS, TOOL_DEFINITIONS, toolByName } f
  * thinking blocks are bound to them). So the version and a fingerprint of both are pinned together here: change the
  * prompt or any tool and this test fails until IVY_PROMPT_VERSION is bumped and the pin below is updated with it.
  */
-const PINNED = { version: "4", fingerprint: "96f0af6d26fadf1d" };
+const PINNED = { version: "5", fingerprint: "3a00a023ef44cacd" };
 
 describe("prompt version", () => {
   it("is pinned to the fingerprint of the instructions and tools; change one, bump the other", () => {
@@ -21,13 +21,13 @@ describe("prompt version", () => {
 });
 
 describe("the tools", () => {
-  it("are eleven read-only tools then nine proposal tools, in a fixed order, with unique names", () => {
+  it("are twelve read-only tools then ten proposal tools, in a fixed order, with unique names", () => {
     expect(IVY_TOOLS.map((t) => t.name)).toEqual([
-      "find_contacts", "get_contact", "find_deals", "get_deal", "list_overdue", "cash_flow", "money_checks", "stock_levels", "sales_report", "list_tasks", "find_invoices",
-      "propose_task", "propose_task_change", "propose_note", "propose_stage_change", "draft_message", "propose_payment", "propose_contact", "propose_deal", "propose_schedule",
+      "find_contacts", "get_contact", "find_deals", "get_deal", "list_overdue", "cash_flow", "money_checks", "stock_levels", "sales_report", "list_tasks", "find_invoices", "find_knowledge",
+      "propose_task", "propose_task_change", "propose_note", "propose_stage_change", "draft_message", "propose_payment", "propose_contact", "propose_deal", "propose_schedule", "propose_escalation",
     ]);
-    expect(READ_TOOLS).toHaveLength(11);
-    expect(PROPOSAL_TOOLS.map((t) => t.name)).toEqual(["propose_task", "propose_task_change", "propose_note", "propose_stage_change", "draft_message", "propose_payment", "propose_contact", "propose_deal", "propose_schedule"]);
+    expect(READ_TOOLS).toHaveLength(12);
+    expect(PROPOSAL_TOOLS.map((t) => t.name)).toEqual(["propose_task", "propose_task_change", "propose_note", "propose_stage_change", "draft_message", "propose_payment", "propose_contact", "propose_deal", "propose_schedule", "propose_escalation"]);
     expect(new Set(IVY_TOOLS.map((t) => t.name)).size).toBe(IVY_TOOLS.length);
     for (const t of IVY_TOOLS) expect(toolByName(t.name)).toBe(t);
     expect(toolByName("create_deal")).toBeUndefined();
