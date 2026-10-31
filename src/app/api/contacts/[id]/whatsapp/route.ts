@@ -11,14 +11,21 @@ export const dynamic = "force-dynamic";
 type P = { id: string };
 
 const find = (id: string, user: Parameters<typeof ownerScope>[0]) =>
-  db.contact.findFirst({ where: { id, deletedAt: null, ...ownerScope(user) }, select: { id: true, phoneE164: true } });
+  db.contact.findFirst({ where: { id, deletedAt: null, ...ownerScope(user) }, select: { id: true, phoneE164: true, whatsappOptIn: true } });
 
-/** GET /api/contacts/:id/whatsapp: can this contact be answered from inside the CRM right now? */
+/**
+ * GET /api/contacts/:id/whatsapp: can this contact be answered from inside the CRM right now?
+ * `canSend`: a free-text reply (inside Meta's 24 hours). `canTemplate`: an approved template, any time, if they agreed to WhatsApp.
+ */
 export const GET = authed<P>(async ({ user, params }) => {
   const contact = await find(params.id, user);
   if (!contact) throw notFound("Contact");
   const configured = await whatsappConfigured(user.tenantId);
-  return ok({ configured, canSend: configured && !!contact.phoneE164 && (await canReplyFreely(user.tenantId, contact.id)) });
+  return ok({
+    configured,
+    canSend: configured && !!contact.phoneE164 && (await canReplyFreely(user.tenantId, contact.id)),
+    canTemplate: configured && !!contact.phoneE164 && contact.whatsappOptIn,
+  });
 });
 
 /**

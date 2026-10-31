@@ -256,6 +256,13 @@ export const updateEmailTemplateSchema = emailTemplateFields.partial().refine(no
 
 // ─── WhatsApp templates ─────────────────────────────────
 
+/** Send an approved template to a contact. `dealId` is the order it is about; `values[i]` fills the i-th blank when it is typed by hand. */
+export const sendWhatsappTemplateSchema = z.object({
+  templateId: id,
+  dealId: id.optional(),
+  values: z.array(z.string().max(200, "Keep it under 200 characters")).max(20).optional(),
+});
+
 /** An admin chooses where each blank's value comes from, or switches the template off. The wording itself comes from Meta. */
 export const updateWhatsappTemplateSchema = z
   .object({

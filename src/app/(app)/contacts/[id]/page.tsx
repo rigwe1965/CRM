@@ -155,9 +155,9 @@ export default function ContactDetailPage() {
                 </a>
               </Button>
             )}
-            {whatsapp.data?.canSend && (
+            {(whatsapp.data?.canSend || whatsapp.data?.canTemplate) && (
               <Button onClick={() => setReplying(true)}>
-                <MessageCircle /> Reply here
+                <MessageCircle /> {whatsapp.data.canSend ? "Reply here" : "Send template"}
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditing(true)}>
@@ -300,7 +300,15 @@ export default function ContactDetailPage() {
       </div>
 
       {editing && <ContactDialog open onOpenChange={(o) => !o && setEditing(false)} contact={contact} />}
-      {replying && <WhatsappReplyDialog contact={contact} onClose={() => setReplying(false)} />}
+      {replying && (
+        <WhatsappReplyDialog
+          contact={contact}
+          deals={deals.data?.data ?? []}
+          canText={whatsapp.data?.canSend === true}
+          canTemplate={whatsapp.data?.canTemplate === true}
+          onClose={() => setReplying(false)}
+        />
+      )}
       {merging && <MergeContactDialog contact={contact} onClose={() => setMerging(false)} onMerged={(keptId) => router.push(`/contacts/${keptId}`)} />}
       {emailing && contact.email && <EmailContactDialog open onOpenChange={(o) => !o && setEmailing(false)} contact={contact} />}
       {activityDialog.open && <ActivityDialog open onOpenChange={(o) => !o && setActivityDialog({ open: false })} activity={activityDialog.activity} defaults={{ contactId: contact.id, ...(activityDialog.whatsapp && { type: "WHATSAPP", direction: "OUT", subject: "WhatsApp message" }) }} />}

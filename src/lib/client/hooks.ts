@@ -86,8 +86,17 @@ export function useConvertContact() {
 export function useWhatsappStatus(contactId: string) {
   return useQuery({
     queryKey: ["contacts", "whatsapp", contactId],
-    queryFn: async () => (await request<{ data: { configured: boolean; canSend: boolean } }>("GET", `/api/contacts/${contactId}/whatsapp`)).data,
+    queryFn: async () => (await request<{ data: { configured: boolean; canSend: boolean; canTemplate: boolean } }>("GET", `/api/contacts/${contactId}/whatsapp`)).data,
     enabled: contactId.length > 0,
+  });
+}
+
+/** Sends an approved WhatsApp template to the contact; the filled-in text is logged on their timeline. */
+export function useSendWhatsappTemplate(contactId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { templateId: string; dealId?: string; values?: string[] }) => request("POST", `/api/contacts/${contactId}/whatsapp/template`, body),
+    onSuccess: () => refreshAll(qc),
   });
 }
 
