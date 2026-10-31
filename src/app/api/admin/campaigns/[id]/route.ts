@@ -19,7 +19,8 @@ const onlyDraft = (status: string) => {
 export const GET = authed<P>(async ({ user, params }) => {
   const row = await find(params.id, user.tenantId);
   if (!row) throw notFound("Campaign");
-  return ok(campaignDto(row));
+  const counts = await db.campaignRecipient.groupBy({ by: ["status"], where: { tenantId: user.tenantId, campaignId: row.id }, _count: { _all: true } });
+  return ok({ ...campaignDto(row), counts: Object.fromEntries(counts.map((c) => [c.status, c._count._all])) });
 }, "ADMIN");
 
 /** PATCH /api/admin/campaigns/:id: edits a draft. The template and its typed values are checked again as a pair. */
@@ -33,7 +34,8 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const { values } = await checkCampaignTemplate(user.tenantId, templateId, typed);
   const updated = await db.campaign.update({
     where: { id: row.id, ...tenantScope(user) },
-    data: { name: body.name, templateId, audience: body.audience, values },
+    // Any edit means what was tested is no longer what would go out.
+    data: { name: body.name, templateId, audience: body.audience, values, testedAt: null },
     include: campaignInclude,
   });
   return ok(campaignDto(updated));

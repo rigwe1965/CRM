@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { runDailyAiRetention, runDailyAutomations, runDailyReconciliation } from "@/lib/automations";
+import { runDailyAiRetention, runDailyAutomations, runDailyCampaigns, runDailyReconciliation } from "@/lib/automations";
 import { purgeUnconfirmedSignups } from "@/lib/signup";
 import { purgeDeletedTenants } from "@/lib/tenant-deletion";
 import { sendInstalmentReminders, sendTaskReminders } from "@/lib/notifications";
@@ -40,6 +40,8 @@ export async function GET(req: Request) {
   const reconciliation = await runDailyReconciliation().catch((e) => (console.error("[reconcile] run failed", e), null));
   // Ivy conversations are kept for AI_RETENTION_DAYS; a failure here must not affect the rest.
   const aiRetention = await runDailyAiRetention().catch((e) => (console.error("[ai] retention run failed", e), null));
+  // Broadcast campaigns left unfinished (an admin closed the page) carry on here.
+  const campaigns = await runDailyCampaigns().catch((e) => (console.error("[campaign] run failed", e), null));
   // `tasks` fields stay at the top level for existing callers.
-  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups, erasedBusinesses, reconciliation, aiRetention });
+  return NextResponse.json({ ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups, erasedBusinesses, reconciliation, aiRetention, campaigns });
 }

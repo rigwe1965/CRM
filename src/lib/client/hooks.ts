@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
 import type { FulfilmentStatus } from "@/lib/fulfilment";
-import type { AutomationsView, AudiencePreview, Campaign, CampaignAudience, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
+import type { AutomationsView, AudiencePreview, Campaign, CampaignAudience, CampaignBatch, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -495,4 +495,19 @@ export function useAudiencePreview(audience: CampaignAudience) {
     queryFn: async () => (await request<{ data: AudiencePreview }>("GET", `/api/admin/campaigns/audience?audience=${encodeURIComponent(JSON.stringify(audience))}`)).data,
     placeholderData: keepPreviousData,
   });
+}
+
+function useCampaignAction<V, R = unknown>(id: string, fn: (v: V) => Promise<R>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns"] }) });
+}
+
+export const useTestCampaign = (id: string) => useCampaignAction(id, async (phone: string) => (await request<{ data: { sentTo: string } }>("POST", `/api/admin/campaigns/${id}/test`, { phone })).data);
+export const useStartCampaign = (id: string) => useCampaignAction(id, async (expectedCount: number) => request("POST", `/api/admin/campaigns/${id}/start`, { expectedCount }));
+export const useStopCampaign = (id: string) => useCampaignAction(id, async () => request("POST", `/api/admin/campaigns/${id}/stop`));
+export const useResumeCampaign = (id: string) => useCampaignAction(id, async () => request("POST", `/api/admin/campaigns/${id}/resume`));
+
+/** Sends the next batch of a running campaign. The page calls it again and again while the campaign runs. */
+export async function stepCampaign(id: string) {
+  return (await request<{ data: CampaignBatch }>("POST", `/api/admin/campaigns/${id}/step`)).data;
 }

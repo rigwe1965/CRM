@@ -304,6 +304,11 @@ export const updateCampaignSchema = z
   .partial()
   .refine(nonEmpty, atLeastOne);
 
+/** Your own WhatsApp number, for the test message. */
+export const campaignTestSchema = z.object({ phone: requiredText(30) });
+/** The number of customers the admin was shown and confirmed; the campaign starts only if the audience still has exactly that many. */
+export const startCampaignSchema = z.object({ expectedCount: z.number().int().min(0).max(1_000_000) });
+
 /** An admin chooses where each blank's value comes from, or switches the template off. The wording itself comes from Meta. */
 export const updateWhatsappTemplateSchema = z
   .object({

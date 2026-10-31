@@ -615,6 +615,14 @@ model Campaign {
   status      CampaignStatus @default(DRAFT)
   createdById String
   createdBy   User           @relation("CampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  // Set when a test message was sent to the admin; cleared by any edit, so what was tested is what goes out.
+  testedAt    DateTime?
+  // How many customers the admin confirmed when starting.
+  audienceSize Int?
+  // Why a PAUSED campaign is paused: DAILY_LIMIT, META_RATE_LIMIT, TOO_MANY_FAILURES or TEMPLATE_UNAVAILABLE.
+  pausedReason String?
+  // While a batch is being sent, until when no other batch may start (two tabs or the daily job never overlap).
+  lockedUntil DateTime?
   startedAt   DateTime?
   finishedAt  DateTime?
   createdAt   DateTime       @default(now())

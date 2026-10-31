@@ -34,6 +34,9 @@ type Row = {
   audience: unknown;
   values: unknown;
   templateId: string;
+  testedAt: Date | null;
+  audienceSize: number | null;
+  pausedReason: string | null;
   startedAt: Date | null;
   finishedAt: Date | null;
   createdAt: Date;
@@ -51,6 +54,9 @@ export const campaignDto = (r: Row) => ({
   templateLanguage: r.template.language,
   audience: readAudience(r.audience),
   values: Array.isArray(r.values) ? (r.values as unknown[]).map((v) => String(v)) : [],
+  testedAt: r.testedAt,
+  audienceSize: r.audienceSize,
+  pausedReason: r.pausedReason,
   startedAt: r.startedAt,
   finishedAt: r.finishedAt,
   createdAt: r.createdAt,

@@ -6,6 +6,7 @@ import { runQuietLeadNudges } from "@/lib/automations/quiet-leads";
 
 import { reconcileTenant } from "@/lib/reconcile";
 import { purgeOldConversations } from "@/lib/ai/retention";
+import { sweepCampaigns } from "@/lib/campaign-sender";
 
 export { runStageAutomations } from "@/lib/automations/stage-tasks";
 
@@ -103,4 +104,29 @@ async function runTenantAutomations(tenantId: string, now: Date) {
   const instalmentWhatsapps = await attempt("instalment whatsapps", { sent: 0, failed: 0, tasks: 0, test: true }, () => runInstalmentWhatsapps(tenantId, now));
   const lowStock = await attempt("low stock", { alerted: 0, failed: 0 }, () => runLowStockAlerts(tenantId));
   return { ok: quietLeads.ok && instalmentEmails.ok && instalmentWhatsapps.ok && lowStock.ok, quietLeads, instalmentEmails, instalmentWhatsapps, lowStock };
+}
+
+/**
+ * Safety net for broadcast campaigns: carries on any that are still sending (the admin closed the page) and wakes the ones
+ * that paused only because the day's WhatsApp limit was used. Works for up to `budgetMs` across all businesses; what is
+ * left waits for the next run or for an admin's open page. One business failing never stops the others.
+ */
+export async function runDailyCampaigns(budgetMs = 40_000) {
+  const deadline = Date.now() + budgetMs;
+  const tenants = await platformDb.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true }, orderBy: { createdAt: "asc" } });
+  let campaigns = 0;
+  let sent = 0;
+  let failed = 0;
+  for (const { id } of tenants) {
+    if (Date.now() >= deadline) break;
+    try {
+      const r = await withTenant(id, () => sweepCampaigns(id, deadline));
+      campaigns += r.campaigns;
+      sent += r.sent;
+    } catch (e) {
+      failed++;
+      console.error(`[campaign] sweep failed for ${id}`, e);
+    }
+  }
+  return { campaigns, sent, failed };
 }

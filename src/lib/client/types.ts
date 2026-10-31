@@ -477,6 +477,9 @@ export type Campaign = {
   templateLanguage: string;
   audience: CampaignAudience;
   values: string[];
+  testedAt: string | null;
+  audienceSize: number | null;
+  pausedReason: "DAILY_LIMIT" | "META_RATE_LIMIT" | "TOO_MANY_FAILURES" | "TEMPLATE_UNAVAILABLE" | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -484,4 +487,14 @@ export type Campaign = {
   createdBy: Person;
   /** Customers per outcome (PENDING, SENT, DELIVERED, READ, FAILED, SKIPPED); empty for a draft. */
   counts?: Record<string, number>;
+};
+
+export type CampaignBatch = {
+  busy: boolean;
+  sent: number;
+  failed: number;
+  skipped: number;
+  remaining: number;
+  status: CampaignStatus;
+  pausedReason: Campaign["pausedReason"];
 };

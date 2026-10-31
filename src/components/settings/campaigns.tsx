@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Megaphone, Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Megaphone, Pencil, Play, Plus, Send, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { ConfirmDialog, EmptyState, ErrorState, FormField, useDebounced } from "
 import { FormShell, useFormState } from "@/components/forms/form-kit";
 import { CONTACT_TYPES, LEAD_STATUSES } from "@/lib/client/constants";
 import { dateOnly } from "@/lib/client/format";
-import { errorMessage, useAudiencePreview, useCampaigns, useDeleteCampaign, useSaveCampaign, useTags, useWhatsappTemplates } from "@/lib/client/hooks";
+import { errorMessage, stepCampaign, useAudiencePreview, useCampaigns, useDeleteCampaign, useResumeCampaign, useSaveCampaign, useStartCampaign, useStopCampaign, useTags, useTestCampaign, useWhatsappTemplates } from "@/lib/client/hooks";
 import type { Campaign, CampaignAudience, CampaignStatus, ContactType, LeadStatus } from "@/lib/client/types";
 import { renderBody } from "@/lib/whatsapp-template-slots";
 import { cn } from "@/lib/utils";
@@ -207,12 +208,195 @@ function CampaignForm({ campaign, onClose }: { campaign?: Campaign; onClose: () 
   );
 }
 
+const PAUSE_TEXT: Record<NonNullable<Campaign["pausedReason"]>, string> = {
+  DAILY_LIMIT: "Today's WhatsApp limit for your plan is used. It carries on tomorrow.",
+  META_RATE_LIMIT: "Meta asked us to slow down. Wait a few minutes, then press Resume.",
+  TOO_MANY_FAILURES: "Several messages in a row failed, so it paused. Check the reasons, then press Resume.",
+  TEMPLATE_UNAVAILABLE: "The template is no longer approved and switched on, or WhatsApp is not set up. Fix that, then press Resume.",
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * While a campaign is SENDING and this page is open, asks the server for the next batch again and again. Closing the page
+ * is safe: the server's daily job carries on whatever is left.
+ */
+function useCampaignDriver(c: Campaign) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (c.status !== "SENDING") return;
+    let alive = true;
+    (async () => {
+      while (alive) {
+        try {
+          const r = await stepCampaign(c.id);
+          await qc.invalidateQueries({ queryKey: ["campaigns"] });
+          if (r.status !== "SENDING") {
+            if (r.status === "COMPLETED") toast.success(`“${c.name}” has finished sending`);
+            else if (r.pausedReason) toast.warning(PAUSE_TEXT[r.pausedReason]);
+            break;
+          }
+          await sleep(r.busy ? 3000 : 700);
+        } catch (e) {
+          toast.error(errorMessage(e));
+          await qc.invalidateQueries({ queryKey: ["campaigns"] });
+          break;
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [c.id, c.status, c.name, qc]);
+}
+
+/** Test send, then a last look at the audience, then start. Nothing goes to a customer until "Start sending". */
+function SendDialog({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+  const [phone, setPhone] = useState("");
+  const [ack, setAck] = useState(false);
+  const test = useTestCampaign(campaign.id);
+  const start = useStartCampaign(campaign.id);
+  const { data: templates } = useWhatsappTemplates();
+  const preview = useAudiencePreview(campaign.audience);
+  const category = templates?.find((t) => t.id === campaign.templateId)?.category;
+  const p = preview.data;
+  const tested = !!campaign.testedAt;
+  const ready = tested && ack && !!p && p.total > 0 && !p.tooLarge && !preview.isFetching;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold">Send “{campaign.name}”</h2>
+        <p className="text-sm text-muted-foreground">Template {campaign.templateName} ({campaign.templateLanguage}).</p>
+      </div>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">1. Send yourself a test</h3>
+        <p className="text-xs text-muted-foreground">You get the real message, filled in with your name. It counts toward today&apos;s WhatsApp limit and costs the same as one message.</p>
+        <div className="flex gap-2">
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+2348012345678" aria-label="Your WhatsApp number" />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!phone.trim() || test.isPending}
+            onClick={() => test.mutate(phone, { onSuccess: (r) => toast.success(`Test sent to ${r.sentTo}`), onError: (e) => toast.error(errorMessage(e)) })}
+          >
+            <Send /> {test.isPending ? "Sending…" : tested ? "Send again" : "Send test"}
+          </Button>
+        </div>
+        {tested && <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Tested. Check your phone to make sure it reads right.</p>}
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-semibold">2. Check who gets it</h3>
+        <div role="status" className="rounded-md border bg-muted/40 p-3 text-sm">
+          {!p ? (
+            <Skeleton className="h-8" />
+          ) : (
+            <>
+              <p className="font-medium">
+                {p.total} {p.total === 1 ? "customer" : "customers"} will get this message
+              </p>
+              {p.sample.length > 0 && <p className="text-xs text-muted-foreground">e.g. {p.sample.map((c) => c.name).join(", ")}{p.total > p.sample.length ? " …" : ""}</p>}
+              {p.tooLarge && <p className="mt-1 text-xs font-medium text-destructive">More than the {p.max} one campaign may reach. Narrow the audience.</p>}
+              {p.total === 0 && <p className="mt-1 text-xs font-medium text-destructive">Nobody matches, so there is nothing to send.</p>}
+            </>
+          )}
+        </div>
+        <label className="flex items-start gap-2 text-sm">
+          <Checkbox className="mt-0.5" checked={ack} onCheckedChange={(c) => setAck(c === true)} />
+          <span>
+            I understand Meta charges for every message{category ? ` (this template is in the ${category.toLowerCase()} category)` : ""}, that messages already sent can&apos;t be recalled, and that I can stop the rest at any time.
+          </span>
+        </label>
+      </section>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose} disabled={start.isPending}>
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          disabled={!ready || start.isPending}
+          onClick={() =>
+            start.mutate(p!.total, {
+              onSuccess: () => {
+                toast.success("Sending has started");
+                onClose();
+              },
+              onError: (e) => toast.error(errorMessage(e)),
+            })
+          }
+        >
+          <Play /> {start.isPending ? "Starting…" : `Start sending to ${p?.total ?? "…"}`}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Progress and the Stop / Resume buttons of a running, paused or finished campaign. */
+function RunningControls({ c }: { c: Campaign }) {
+  useCampaignDriver(c);
+  const stop = useStopCampaign(c.id);
+  const resume = useResumeCampaign(c.id);
+  const [confirmStop, setConfirmStop] = useState(false);
+  const n = (k: string) => c.counts?.[k] ?? 0;
+  const total = c.audienceSize ?? Object.values(c.counts ?? {}).reduce((s, x) => s + x, 0);
+  const done = n("SENT") + n("DELIVERED") + n("READ") + n("FAILED") + n("SKIPPED");
+  const live = c.status === "SENDING" || c.status === "PAUSED";
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {total > 0 && (
+        <div className="space-y-1">
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+            <div className="h-full bg-primary transition-all" style={{ width: `${Math.min(100, Math.round((done / total) * 100))}%` }} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {n("SENT") + n("DELIVERED") + n("READ")} of {total} sent{n("FAILED") ? ` · ${n("FAILED")} failed` : ""}{n("SKIPPED") ? ` · ${n("SKIPPED")} skipped` : ""}
+          </p>
+        </div>
+      )}
+      {c.status === "SENDING" && <p className="text-xs text-muted-foreground">Sending while this page is open. If you close it, the daily job carries on.</p>}
+      {c.status === "PAUSED" && c.pausedReason && <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">{PAUSE_TEXT[c.pausedReason]}</p>}
+      {live && (
+        <div className="flex gap-2">
+          {c.status === "PAUSED" && (
+            <Button type="button" size="sm" variant="outline" disabled={resume.isPending} onClick={() => resume.mutate(undefined, { onError: (e) => toast.error(errorMessage(e)) })}>
+              <Play /> Resume
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirmStop(true)}>
+            <Square /> Stop
+          </Button>
+        </div>
+      )}
+      <ConfirmDialog
+        open={confirmStop}
+        onOpenChange={setConfirmStop}
+        title="Stop this campaign?"
+        description="Nobody else will be messaged. Messages already sent can't be recalled, and a stopped campaign can't be restarted."
+        confirmLabel="Stop campaign"
+        pending={stop.isPending}
+        onConfirm={() =>
+          stop.mutate(undefined, {
+            onSuccess: () => { toast.success("Campaign stopped"); setConfirmStop(false); },
+            onError: (e) => toast.error(errorMessage(e)),
+          })
+        }
+      />
+    </div>
+  );
+}
+
 export function CampaignsCard() {
   const { data, isLoading, error, refetch } = useCampaigns();
   const { data: tags } = useTags();
   const remove = useDeleteCampaign();
   const [editing, setEditing] = useState<Campaign | "new" | null>(null);
   const [deleting, setDeleting] = useState<Campaign | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
   const tagNames = new Map((tags ?? []).map((t) => [t.id, t.name]));
 
   return (
@@ -221,7 +405,7 @@ export function CampaignsCard() {
         <div className="space-y-1.5">
           <CardTitle>Campaigns</CardTitle>
           <CardDescription>
-            Send one approved WhatsApp template to a group of customers who agreed to WhatsApp. For now you can build the audience and save a draft; sending comes next. Each message costs money with Meta, so the audience is previewed before anything is sent.
+            Send one approved WhatsApp template to a group of customers who agreed to WhatsApp. You build the audience, send yourself a test, check the numbers and then start. Each message costs money with Meta, and you can stop at any time.
           </CardDescription>
         </div>
         <Button onClick={() => setEditing("new")}>
@@ -246,9 +430,13 @@ export function CampaignsCard() {
                   <p className="truncate text-xs text-muted-foreground">
                     {c.templateName} ({c.templateLanguage}) · {describe(c.audience, tagNames)} · {dateOnly(c.createdAt)} by {c.createdBy.name}
                   </p>
+                  {c.status !== "DRAFT" && <RunningControls c={c} />}
                 </div>
                 {c.status === "DRAFT" && (
                   <div className="flex shrink-0 gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setSendingId(c.id)}>
+                      <Send /> Send…
+                    </Button>
                     <Button variant="ghost" size="icon" aria-label={`Edit ${c.name}`} onClick={() => setEditing(c)}>
                       <Pencil />
                     </Button>
@@ -267,6 +455,13 @@ export function CampaignsCard() {
         <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
           <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto">
             <CampaignForm campaign={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} />
+          </DialogContent>
+        </Dialog>
+      )}
+      {sendingId && data?.find((c) => c.id === sendingId) && (
+        <Dialog open onOpenChange={(o) => !o && setSendingId(null)}>
+          <DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto">
+            <SendDialog campaign={data.find((c) => c.id === sendingId)!} onClose={() => setSendingId(null)} />
           </DialogContent>
         </Dialog>
       )}

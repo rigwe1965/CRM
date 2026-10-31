@@ -177,6 +177,17 @@ export async function canReplyFreely(tenantId: string, contactId: string, now = 
  * Sends an approved message template (the only thing Meta allows outside the 24-hour window). `params` fill
  * {{1}}, {{2}}... in the template body in order. Returns Meta's message id; throws with Meta's reason.
  */
+/** A refusal from Meta, with the HTTP status and Meta's error code so callers can tell "slow down" from "this message is wrong". */
+export class WhatsAppSendError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: number) {
+    super(message);
+    this.name = "WhatsAppSendError";
+  }
+}
+
+/** Meta asking us to slow down: HTTP 429, or its throughput / pair-rate / spam-rate error codes. */
+export const isWhatsAppRateLimit = (e: unknown) => e instanceof WhatsAppSendError && (e.status === 429 || [4, 80007, 130429, 131048, 131056].includes(e.code ?? -1));
+
 export async function sendWhatsAppTemplate(tenantId: string, toE164: string, name: string, language: string, params: string[]): Promise<string> {
   const found = await getIntegration(tenantId, "WHATSAPP");
   if (!found) throw new Error("WhatsApp is not set up for this business");
@@ -195,9 +206,9 @@ export async function sendWhatsAppTemplate(tenantId: string, toE164: string, nam
     }),
     cache: "no-store",
   });
-  const json = (await res.json().catch(() => ({}))) as { messages?: { id?: string }[]; error?: { message?: string } };
+  const json = (await res.json().catch(() => ({}))) as { messages?: { id?: string }[]; error?: { message?: string; code?: number } };
   const id = json.messages?.[0]?.id;
-  if (!res.ok || !id) throw new Error(json.error?.message ?? `WhatsApp refused the message (${res.status})`);
+  if (!res.ok || !id) throw new WhatsAppSendError(json.error?.message ?? `WhatsApp refused the message (${res.status})`, res.status, json.error?.code);
   return id;
 }
 
