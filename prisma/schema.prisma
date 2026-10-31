@@ -402,6 +402,10 @@ model Activity {
   direction      ActivityDirection?
   // WhatsApp message id (wamid…). Unique, so Meta delivering the same message twice records it once.
   externalId     String?            @unique
+  // For an outgoing WhatsApp message: what Meta last told us (SENT, DELIVERED, READ or FAILED). Null until it tells us.
+  deliveryStatus String?
+  // Meta's reason when deliveryStatus is FAILED.
+  deliveryError  String?
   authorId       String
   contactId      String?
   dealId         String?

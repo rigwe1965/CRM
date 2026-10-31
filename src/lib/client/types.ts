@@ -285,6 +285,9 @@ export type Activity = {
   body: string | null;
   occurredAt: string;
   direction: ActivityDirection | null;
+  /** Outgoing WhatsApp only: what Meta last reported. Null until it reports. */
+  deliveryStatus?: "SENT" | "DELIVERED" | "READ" | "FAILED" | null;
+  deliveryError?: string | null;
   authorId: string;
   contactId: string | null;
   dealId: string | null;

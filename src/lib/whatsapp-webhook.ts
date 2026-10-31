@@ -3,7 +3,7 @@ import { after, NextResponse } from "next/server";
 import { getIntegration } from "@/lib/integrations";
 import { enqueueTriage, processTriage } from "@/lib/ai/triage/run";
 import { withTenant } from "@/lib/tenant-context";
-import { parseInbound, recordInbound, validSignature } from "@/lib/whatsapp";
+import { parseInbound, parseStatuses, recordDeliveryStatus, recordInbound, validSignature } from "@/lib/whatsapp";
 
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
@@ -41,6 +41,8 @@ export async function receiveWhatsappWebhook(req: Request, tenantId: string): Pr
     for (const msg of parseInbound(payload)) {
       if ((await withTenant(tenantId, () => recordInbound(tenantId, msg))) === "recorded") filed.push(msg.id);
     }
+    // Delivery news about messages we sent (sent, delivered, read, failed).
+    for (const update of parseStatuses(payload)) await withTenant(tenantId, () => recordDeliveryStatus(tenantId, update));
   } catch (e) {
     console.error("[whatsapp] webhook failed", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: "Could not record message" }, { status: 500 });

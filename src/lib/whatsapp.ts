@@ -66,6 +66,51 @@ export function parseInbound(payload: unknown): InboundMessage[] {
   return out;
 }
 
+export type DeliveryStatus = "SENT" | "DELIVERED" | "READ" | "FAILED";
+export type StatusUpdate = { messageId: string; status: DeliveryStatus; error: string | null };
+
+type StatusPayload = {
+  entry?: { changes?: { value?: { statuses?: { id?: string; status?: string; errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[] }[] } }[] }[];
+};
+
+const STATUS_NAMES: Record<string, DeliveryStatus> = { sent: "SENT", delivered: "DELIVERED", read: "READ", failed: "FAILED" };
+/** Statuses only move forward: a late "delivered" must not undo "read". FAILED is final unless the message was already delivered. */
+const BEHIND: Record<DeliveryStatus, DeliveryStatus[]> = { SENT: [], DELIVERED: ["SENT"], READ: ["SENT", "DELIVERED"], FAILED: ["SENT"] };
+
+/** Pulls the delivery updates for our outgoing messages out of a webhook body (unknown statuses are ignored). */
+export function parseStatuses(payload: unknown): StatusUpdate[] {
+  const out: StatusUpdate[] = [];
+  for (const entry of (payload as StatusPayload)?.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const s of change.value?.statuses ?? []) {
+        const status = s.status ? STATUS_NAMES[s.status] : undefined;
+        if (!s.id || !status) continue;
+        const e = s.errors?.[0];
+        const reason = e ? [e.title ?? e.message, e.error_data?.details].filter(Boolean).join(": ") : "";
+        out.push({ messageId: s.id, status, error: status === "FAILED" ? (reason || "WhatsApp could not deliver the message").slice(0, 500) : null });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Records what Meta says happened to one of our messages. Safe to repeat and to receive out of order (see BEHIND).
+ * A message id we do not know (a reminder sent before this existed, another system) is simply ignored.
+ */
+export async function recordDeliveryStatus(tenantId: string, u: StatusUpdate): Promise<boolean> {
+  const { count } = await db.activity.updateMany({
+    where: {
+      tenantId,
+      externalId: u.messageId,
+      direction: "OUT",
+      OR: [{ deliveryStatus: null }, { deliveryStatus: { in: BEHIND[u.status] } }],
+    },
+    data: { deliveryStatus: u.status, deliveryError: u.error },
+  });
+  return count > 0;
+}
+
 /**
  * Files one customer message. Safe to call twice for the same message (Meta retries): the message id is unique.
  *  - Known number: a WhatsApp note (IN) on that contact, and a reply task for its owner if none is open.

@@ -129,6 +129,16 @@ export function ActivityItem({
               <span>·</span>
             </>
           )}
+          {activity.type === "WHATSAPP" && activity.direction === "OUT" && activity.deliveryStatus && activity.deliveryStatus !== "SENT" && (
+            <>
+              {activity.deliveryStatus === "FAILED" ? (
+                <span className="font-medium text-destructive">Not delivered{activity.deliveryError ? `: ${activity.deliveryError}` : ""}</span>
+              ) : (
+                <span className={activity.deliveryStatus === "READ" ? "font-medium text-sky-600 dark:text-sky-400" : undefined}>{activity.deliveryStatus === "READ" ? "Read" : "Delivered"}</span>
+              )}
+              <span>·</span>
+            </>
+          )}
           <span>{activity.author.name}</span>
           <span>·</span>
           <span>{timeAgo(activity.occurredAt)}</span>
