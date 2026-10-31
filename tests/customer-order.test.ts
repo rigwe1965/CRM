@@ -35,7 +35,7 @@ const future = new Date(Date.now() + 30 * 86_400_000);
 
 function order({ amount = 1000, paid = 0, currency = "USD", schedule = [] as { id: string; position: number; dueDate: Date; amount: number }[] } = {}) {
   db.tenant.findFirst.mockResolvedValue({ name: "Ivycandy Hair LLC", brandName: "Ivycandy Hair" });
-  db.deal.findFirst.mockResolvedValue({ id: "d1", title: "Wig order", amount, currency, createdAt: day("2026-10-01"), contact: { firstName: "Ada" } });
+  db.deal.findFirst.mockResolvedValue({ id: "d1", title: "Wig order", amount, currency, createdAt: day("2026-10-01"), fulfilmentStatus: "NOT_STARTED", contact: { firstName: "Ada" } });
   db.dealItem.findMany.mockResolvedValue([{ productType: "Wig", texture: "Straight", lengthInches: "22", color: "1B", laceType: null, quantity: 2, unitPrice: 500 }]);
   db.payment.findMany.mockResolvedValue(paid ? [{ id: "p1", amount: paid, paidAt: day("2026-10-05"), createdAt: day("2026-10-05"), recordedBy: { id: "u9", name: "Staff Person" } }] : []);
   db.instalment.findMany.mockResolvedValue(schedule);
@@ -136,6 +136,23 @@ describe("Pay now", () => {
     expect(res.status).toBe(429);
     expect(res.headers.get("retry-after")).toBe("30");
     expect(resolveOrderLink).not.toHaveBeenCalled();
+  });
+});
+
+describe("delivery on the customer page", () => {
+  const shipped = (over: object) => ({ id: "d1", title: "Wig", amount: 1000, currency: "USD", createdAt: day("2026-10-01"), contact: null, fulfilmentStatus: "SHIPPED", carrier: "DHL", trackingNumber: "123", shippedAt: day("2026-10-20"), deliveredAt: null, ...over });
+
+  it("shows nothing before shipping starts", async () => {
+    order();
+    expect((await customerOrderView("t1", "d1"))!.shipping).toBeNull();
+  });
+
+  it("shows the status and a tracking link for a known carrier, and no link for an unknown one", async () => {
+    order();
+    db.deal.findFirst.mockResolvedValue(shipped({}));
+    expect((await customerOrderView("t1", "d1"))!.shipping).toMatchObject({ label: "Shipped", delivered: false, trackingNumber: "123", trackingUrl: expect.stringContaining("dhl.com") });
+    db.deal.findFirst.mockResolvedValue(shipped({ fulfilmentStatus: "DELIVERED", carrier: "Local rider", trackingNumber: "A1", deliveredAt: day("2026-10-25") }));
+    expect((await customerOrderView("t1", "d1"))!.shipping).toMatchObject({ label: "Delivered", delivered: true, trackingUrl: null });
   });
 });
 

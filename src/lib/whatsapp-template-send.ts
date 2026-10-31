@@ -1,10 +1,12 @@
 import { db } from "@/lib/db";
 import { ApiError } from "@/lib/api";
-import { ownerScope } from "@/lib/access";
+import { ownerScope, tenantScope } from "@/lib/access";
+import { sendWhatsAppTemplate } from "@/lib/whatsapp";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { formatAmount } from "@/lib/email-templates";
 import { dealPaymentsView } from "@/lib/payments";
 import { createOrderLink, currentOrderLink } from "@/lib/order-links";
-import type { Slot } from "@/lib/whatsapp-template-slots";
+import { readSlots, renderBody, type Slot } from "@/lib/whatsapp-template-slots";
 
 type Actor = Parameters<typeof ownerScope>[0];
 const DEAL_SOURCES = new Set(["dealTitle", "amountDue", "dueDate", "orderLink"]);
@@ -74,5 +76,40 @@ export async function resolveSlotValues(
         if (TYPED_SOURCES.has(slot.source) && !typed) throw invalid(`values.${i}`, `Fill in “${slot.label}”.`);
         return typed!;
     }
+  });
+}
+
+/**
+ * Fills a template for one contact, sends it and logs the filled-in text on their timeline (OUT). Shared by the
+ * "send template" button and the automatic shipping updates, so both obey the same rules. The caller has already
+ * checked that WhatsApp is set up and that the contact has a number and agreed to WhatsApp. A blank that cannot be
+ * filled is a 422 naming it (nothing half-filled is sent); a daily-cap refusal and a Meta refusal (502) propagate.
+ */
+export async function sendTemplateMessage(
+  user: Actor,
+  contact: { id: string; firstName: string; lastName: string; phoneE164: string },
+  template: { name: string; language: string; body: string; slots: unknown },
+  input: { dealId?: string; typed?: string[]; subject?: string },
+) {
+  const values = await resolveSlotValues(user, contact, readSlots(template.slots, template.body), { dealId: input.dealId, typed: input.typed });
+  await assertUnderDailyCap(user.tenantId, "whatsapp");
+  let messageId: string;
+  try {
+    messageId = await sendWhatsAppTemplate(user.tenantId, contact.phoneE164, template.name, template.language, values);
+  } catch (e) {
+    throw new ApiError(502, e instanceof Error ? e.message : "WhatsApp did not accept the message", "WHATSAPP_ERROR");
+  }
+  return db.activity.create({
+    data: {
+      ...tenantScope(user),
+      type: "WHATSAPP",
+      direction: "OUT",
+      subject: input.subject ?? `WhatsApp template: ${template.name}`,
+      body: renderBody(template.body, values),
+      externalId: messageId,
+      authorId: user.id,
+      contactId: contact.id,
+      dealId: input.dealId,
+    },
   });
 }

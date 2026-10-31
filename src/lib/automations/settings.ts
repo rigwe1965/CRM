@@ -4,10 +4,12 @@ import {
   resolveInstalmentEmails,
   resolveLowStock,
   resolveQuietLeads,
+  resolveShippingUpdates,
   resolveStageTasks,
   type InstalmentEmailsConfig,
   type LowStockConfig,
   type QuietLeadsConfig,
+  type ShippingUpdatesConfig,
   type StageTasksConfig,
 } from "@/lib/automations/config";
 
@@ -15,6 +17,12 @@ const STAGE_TASKS = "stage-tasks";
 const QUIET_LEADS = "quiet-leads";
 const INSTALMENT_EMAILS = "instalment-emails";
 const LOW_STOCK = "low-stock";
+const SHIPPING_UPDATES = "shipping-updates";
+
+export async function loadShippingUpdates(tenantId: string): Promise<ShippingUpdatesConfig> {
+  const row = await db.automationSetting.findUnique({ where: { tenantId_key: { tenantId, key: SHIPPING_UPDATES } } });
+  return resolveShippingUpdates(row?.config);
+}
 
 export async function loadLowStock(tenantId: string): Promise<LowStockConfig> {
   const row = await db.automationSetting.findUnique({ where: { tenantId_key: { tenantId, key: LOW_STOCK } } });
@@ -39,7 +47,7 @@ export async function loadQuietLeads(tenantId: string): Promise<QuietLeadsConfig
 
 /** Saves whichever automations were sent (already validated) for one business and returns its full current settings. */
 export async function saveAutomations(
-  update: { stageTasks?: StageTasksConfig; quietLeads?: QuietLeadsConfig; instalmentEmails?: InstalmentEmailsConfig; lowStock?: LowStockConfig },
+  update: { stageTasks?: StageTasksConfig; quietLeads?: QuietLeadsConfig; instalmentEmails?: InstalmentEmailsConfig; lowStock?: LowStockConfig; shippingUpdates?: ShippingUpdatesConfig },
   updatedById: string,
   tenantId: string,
 ) {
@@ -53,10 +61,12 @@ export async function saveAutomations(
   if (update.quietLeads) await upsert(QUIET_LEADS, update.quietLeads);
   if (update.instalmentEmails) await upsert(INSTALMENT_EMAILS, update.instalmentEmails);
   if (update.lowStock) await upsert(LOW_STOCK, update.lowStock);
+  if (update.shippingUpdates) await upsert(SHIPPING_UPDATES, update.shippingUpdates);
   return {
     stageTasks: await loadStageTasks(tenantId),
     quietLeads: await loadQuietLeads(tenantId),
     instalmentEmails: await loadInstalmentEmails(tenantId),
     lowStock: await loadLowStock(tenantId),
+    shippingUpdates: await loadShippingUpdates(tenantId),
   };
 }

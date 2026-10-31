@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db } = vi.hoisted(() => ({
+const { db, autoUpdate } = vi.hoisted(() => ({
   db: { deal: { findFirst: vi.fn(), update: vi.fn() }, activity: { create: vi.fn() } },
+  autoUpdate: vi.fn(),
 }));
+vi.mock("@/lib/automations/shipping-updates", () => ({ runShippingUpdate: autoUpdate }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/route", () => ({
   authed: (handler: (ctx: unknown) => Promise<Response>) => async (req: Request, context?: { params: Promise<unknown> }) => {
@@ -95,6 +97,7 @@ describe("POST /api/deals/:id/fulfilment", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    autoUpdate.mockResolvedValue("OFF");
     db.deal.findFirst.mockResolvedValue(deal());
     db.deal.update.mockImplementation(async ({ data }) => ({ id: "d1", amount: 10, fulfilmentStatus: "NOT_STARTED", ...data, items: [] }));
   });
@@ -107,6 +110,19 @@ describe("POST /api/deals/:id/fulfilment", () => {
     expect(db.deal.update.mock.calls[0][0].data).toMatchObject({ fulfilmentStatus: "SHIPPED", carrier: "DHL", trackingNumber: "123", deliveredAt: null });
     expect(db.deal.update.mock.calls[0][0].data.shippedAt).toBeInstanceOf(Date);
     expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ tenantId: "t1", type: "NOTE", subject: "Order shipped", body: "DHL · tracking 123", authorId: "u1", contactId: "c1", dealId: "d1" });
+  });
+
+  it("runs the automatic update after a status change, and reports whether it went out", async () => {
+    autoUpdate.mockResolvedValue("SENT");
+    const body = (await (await call({ status: "SHIPPED" })).json()) as { data: { shippingUpdate: string } };
+    expect(body.data.shippingUpdate).toBe("SENT");
+    expect(autoUpdate.mock.calls[0][1]).toEqual({ id: "d1", contactId: "c1" });
+    expect(autoUpdate.mock.calls[0][2]).toBe("SHIPPED");
+  });
+
+  it("does not run it when only the tracking changed", async () => {
+    await call({ trackingNumber: "9" });
+    expect(autoUpdate).not.toHaveBeenCalled();
   });
 
   it("refuses a deal that isn't won", async () => {

@@ -85,6 +85,27 @@ export default async function MyOrderPage({ params, searchParams }: { params: Pr
         </p>
       )}
 
+      {o.shipping && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">Delivery</h2>
+          <div className="space-y-1 rounded-lg border p-3 text-sm">
+            <p className="font-medium">{o.shipping.label}</p>
+            {o.shipping.shippedAt && <p className="text-muted-foreground">Shipped {day(o.shipping.shippedAt)}</p>}
+            {o.shipping.deliveredAt && <p className="text-muted-foreground">Delivered {day(o.shipping.deliveredAt)}</p>}
+            {o.shipping.trackingNumber && (
+              <p>
+                {o.shipping.carrier ? `${o.shipping.carrier} · ` : ""}tracking <span className="font-mono">{o.shipping.trackingNumber}</span>
+              </p>
+            )}
+            {o.shipping.trackingUrl && (
+              <a href={o.shipping.trackingUrl} target="_blank" rel="noopener noreferrer" className="inline-block font-medium text-primary underline">
+                Track your parcel
+              </a>
+            )}
+          </div>
+        </section>
+      )}
+
       {o.items.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">Your order</h2>

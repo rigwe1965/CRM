@@ -2,11 +2,9 @@ import { db } from "@/lib/db";
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
 import { notFound, ownerScope, tenantScope } from "@/lib/access";
-import { sendWhatsAppTemplate, whatsappConfigured } from "@/lib/whatsapp";
-import { assertUnderDailyCap } from "@/lib/usage-limits";
+import { whatsappConfigured } from "@/lib/whatsapp";
 import { sendWhatsappTemplateSchema } from "@/lib/validations/crm";
-import { readSlots, renderBody } from "@/lib/whatsapp-template-slots";
-import { resolveSlotValues } from "@/lib/whatsapp-template-send";
+import { sendTemplateMessage } from "@/lib/whatsapp-template-send";
 
 export const dynamic = "force-dynamic";
 
@@ -32,28 +30,6 @@ export const POST = authed<P>(async ({ req, user, params }) => {
   const template = await db.whatsappTemplate.findFirst({ where: { id: input.templateId, ...tenantScope(user), active: true, status: "APPROVED", supported: true } });
   if (!template) throw new ApiError(404, "That template is not available (it must be approved by Meta and switched on).", "NOT_FOUND");
 
-  const slots = readSlots(template.slots, template.body);
-  const values = await resolveSlotValues(user, contact, slots, { dealId: input.dealId, typed: input.values });
-
-  await assertUnderDailyCap(user.tenantId, "whatsapp");
-  let messageId: string;
-  try {
-    messageId = await sendWhatsAppTemplate(user.tenantId, contact.phoneE164, template.name, template.language, values);
-  } catch (e) {
-    throw new ApiError(502, e instanceof Error ? e.message : "WhatsApp did not accept the message", "WHATSAPP_ERROR");
-  }
-  const activity = await db.activity.create({
-    data: {
-      ...tenantScope(user),
-      type: "WHATSAPP",
-      direction: "OUT",
-      subject: `WhatsApp template: ${template.name}`,
-      body: renderBody(template.body, values),
-      externalId: messageId,
-      authorId: user.id,
-      contactId: contact.id,
-      dealId: input.dealId,
-    },
-  });
+  const activity = await sendTemplateMessage(user, { ...contact, phoneE164: contact.phoneE164 }, template, { dealId: input.dealId, typed: input.values });
   return ok(activity, 201);
 });

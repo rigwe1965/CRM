@@ -4,6 +4,7 @@ import { notFound, ownerScope, tenantScope } from "@/lib/access";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { dealInclude } from "@/lib/includes";
 import { dealDto } from "@/lib/deals";
+import { runShippingUpdate, type ShippingUpdateResult } from "@/lib/automations/shipping-updates";
 import { canFulfil, FULFILMENT_LABEL, statusColumns, type FulfilmentStatus } from "@/lib/fulfilment";
 
 export type FulfilmentInput = { status?: FulfilmentStatus; carrier?: string | null; trackingNumber?: string | null };
@@ -13,7 +14,7 @@ const invalid = (field: string, message: string) => new ApiError(422, message, "
 /**
  * Moves a won order along its shipping steps and/or records the carrier and tracking number. Only a won deal can be
  * fulfilled (422 otherwise). A change of status or tracking is written on the contact's and deal's timeline as a note;
- * the audit log line comes from `authed()`. Returns the deal as the deals API shows it.
+ * the audit log line comes from `authed()`. Returns the deal as the deals API shows it, plus `shippingUpdate`: whether an automatic WhatsApp update went out.
  */
 export async function updateFulfilment(user: SessionUser, dealId: string, input: FulfilmentInput) {
   const deal = await db.deal.findFirst({
@@ -49,5 +50,7 @@ export async function updateFulfilment(user: SessionUser, dealId: string, input:
       },
     });
   }
-  return dealDto(updated);
+  // The automatic WhatsApp update (off unless an admin switched it on) follows the status change, never blocks it.
+  const shippingUpdate: ShippingUpdateResult = statusChanged ? await runShippingUpdate(user, { id: dealId, contactId: deal.contactId }, updated.fulfilmentStatus) : "OFF";
+  return { ...dealDto(updated), shippingUpdate };
 }

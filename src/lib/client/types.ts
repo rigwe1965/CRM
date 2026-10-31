@@ -204,6 +204,8 @@ export type StageRule = { enabled: boolean; title: string; dueInDays: number; pr
 export type StageTasksConfig = { enabled: boolean; stages: Record<DealStage, StageRule> };
 export type QuietLeadsConfig = { enabled: boolean; days: number };
 export type LowStockConfig = { enabled: boolean; defaultThreshold: number };
+export type ShippingStep = { enabled: boolean; templateId: string };
+export type ShippingUpdatesConfig = { enabled: boolean; shipped: ShippingStep; delivered: ShippingStep };
 
 export type ReminderWording = { subject: string; message: string };
 export type InstalmentEmailsConfig = {
@@ -227,6 +229,7 @@ export type AutomationsView = {
   quietLeads: QuietLeadsConfig;
   instalmentEmails: InstalmentEmailsConfig;
   lowStock: LowStockConfig;
+  shippingUpdates: ShippingUpdatesConfig;
   /** Contacts that would get a follow-up task on the next daily run. */
   quietLeadsWouldCreate: number;
   /** Stock rows that are at or below their level right now, business-wide. */

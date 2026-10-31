@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/common/page";
 import { DEAL_STAGES, TASK_PRIORITIES } from "@/lib/client/constants";
-import { errorMessage, useAutomations, useSaveAutomations, useSendSampleEmail } from "@/lib/client/hooks";
-import type { AutomationsView, InstalmentEmailsConfig, LowStockConfig, QuietLeadsConfig, StageRule, StageTasksConfig, TaskPriority } from "@/lib/client/types";
+import { errorMessage, useAutomations, useSaveAutomations, useSendSampleEmail, useWhatsappTemplates } from "@/lib/client/hooks";
+import type { AutomationsView, InstalmentEmailsConfig, LowStockConfig, QuietLeadsConfig, ShippingStep, ShippingUpdatesConfig, StageRule, StageTasksConfig, TaskPriority } from "@/lib/client/types";
 
 const clampInt = (raw: string, min: number, max: number) => Math.min(max, Math.max(min, Math.floor(Number(raw) || 0)));
 
@@ -369,6 +369,63 @@ function LowStockCard({ initial, lowNow }: { initial: LowStockConfig; lowNow: nu
   );
 }
 
+function ShippingStepRow({ label, step, onChange, templates }: { label: string; step: ShippingStep; onChange: (s: ShippingStep) => void; templates: { id: string; name: string; language: string }[] }) {
+  return (
+    <div className="space-y-2">
+      <SwitchRow checked={step.enabled} onChange={(enabled) => onChange({ ...step, enabled })} label={label} />
+      {step.enabled && (
+        <Select value={step.templateId} onValueChange={(templateId) => onChange({ ...step, templateId })}>
+          <SelectTrigger className="ml-7 w-72 max-w-full" aria-label={`Template for ${label}`}>
+            <SelectValue placeholder={templates.length ? "Choose a template" : "No suitable template yet"} />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((t) => (
+              <SelectItem key={t.id} value={t.id}>
+                {t.name} ({t.language})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
+function ShippingUpdatesCard({ initial }: { initial: ShippingUpdatesConfig }) {
+  const save = useSaveAutomations();
+  const { data: all } = useWhatsappTemplates();
+  const [draft, setDraft] = useState<ShippingUpdatesConfig>(initial);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  // Only templates every blank of which can be filled by itself: nobody is there to type a value.
+  const templates = (all ?? []).filter((t) => t.active && t.status === "APPROVED" && t.supported && t.slots.every((s) => s.source !== "manual"));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Shipping updates on WhatsApp</CardTitle>
+        <CardDescription>
+          When someone marks an order Shipped or Delivered, the chosen approved template is sent to the customer on WhatsApp by itself, with no one pressing Send. It goes only to customers who agreed to WhatsApp messages, once per order and step, and is logged on their timeline. If it cannot be sent, a note on the order says why. Templates with a blank that must be typed by hand are not listed. A tracking-number blank fills itself from the order, so mark it Shipped after saving the tracking number. Off by default.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <SwitchRow checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} label="Send shipping updates automatically" />
+        {draft.enabled && (
+          <>
+            <ShippingStepRow label="When an order is marked Shipped" step={draft.shipped} templates={templates} onChange={(shipped) => setDraft((d) => ({ ...d, shipped }))} />
+            <ShippingStepRow label="When an order is marked Delivered" step={draft.delivered} templates={templates} onChange={(delivered) => setDraft((d) => ({ ...d, delivered }))} />
+          </>
+        )}
+        <Button
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate({ shippingUpdates: draft }, { onSuccess: () => toast.success("Shipping updates saved"), onError: (e) => toast.error(errorMessage(e)) })}
+        >
+          {save.isPending ? "Saving…" : "Save shipping updates"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AutomationsCard() {
   const { data, isLoading, error, refetch } = useAutomations();
   if (isLoading) return <Skeleton className="h-64" />;
@@ -384,6 +441,7 @@ function AutomationsForms({ data }: { data: AutomationsView }) {
       <QuietLeadsCard key={JSON.stringify(data.quietLeads)} initial={data.quietLeads} wouldCreate={data.quietLeadsWouldCreate} />
       <InstalmentEmailsCard key={JSON.stringify(data.instalmentEmails)} initial={data.instalmentEmails} wouldSend={data.instalmentEmailsWouldSend} whatsappWouldSend={data.instalmentWhatsappsWouldSend} />
       <LowStockCard key={JSON.stringify(data.lowStock)} initial={data.lowStock} lowNow={data.lowStockNow} />
+      <ShippingUpdatesCard key={JSON.stringify(data.shippingUpdates)} initial={data.shippingUpdates} />
     </div>
   );
 }

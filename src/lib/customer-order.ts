@@ -5,6 +5,7 @@ import { dealPaymentsView } from "@/lib/payments";
 import { reminderPayLink } from "@/lib/payment-links";
 import { ONLINE_CURRENCIES, stripeConfigured } from "@/lib/stripe";
 import { recordOrderLinkView } from "@/lib/order-links";
+import { FULFILMENT_LABEL, trackingUrl } from "@/lib/fulfilment";
 
 /**
  * What a customer sees on their private order page (Plan A). Built field by field from an allow-list: no owner, no
@@ -25,6 +26,8 @@ export type CustomerOrderView = {
   /** What the Pay now button collects: the next instalment's unpaid part, or the whole balance. 0 when nothing is owed. */
   payAmount: number;
   canPayOnline: boolean;
+  /** Where the parcel is, once the order has started shipping; null before that. The tracking link only exists for carriers we know. */
+  shipping: { label: string; delivered: boolean; carrier: string | null; trackingNumber: string | null; trackingUrl: string | null; shippedAt: Date | null; deliveredAt: Date | null } | null;
 };
 
 const describe = (i: { productType: string; texture: string | null; lengthInches: string | null; color: string | null; laceType: string | null }) =>
@@ -37,7 +40,7 @@ export async function customerOrderView(tenantId: string, dealId: string, linkId
       db.tenant.findFirst({ where: { id: tenantId }, select: { name: true, brandName: true } }),
       db.deal.findFirst({
         where: { id: dealId, tenantId, deletedAt: null },
-        select: { id: true, title: true, amount: true, currency: true, createdAt: true, contact: { select: { firstName: true } } },
+        select: { id: true, title: true, amount: true, currency: true, createdAt: true, fulfilmentStatus: true, carrier: true, trackingNumber: true, shippedAt: true, deliveredAt: true, contact: { select: { firstName: true } } },
       }),
       db.dealItem.findMany({ where: { tenantId, dealId }, orderBy: { position: "asc" } }),
     ]);
@@ -67,6 +70,18 @@ export async function customerOrderView(tenantId: string, dealId: string, linkId
       payments: view.payments.map((p) => ({ paidAt: p.paidAt, amount: p.amount })),
       payAmount,
       canPayOnline: online,
+      shipping:
+        deal.fulfilmentStatus === "NOT_STARTED"
+          ? null
+          : {
+              label: FULFILMENT_LABEL[deal.fulfilmentStatus],
+              delivered: deal.fulfilmentStatus === "DELIVERED",
+              carrier: deal.carrier,
+              trackingNumber: deal.trackingNumber,
+              trackingUrl: trackingUrl(deal.carrier, deal.trackingNumber),
+              shippedAt: deal.shippedAt,
+              deliveredAt: deal.deliveredAt,
+            },
     };
   });
 }

@@ -254,7 +254,7 @@ export function useAutomations() {
 export function useSaveAutomations() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails" | "lowStock">>) =>
+    mutationFn: async (body: Partial<Pick<AutomationsView, "stageTasks" | "quietLeads" | "instalmentEmails" | "lowStock" | "shippingUpdates">>) =>
       (await request<{ data: AutomationsView }>("PUT", "/api/admin/automations", body)).data,
     onSuccess: (data) => qc.setQueryData(["automations"], data),
   });

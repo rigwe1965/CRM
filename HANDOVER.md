@@ -79,6 +79,11 @@ Rules to know:
 - **In reminders:** live payment reminders (email and WhatsApp) now carry this page's link, so the customer sees the full picture and can pay. If the link can't be made, they carry the plain Stripe payment link as before. Test mode still shows a placeholder.
 - **In WhatsApp templates:** a blank can be set to **Customer order page link** (Settings → Templates). Sending then uses the order's live link, or makes one.
 
+**Shipping.** Once a deal is **Closed won**, its card menu has **Shipping**. There you move the order along: Not started, Packed, Shipped, Delivered (and Returned if it comes back), and enter the carrier and tracking number. For DHL, UPS, FedEx and USPS there is an **Open carrier tracking** link; other carriers still save but have no link. Every change is noted on the customer's timeline, and Shipped and Delivered dates are stamped for you (moving a step back clears the dates that no longer apply). On the Deals board, the **To ship** button shows only won orders that are not started or packed. Only a won deal can be shipped.
+- **Tell the customer:** **Send shipping update** (in the Shipping dialog, and as a button after you mark shipped) opens the WhatsApp **Template** tab with the order already chosen. A template blank set to **Tracking number** fills itself from the order; if the order has no tracking number you type it. You read the preview and press Send.
+- **Automatic updates (off by default):** Settings → Automations → **Shipping updates on WhatsApp** can send a chosen approved template by itself when an order is marked Shipped and/or Delivered. It only goes to customers who agreed to WhatsApp messages, once per order and step. Only templates whose blanks fill themselves are offered (none that need typing). Save the tracking number *before* marking Shipped. If it can't send, a note on the order's timeline says why, and you can send it by hand.
+- **On the customer page:** once an order has started shipping, the customer order page shows a **Delivery** box with the status, dates, tracking number and, for known carriers, a **Track your parcel** link.
+
 ### 3.4 Add a supplier invoice (Invoices)
 
 Three ways:

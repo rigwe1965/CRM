@@ -107,6 +107,20 @@ export const lowStockSchema = z.object({
 });
 export type LowStockConfig = z.infer<typeof lowStockSchema>;
 
+/**
+ * Automatic WhatsApp update to the customer when an order is marked Shipped or Delivered. Sends the chosen approved
+ * template (blank "" = none chosen) to a customer who agreed to WhatsApp. Everything ships switched off.
+ */
+const shippingStepSchema = z.object({ enabled: z.boolean(), templateId: z.string().trim().max(40) });
+export const shippingUpdatesSchema = z
+  .object({ enabled: z.boolean(), shipped: shippingStepSchema, delivered: shippingStepSchema })
+  .superRefine((v, ctx) => {
+    for (const k of ["shipped", "delivered"] as const) {
+      if (v.enabled && v[k].enabled && v[k].templateId === "") ctx.addIssue({ code: "custom", path: [k, "templateId"], message: "Choose the template to send" });
+    }
+  });
+export type ShippingUpdatesConfig = z.infer<typeof shippingUpdatesSchema>;
+
 /** Body of POST /api/admin/automations/sample-email: which sample, to whom, signed as whom. */
 export const sampleEmailSchema = z.object({
   to: z.email("Enter a valid email address"),
@@ -118,10 +132,10 @@ export const sampleEmailSchema = z.object({
 
 /** Body of PUT /api/admin/automations: send any of them. */
 export const automationsUpdateSchema = z
-  .object({ stageTasks: stageTasksSchema, quietLeads: quietLeadsSchema, instalmentEmails: instalmentEmailsSchema, lowStock: lowStockSchema })
+  .object({ stageTasks: stageTasksSchema, quietLeads: quietLeadsSchema, instalmentEmails: instalmentEmailsSchema, lowStock: lowStockSchema, shippingUpdates: shippingUpdatesSchema })
   .partial()
   .refine(
-    (v) => v.stageTasks !== undefined || v.quietLeads !== undefined || v.instalmentEmails !== undefined || v.lowStock !== undefined,
+    (v) => v.stageTasks !== undefined || v.quietLeads !== undefined || v.instalmentEmails !== undefined || v.lowStock !== undefined || v.shippingUpdates !== undefined,
     "Provide at least one automation to update",
   );
 
@@ -141,6 +155,11 @@ export const DEFAULT_STAGE_TASKS: StageTasksConfig = {
 };
 export const DEFAULT_QUIET_LEADS: QuietLeadsConfig = { enabled: false, days: 7 };
 export const DEFAULT_LOW_STOCK: LowStockConfig = { enabled: false, defaultThreshold: 3 };
+export const DEFAULT_SHIPPING_UPDATES: ShippingUpdatesConfig = {
+  enabled: false,
+  shipped: { enabled: true, templateId: "" },
+  delivered: { enabled: false, templateId: "" },
+};
 /** Off, and in test mode: the first emails an admin sees are copies sent to themselves. */
 export const DEFAULT_INSTALMENT_EMAILS: InstalmentEmailsConfig = {
   enabled: false,
@@ -177,6 +196,16 @@ export function resolveLowStock(stored: unknown): LowStockConfig {
   const s = (stored && typeof stored === "object" ? stored : {}) as Partial<LowStockConfig>;
   const parsed = lowStockSchema.safeParse({ ...DEFAULT_LOW_STOCK, ...s });
   return parsed.success ? parsed.data : DEFAULT_LOW_STOCK;
+}
+
+export function resolveShippingUpdates(stored: unknown): ShippingUpdatesConfig {
+  const s = (stored && typeof stored === "object" ? stored : {}) as Partial<ShippingUpdatesConfig>;
+  const parsed = shippingUpdatesSchema.safeParse({
+    enabled: s.enabled ?? DEFAULT_SHIPPING_UPDATES.enabled,
+    shipped: { ...DEFAULT_SHIPPING_UPDATES.shipped, ...(s.shipped ?? {}) },
+    delivered: { ...DEFAULT_SHIPPING_UPDATES.delivered, ...(s.delivered ?? {}) },
+  });
+  return parsed.success ? parsed.data : DEFAULT_SHIPPING_UPDATES;
 }
 
 export function resolveInstalmentEmails(stored: unknown, businessBrand?: string): InstalmentEmailsConfig {

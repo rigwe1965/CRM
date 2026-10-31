@@ -95,11 +95,19 @@ function FulfilmentBody({ deal }: { deal: Deal }) {
   const link = trackingUrl(deal.carrier, deal.trackingNumber);
   const trackingDirty = (nullable(carrier) ?? null) !== deal.carrier || (nullable(tracking) ?? null) !== deal.trackingNumber;
 
-  const save = (body: { status?: FulfilmentStatus; carrier?: string | null; trackingNumber?: string | null }, done: string) =>
-    form.run(() => set.mutateAsync(body)).then((ok) => {
-      if (!ok) return;
-      toast.success(done, body.status === "SHIPPED" && deal.contactId ? { action: { label: "Send shipping update", onClick: () => setMessaging(true) } } : undefined);
-    });
+  const save = (body: { status?: FulfilmentStatus; carrier?: string | null; trackingNumber?: string | null }, done: string) => {
+    let sent = false;
+    return form
+      .run(async () => {
+        const res = (await set.mutateAsync(body)) as { data?: { shippingUpdate?: string } } | undefined;
+        sent = res?.data?.shippingUpdate === "SENT";
+      })
+      .then((ok) => {
+        if (!ok) return;
+        if (sent) toast.success(`${done}. The customer was sent an update on WhatsApp.`);
+        else toast.success(done, body.status === "SHIPPED" && deal.contactId ? { action: { label: "Send shipping update", onClick: () => setMessaging(true) } } : undefined);
+      });
+  };
 
   return (
     <>
