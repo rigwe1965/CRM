@@ -5,7 +5,7 @@ import { TRIAGE_PROMPT, TRIAGE_PROMPT_VERSION, TRIAGE_TOOL, triageFingerprint, t
  * WhatsApp triage's instructions are pinned, like Ivy's chat prompt: an edit has to be deliberate. (A background call has
  * no thinking blocks to protect, so the version is for the record; the fingerprint is what stops an accidental change.)
  */
-const PINNED = { version: "2", fingerprint: "afdf8fbd7f21cf8e" };
+const PINNED = { version: "3", fingerprint: "a95cf21269a32d79" };
 
 describe("the WhatsApp triage prompt", () => {
   it("is pinned: change the text or the tool and update this together with the version", () => {
