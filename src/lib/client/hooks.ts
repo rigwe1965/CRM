@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
+import type { AutomationsView, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -405,6 +405,22 @@ export const useCreatePaymentLink = (dealId: string) =>
 
 export const useCancelPaymentLink = (dealId: string) =>
   usePaymentMutation((linkId: string) => request("DELETE", `/api/deals/${dealId}/payment-links/${linkId}`));
+
+export function useCustomerLink(dealId: string) {
+  return useQuery({
+    queryKey: ["deals", "customer-link", dealId],
+    queryFn: async () => (await request<{ data: { link: CustomerLink | null } }>("GET", `/api/deals/${dealId}/customer-link`)).data.link,
+  });
+}
+
+function useCustomerLinkMutation<V>(dealId: string, fn: (v: V) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => qc.invalidateQueries({ queryKey: ["deals", "customer-link", dealId] }) });
+}
+
+export const useCreateCustomerLink = (dealId: string) => useCustomerLinkMutation(dealId, (v: { expiresInDays?: number } | void) => request("POST", `/api/deals/${dealId}/customer-link`, v ?? {}));
+
+export const useRevokeCustomerLink = (dealId: string) => useCustomerLinkMutation(dealId, () => request("DELETE", `/api/deals/${dealId}/customer-link`));
 
 export function useReminders(dealId: string) {
   return useQuery({

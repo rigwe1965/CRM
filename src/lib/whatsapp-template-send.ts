@@ -3,10 +3,11 @@ import { ApiError } from "@/lib/api";
 import { ownerScope } from "@/lib/access";
 import { formatAmount } from "@/lib/email-templates";
 import { dealPaymentsView } from "@/lib/payments";
+import { createOrderLink, currentOrderLink } from "@/lib/order-links";
 import type { Slot } from "@/lib/whatsapp-template-slots";
 
 type Actor = Parameters<typeof ownerScope>[0];
-const DEAL_SOURCES = new Set(["dealTitle", "amountDue", "dueDate"]);
+const DEAL_SOURCES = new Set(["dealTitle", "amountDue", "dueDate", "orderLink"]);
 const TYPED_SOURCES = new Set(["manual", "trackingNumber"]);
 
 const invalid = (field: string, message: string) => new ApiError(422, message, "VALIDATION_ERROR", { [field]: [message] });
@@ -33,6 +34,14 @@ export async function resolveSlotValues(
   }
   const view = deal && slots.some((s) => s.source === "amountDue" || s.source === "dueDate") ? await dealPaymentsView({ id: deal.id, amount: deal.amount as number, currency: deal.currency }) : null;
 
+  // The customer's order page address: the live link if there is one, otherwise a new link is made (and shows in the order's Payments).
+  let orderLink: string | null = null;
+  if (deal && slots.some((s) => s.source === "orderLink")) {
+    const current = await currentOrderLink(user.tenantId, deal.id);
+    orderLink = (current?.status === "ACTIVE" && current.url) || (await createOrderLink(user, deal.id)).url;
+    if (!orderLink) throw invalid("dealId", "The customer link could not be made. Open the order's Payments and make a new one.");
+  }
+
   return slots.map((slot, i) => {
     const typed = input.typed?.[i]?.replace(/\s+/g, " ").trim();
     switch (slot.source) {
@@ -40,6 +49,8 @@ export async function resolveSlotValues(
         return contact.firstName;
       case "fullName":
         return `${contact.firstName} ${contact.lastName === "-" ? "" : contact.lastName}`.trim();
+      case "orderLink":
+        return orderLink!;
       case "dealTitle":
         return deal!.title;
       case "amountDue": {

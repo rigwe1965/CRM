@@ -179,7 +179,7 @@ export type SavedFilter = {
 
 export type EmailTemplate = { id: string; name: string; subject: string; body: string; createdAt: string; updatedAt: string };
 
-export type WhatsappTemplateSlot = { label: string; source: "firstName" | "fullName" | "dealTitle" | "amountDue" | "dueDate" | "trackingNumber" | "manual" };
+export type WhatsappTemplateSlot = { label: string; source: "firstName" | "fullName" | "dealTitle" | "amountDue" | "dueDate" | "orderLink" | "trackingNumber" | "manual" };
 export type WhatsappTemplate = {
   id: string;
   name: string;
@@ -242,6 +242,16 @@ export type PaymentLink = {
   createdAt: string;
   paidAt: string | null;
   createdBy: Person;
+};
+
+export type CustomerLink = {
+  id: string;
+  status: "ACTIVE" | "EXPIRED" | "REVOKED";
+  url: string | null;
+  createdAt: string;
+  expiresAt: string;
+  lastViewedAt: string | null;
+  viewCount: number;
 };
 
 export type PaymentLinksView = { configured: boolean; links: PaymentLink[] };

@@ -7,6 +7,7 @@ export const SLOT_SOURCES = {
   dealTitle: "Order or deal title",
   amountDue: "Amount due on the order",
   dueDate: "Next due date",
+  orderLink: "Customer order page link (made if needed)",
   trackingNumber: "Tracking number (typed when sending)",
   manual: "Typed when sending",
 } as const;

@@ -19,12 +19,15 @@ import {
   errorMessage,
   useAddPayment,
   useCancelPaymentLink,
+  useCreateCustomerLink,
   useCreatePaymentLink,
+  useCustomerLink,
   useDeletePayment,
   useItem,
   usePaymentLinks,
   usePayments,
   useReminders,
+  useRevokeCustomerLink,
   useSave,
   useSaveSchedule,
   useSendContactEmail,
@@ -282,6 +285,107 @@ function PaymentLinksSection({ deal, view }: { deal: Deal; view: PaymentsView })
   );
 }
 
+function CustomerLinkSection({ deal }: { deal: Deal }) {
+  const { data: link, isLoading, error } = useCustomerLink(deal.id);
+  const create = useCreateCustomerLink(deal.id);
+  const revoke = useRevokeCustomerLink(deal.id);
+  const { data: contact } = useItem<Contact>("contacts", deal.contactId ?? "");
+  const active = link?.status === "ACTIVE" && link.url ? link : null;
+
+  async function copy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Could not copy. Select the link and copy it by hand.");
+    }
+  }
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold">Customer order page</h3>
+      <p className="text-xs text-muted-foreground">A private link where the customer sees this order, what they have paid and what is due, and can pay online.</p>
+      {isLoading ? (
+        <Skeleton className="h-12" />
+      ) : error ? (
+        <p className="text-sm text-destructive">Could not load the customer link.</p>
+      ) : (
+        <div className="space-y-2 rounded-md border p-3 text-sm">
+          {active ? (
+            <>
+              <p className="break-all text-xs">{active.url}</p>
+              <p className="text-xs text-muted-foreground">
+                Valid until {dateOnly(active.expiresAt)} · opened {active.viewCount} {active.viewCount === 1 ? "time" : "times"}
+                {active.lastViewedAt ? `, last on ${dateOnly(active.lastViewedAt)}` : ""}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {link?.status === "EXPIRED" ? "The last link expired." : link?.status === "REVOKED" ? "The link is switched off." : "No link yet."} Make a new one to share this order.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {active && (
+              <>
+                <Button type="button" variant="outline" size="sm" onClick={() => copy(active.url!)}>
+                  <Copy /> Copy customer link
+                </Button>
+                {contact?.email && (
+                  <SendCustomerLink deal={deal} url={active.url!} contactId={contact.id} email={contact.email} />
+                )}
+              </>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={create.isPending}
+              onClick={() => {
+                if (active && !window.confirm("The old link will stop working at once. Make a new one?")) return;
+                create.mutate(undefined, { onSuccess: () => toast.success("New customer link made"), onError: (e) => toast.error(errorMessage(e)) });
+              }}
+            >
+              {active ? "Regenerate" : "Make customer link"}
+            </Button>
+            {active && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                disabled={revoke.isPending}
+                onClick={() => revoke.mutate(undefined, { onSuccess: () => toast.success("Customer link switched off"), onError: (e) => toast.error(errorMessage(e)) })}
+              >
+                Switch off
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SendCustomerLink({ deal, url, contactId, email }: { deal: Deal; url: string; contactId: string; email: string }) {
+  const sendEmail = useSendContactEmail(contactId);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={sendEmail.isPending}
+      onClick={() =>
+        sendEmail.mutate(
+          { subject: `Your order: ${deal.title}`.slice(0, 200), message: `Here is the private page for your order "${deal.title}", where you can see what is due and pay online: ${url}` },
+          { onSuccess: () => toast.success(`Email sent to ${email}`), onError: (e) => toast.error(errorMessage(e)) },
+        )
+      }
+    >
+      <Mail /> Email link
+    </Button>
+  );
+}
+
 const REMINDER_LABEL: Record<ReminderKind, string> = { UPCOMING: "Due soon", OVERDUE_1: "Overdue", OVERDUE_2: "Second overdue" };
 
 function RemindersSection({ deal, view }: { deal: Deal; view: PaymentsView }) {
@@ -441,6 +545,8 @@ function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
         )}
         {!settled && <AddPayment dealId={dealId} balance={summary.balance} />}
       </section>
+
+      <CustomerLinkSection deal={deal} />
 
       <PaymentLinksSection deal={deal} view={view} />
 

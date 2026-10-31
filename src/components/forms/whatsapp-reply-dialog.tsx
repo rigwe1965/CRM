@@ -13,7 +13,7 @@ import type { Contact, Deal } from "@/lib/client/types";
 import { renderBody } from "@/lib/whatsapp-template-slots";
 import { FormShell, useFormState } from "./form-kit";
 
-const DEAL_SOURCES = ["dealTitle", "amountDue", "dueDate"];
+const DEAL_SOURCES = ["dealTitle", "amountDue", "dueDate", "orderLink"];
 
 /** Free-text reply: only inside Meta's 24 hours after the customer last wrote. */
 function FreeText({ contact, mode, onMode, onClose }: { contact: Contact; mode: Mode; onMode: Switcher; onClose: () => void }) {

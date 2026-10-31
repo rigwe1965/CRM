@@ -131,6 +131,8 @@ export const LIMITS = {
   /** Public website form: per visitor address, and an overall cap so a botnet can't flood the inbox. */
   webLead: { max: 5, windowMs: 10 * 60_000 },
   webLeadAll: { max: 200, windowMs: 60 * 60_000 },
+  /** Pay now on a customer order page, per visitor address. */
+  customerPay: { max: 10, windowMs: 10 * 60_000 },
   /** Two-step setup/disable attempts per user. */
   mfa: { max: 10, windowMs: 15 * 60_000, failClosed: true },
   /** Every authenticated API call, per user (reads and writes counted separately). */
