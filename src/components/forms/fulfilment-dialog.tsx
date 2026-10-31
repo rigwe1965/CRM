@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, Truck } from "lucide-react";
+import { ExternalLink, MessageCircle, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/common/page";
 import { dateOnly } from "@/lib/client/format";
-import { useSetFulfilment } from "@/lib/client/hooks";
-import type { Deal } from "@/lib/client/types";
+import { useItem, useList, useSetFulfilment, useWhatsappStatus } from "@/lib/client/hooks";
+import type { Contact, Deal } from "@/lib/client/types";
 import { FULFILMENT_LABEL, FULFILMENT_STATUSES, KNOWN_CARRIERS, trackingUrl, type FulfilmentStatus } from "@/lib/fulfilment";
 import { cn } from "@/lib/utils";
 import { nullable, useFormState } from "./form-kit";
+import { WhatsappReplyDialog } from "./whatsapp-reply-dialog";
 
 export const FULFILMENT_TONE: Record<FulfilmentStatus, "secondary" | "warning" | "success" | "destructive"> = {
   NOT_STARTED: "secondary",
@@ -38,7 +39,48 @@ const NEXT: Partial<Record<FulfilmentStatus, { to: FulfilmentStatus; label: stri
   SHIPPED: { to: "DELIVERED", label: "Mark delivered" },
 };
 
+/**
+ * Opens the WhatsApp dialog on its Template tab with this order already chosen, so its tracking number fills itself in.
+ * A person still reads the preview and presses Send. Says why when the customer can't be messaged on WhatsApp.
+ */
+function ShippingUpdate({ deal, onClose }: { deal: Deal; onClose: () => void }) {
+  const contactId = deal.contactId ?? "";
+  const contact = useItem<Contact>("contacts", contactId);
+  const status = useWhatsappStatus(contactId);
+  const orders = useList<Deal>("deals", { contactId, pageSize: 50 }, !!contactId);
+  if (contact.isLoading || status.isLoading || orders.isLoading) return null;
+  if (!contact.data || !status.data?.canTemplate) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Can&apos;t send on WhatsApp</DialogTitle>
+            <DialogDescription>
+              A template needs WhatsApp set up in Settings → Integrations, a WhatsApp-ready phone number, and the customer&apos;s OK to WhatsApp (tick it on their contact).
+            </DialogDescription>
+          </DialogHeader>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  return (
+    <WhatsappReplyDialog
+      contact={contact.data}
+      deals={orders.data?.data ?? [deal]}
+      canText={status.data.canSend}
+      canTemplate
+      initialDealId={deal.id}
+      startWithTemplate
+      onClose={onClose}
+    />
+  );
+}
+
 function FulfilmentBody({ deal }: { deal: Deal }) {
+  const [messaging, setMessaging] = useState(false);
   const set = useSetFulfilment(deal.id);
   const form = useFormState();
   const [carrier, setCarrier] = useState(deal.carrier ?? "");
@@ -54,7 +96,10 @@ function FulfilmentBody({ deal }: { deal: Deal }) {
   const trackingDirty = (nullable(carrier) ?? null) !== deal.carrier || (nullable(tracking) ?? null) !== deal.trackingNumber;
 
   const save = (body: { status?: FulfilmentStatus; carrier?: string | null; trackingNumber?: string | null }, done: string) =>
-    form.run(() => set.mutateAsync(body)).then((ok) => ok && toast.success(done));
+    form.run(() => set.mutateAsync(body)).then((ok) => {
+      if (!ok) return;
+      toast.success(done, body.status === "SHIPPED" && deal.contactId ? { action: { label: "Send shipping update", onClick: () => setMessaging(true) } } : undefined);
+    });
 
   return (
     <>
@@ -120,14 +165,22 @@ function FulfilmentBody({ deal }: { deal: Deal }) {
 
           <div className="flex items-center justify-between gap-3 border-t pt-4">
             <Badge variant={FULFILMENT_TONE[deal.fulfilmentStatus]}>{FULFILMENT_LABEL[deal.fulfilmentStatus]}</Badge>
+            <div className="flex flex-wrap justify-end gap-2">
+            {deal.contactId && (deal.fulfilmentStatus === "SHIPPED" || deal.fulfilmentStatus === "DELIVERED") && (
+              <Button type="button" variant="outline" onClick={() => setMessaging(true)}>
+                <MessageCircle /> Send shipping update
+              </Button>
+            )}
             {next && (
               <Button type="button" disabled={set.isPending} onClick={() => save({ status: next.to, ...(trackingDirty && { carrier: nullable(carrier), trackingNumber: nullable(tracking) }) }, `Marked ${FULFILMENT_LABEL[next.to].toLowerCase()}`)}>
                 <Truck /> {next.label}
               </Button>
             )}
+            </div>
           </div>
         </div>
       )}
+      {messaging && <ShippingUpdate deal={deal} onClose={() => setMessaging(false)} />}
     </>
   );
 }

@@ -138,6 +138,26 @@ describe("POST /api/contacts/:id/whatsapp/template", () => {
     expect(db.deal.findFirst).not.toHaveBeenCalled(); // no order needed when no blank uses one
   });
 
+  it("fills the tracking number from the chosen order, ignoring anything typed", async () => {
+    db.whatsappTemplate.findFirst.mockResolvedValue(template({ body: "Hi {{1}}, tracking: {{2}}", slots: [slots[0], { label: "Tracking number", source: "trackingNumber" }] }));
+    db.deal.findFirst.mockResolvedValue({ id: "d1", title: "Lace wig", amount: 300, currency: "USD", trackingNumber: "JD0146" });
+    const res = await call({ templateId: "tpl1", dealId: "d1", values: ["", "typed-by-mistake"] });
+    expect(res.status).toBe(201);
+    expect(wa.sendWhatsAppTemplate.mock.calls[0][4]).toEqual(["Ada", "JD0146"]);
+    expect(db.deal.findFirst.mock.calls[0][0].where).toMatchObject({ id: "d1", contactId: "c1", deletedAt: null });
+  });
+
+  it("falls back to a typed tracking number when the order has none, and names the blank when both are missing", async () => {
+    db.whatsappTemplate.findFirst.mockResolvedValue(template({ body: "Hi {{1}}, tracking: {{2}}", slots: [slots[0], { label: "Tracking number", source: "trackingNumber" }] }));
+    db.deal.findFirst.mockResolvedValue({ id: "d1", title: "Lace wig", amount: 300, currency: "USD", trackingNumber: null });
+    const missing = await call({ templateId: "tpl1", dealId: "d1" });
+    expect(missing.status).toBe(422);
+    expect((await bodyOf(missing)).details).toHaveProperty("values.1");
+    expect(wa.sendWhatsAppTemplate).not.toHaveBeenCalled();
+    expect((await call({ templateId: "tpl1", dealId: "d1", values: ["", "DHL 9"] })).status).toBe(201);
+    expect(wa.sendWhatsAppTemplate.mock.calls[0][4]).toEqual(["Ada", "DHL 9"]);
+  });
+
   it("passes on Meta's reason and logs nothing when Meta refuses", async () => {
     wa.sendWhatsAppTemplate.mockRejectedValue(new Error("Template name does not exist in the translation"));
     const res = await call({ templateId: "tpl1", dealId: "d1" });

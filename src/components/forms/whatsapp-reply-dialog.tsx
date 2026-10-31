@@ -45,18 +45,24 @@ function FreeText({ contact, mode, onMode, onClose }: { contact: Contact; mode: 
 }
 
 /** An approved template: works at any time, but only for a customer who agreed to WhatsApp messages. */
-function Template({ contact, deals, mode, onMode, onClose }: { contact: Contact; deals: Deal[]; mode: Mode; onMode: Switcher; onClose: () => void }) {
+function Template({ contact, deals, initialDealId, mode, onMode, onClose }: { contact: Contact; deals: Deal[]; initialDealId?: string; mode: Mode; onMode: Switcher; onClose: () => void }) {
   const { data, isLoading } = useWhatsappTemplates();
   const send = useSendWhatsappTemplate(contact.id);
   const form = useFormState();
   const [templateId, setTemplateId] = useState("");
-  const [dealId, setDealId] = useState("");
+  const [dealId, setDealId] = useState(initialDealId ?? "");
   const [typed, setTyped] = useState<Record<number, string>>({});
 
   const usable = (data ?? []).filter((t) => t.active && t.status === "APPROVED" && t.supported);
   const template = usable.find((t) => t.id === templateId);
+  const chosenDeal = deals.find((d) => d.id === dealId);
   const needsDeal = !!template?.slots.some((s) => DEAL_SOURCES.includes(s.source));
-  const preview = template ? renderBody(template.body, template.slots.map((s, i) => (s.source === "firstName" ? contact.firstName : typed[i]?.trim() || `[${s.label}]`))) : "";
+  // A tracking number saved on the chosen order fills itself in; only when there is none is it typed.
+  const fromOrder = (s: { source: string }) => s.source === "trackingNumber" && !!chosenDeal?.trackingNumber;
+  const showDealPicker = needsDeal || !!template?.slots.some((s) => s.source === "trackingNumber");
+  const preview = template
+    ? renderBody(template.body, template.slots.map((s, i) => (s.source === "firstName" ? contact.firstName : fromOrder(s) ? chosenDeal!.trackingNumber! : typed[i]?.trim() || `[${s.label}]`)))
+    : "";
 
   return (
     <FormShell
@@ -70,7 +76,7 @@ function Template({ contact, deals, mode, onMode, onClose }: { contact: Contact;
       onSubmit={async () => {
         if (!template) return;
         const values = template.slots.map((_, i) => typed[i] ?? "");
-        if (await form.run(() => send.mutateAsync({ templateId: template.id, dealId: needsDeal ? dealId || undefined : undefined, values }))) {
+        if (await form.run(() => send.mutateAsync({ templateId: template.id, dealId: showDealPicker ? dealId || undefined : undefined, values }))) {
           toast.success("WhatsApp template sent");
           onClose();
         }
@@ -95,8 +101,8 @@ function Template({ contact, deals, mode, onMode, onClose }: { contact: Contact;
           </Select>
         </FormField>
       )}
-      {template && needsDeal && (
-        <FormField label="Which order is it about?" error={form.err("dealId")}>
+      {template && showDealPicker && (
+        <FormField label={needsDeal ? "Which order is it about?" : "Which order? (fills in the tracking number)"} error={form.err("dealId")}>
           <Select value={dealId} onValueChange={setDealId}>
             <SelectTrigger>
               <SelectValue placeholder={deals.length ? "Choose an order" : "This contact has no orders"} />
@@ -112,7 +118,7 @@ function Template({ contact, deals, mode, onMode, onClose }: { contact: Contact;
         </FormField>
       )}
       {template?.slots.map((s, i) =>
-        s.source === "manual" || s.source === "trackingNumber" ? (
+        s.source === "manual" || (s.source === "trackingNumber" && !fromOrder(s)) ? (
           <FormField key={i} label={s.label} error={form.err(`values.${i}`)}>
             <Input value={typed[i] ?? ""} maxLength={200} onChange={(e) => setTyped((all) => ({ ...all, [i]: e.target.value }))} />
           </FormField>
@@ -130,8 +136,8 @@ type Switcher = (current: Mode) => React.ReactNode;
  * Sends a WhatsApp message to the contact from inside the CRM; it is logged on their timeline. A free-text reply is
  * possible for 24 hours after they last wrote; an approved template is possible any time (if they agreed to WhatsApp).
  */
-export function WhatsappReplyDialog({ contact, deals, canText, canTemplate, onClose }: { contact: Contact; deals: Deal[]; canText: boolean; canTemplate: boolean; onClose: () => void }) {
-  const [mode, setMode] = useState<Mode>(canText ? "text" : "template");
+export function WhatsappReplyDialog({ contact, deals, canText, canTemplate, initialDealId, startWithTemplate, onClose }: { contact: Contact; deals: Deal[]; canText: boolean; canTemplate: boolean; initialDealId?: string; startWithTemplate?: boolean; onClose: () => void }) {
+  const [mode, setMode] = useState<Mode>(canText && !(startWithTemplate && canTemplate) ? "text" : "template");
   const tabs: Switcher = (current) =>
     canText && canTemplate ? (
       <div className="flex gap-2">
@@ -146,7 +152,7 @@ export function WhatsappReplyDialog({ contact, deals, canText, canTemplate, onCl
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        {mode === "text" ? <FreeText contact={contact} mode={mode} onMode={tabs} onClose={onClose} /> : <Template contact={contact} deals={deals} mode={mode} onMode={tabs} onClose={onClose} />}
+        {mode === "text" ? <FreeText contact={contact} mode={mode} onMode={tabs} onClose={onClose} /> : <Template contact={contact} deals={deals} initialDealId={initialDealId} mode={mode} onMode={tabs} onClose={onClose} />}
       </DialogContent>
     </Dialog>
   );

@@ -23,12 +23,14 @@ export async function resolveSlotValues(
   slots: Slot[],
   input: { dealId?: string; typed?: string[] },
 ): Promise<string[]> {
-  let deal: { id: string; title: string; amount: unknown; currency: string } | null = null;
-  if (slots.some((s) => DEAL_SOURCES.has(s.source))) {
+  let deal: { id: string; title: string; amount: unknown; currency: string; trackingNumber: string | null } | null = null;
+  // A tracking number comes from the order when one is chosen and has it; the order is not required for it (it can be typed).
+  const wantsDeal = slots.some((s) => DEAL_SOURCES.has(s.source)) || (!!input.dealId && slots.some((s) => s.source === "trackingNumber"));
+  if (wantsDeal) {
     if (!input.dealId) throw invalid("dealId", "Choose the order this message is about.");
     deal = await db.deal.findFirst({
       where: { id: input.dealId, contactId: contact.id, deletedAt: null, ...ownerScope(user) },
-      select: { id: true, title: true, amount: true, currency: true },
+      select: { id: true, title: true, amount: true, currency: true, trackingNumber: true },
     });
     if (!deal) throw new ApiError(404, "Order not found", "NOT_FOUND");
   }
@@ -62,6 +64,11 @@ export async function resolveSlotValues(
         const next = view!.summary.nextDue;
         if (!next) throw invalid("dealId", "This order has no unpaid instalment with a due date.");
         return next.dueDate.toISOString().slice(0, 10);
+      }
+      case "trackingNumber": {
+        const value = deal?.trackingNumber ?? typed;
+        if (!value) throw invalid(`values.${i}`, `Fill in “${slot.label}”, or save the tracking number on the order first.`);
+        return value;
       }
       default:
         if (TYPED_SOURCES.has(slot.source) && !typed) throw invalid(`values.${i}`, `Fill in “${slot.label}”.`);

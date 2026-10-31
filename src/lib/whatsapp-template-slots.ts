@@ -8,7 +8,7 @@ export const SLOT_SOURCES = {
   amountDue: "Amount due on the order",
   dueDate: "Next due date",
   orderLink: "Customer order page link (made if needed)",
-  trackingNumber: "Tracking number (typed when sending)",
+  trackingNumber: "Tracking number (from the order, or typed when sending)",
   manual: "Typed when sending",
 } as const;
 export type SlotSource = keyof typeof SLOT_SOURCES;
