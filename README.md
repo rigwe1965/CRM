@@ -84,6 +84,7 @@ All mail goes through `src/lib/mail.ts`, which picks a provider from the environ
 | Deal stage change | A deal moves stage (drag, menu, `PATCH` or `POST …/stage`) | The deal owner, plus all active admins when it is closed won or lost. The person who made the change is never emailed. |
 | Task reminders | Daily cron, `GET /api/cron/task-reminders` | Each assignee gets one digest of open tasks that are overdue or due within 24 hours. Each task is reminded once; changing its due date or assignee re-arms it. |
 | Payment reminder on WhatsApp | Daily cron (when switched on in Settings → Automations), or **Send on WhatsApp** on a deal | Customers who agreed to WhatsApp messages get the same three notices as an approved Meta template, on the same days as the emails. |
+| WhatsApp template message | **Send template** on a contact (staff action, not automatic) | Sends one of the business's Meta-approved templates, at any time, to a customer who agreed to WhatsApp messages. Templates are copied from Meta in Settings → Templates. Delivered/read/failed shows on the contact's timeline. |
 | Low-stock alert | Daily cron (when switched on in Settings → Automations) | All active admins get one email listing the stock items that have dropped to or below their alert level. Each item is mentioned once per dip; it is re-armed when it is restocked above its level. |
 | Email a contact | **Send email** on a contact page, or `POST /api/contacts/:id/email` | The contact. `Reply-To` is you, and the email is logged as an EMAIL activity. |
 
