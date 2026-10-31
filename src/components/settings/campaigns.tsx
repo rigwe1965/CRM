@@ -16,7 +16,7 @@ import { ConfirmDialog, EmptyState, ErrorState, FormField, useDebounced } from "
 import { FormShell, useFormState } from "@/components/forms/form-kit";
 import { CONTACT_TYPES, LEAD_STATUSES } from "@/lib/client/constants";
 import { dateOnly } from "@/lib/client/format";
-import { errorMessage, stepCampaign, useAudiencePreview, useCampaigns, useDeleteCampaign, useResumeCampaign, useSaveCampaign, useStartCampaign, useStopCampaign, useTags, useTestCampaign, useWhatsappTemplates } from "@/lib/client/hooks";
+import { errorMessage, stepCampaign, useAudiencePreview, useCampaignReport, useCampaigns, useDeleteCampaign, useResumeCampaign, useSaveCampaign, useStartCampaign, useStopCampaign, useTags, useTestCampaign, useWhatsappTemplates } from "@/lib/client/hooks";
 import type { Campaign, CampaignAudience, CampaignStatus, ContactType, LeadStatus } from "@/lib/client/types";
 import { renderBody } from "@/lib/whatsapp-template-slots";
 import { cn } from "@/lib/utils";
@@ -335,12 +335,51 @@ function SendDialog({ campaign, onClose }: { campaign: Campaign; onClose: () => 
   );
 }
 
+/** The numbers behind a campaign: delivery, reads, replies and why some did not go. */
+function ReportPanel({ id }: { id: string }) {
+  const { data: r, isLoading, error } = useCampaignReport(id, true);
+  if (isLoading) return <Skeleton className="h-16" />;
+  if (error || !r) return <p className="text-xs text-destructive">Could not load the report.</p>;
+  const stat = (label: string, value: number, hint?: string) => (
+    <div className="rounded-md border p-2 text-center" title={hint}>
+      <p className="text-base font-semibold tabular-nums">{value}</p>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+    </div>
+  );
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+        {stat("On the list", r.total)}
+        {stat("Sent", r.sent, "Handed to Meta")}
+        {stat("Delivered", r.delivered, "Reached the phone (includes read)")}
+        {stat("Read", r.read)}
+        {stat("Replied", r.replies, "Wrote back within 48 hours")}
+        {stat("Failed", r.failed + r.deliveryFailed, "Refused when sending, or not delivered")}
+        {stat("Skipped", r.skipped)}
+        {stat("Opted out", r.optedOut, "Replied STOP")}
+      </div>
+      {r.waiting > 0 && <p className="text-xs text-muted-foreground">{r.waiting} still waiting to be sent.</p>}
+      {r.reasons.length > 0 && (
+        <ul className="space-y-0.5 text-xs text-muted-foreground">
+          {r.reasons.map((x, i) => (
+            <li key={i}>
+              <span className="font-medium tabular-nums">{x.count}</span> {x.kind}: {x.reason}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-[11px] text-muted-foreground">Delivered and read fill in over the minutes after sending, as Meta reports them.</p>
+    </div>
+  );
+}
+
 /** Progress and the Stop / Resume buttons of a running, paused or finished campaign. */
 function RunningControls({ c }: { c: Campaign }) {
   useCampaignDriver(c);
   const stop = useStopCampaign(c.id);
   const resume = useResumeCampaign(c.id);
   const [confirmStop, setConfirmStop] = useState(false);
+  const [showReport, setShowReport] = useState(c.status === "COMPLETED" || c.status === "STOPPED");
   const n = (k: string) => c.counts?.[k] ?? 0;
   const total = c.audienceSize ?? Object.values(c.counts ?? {}).reduce((s, x) => s + x, 0);
   const done = n("SENT") + n("DELIVERED") + n("READ") + n("FAILED") + n("SKIPPED");
@@ -360,6 +399,12 @@ function RunningControls({ c }: { c: Campaign }) {
       )}
       {c.status === "SENDING" && <p className="text-xs text-muted-foreground">Sending while this page is open. If you close it, the daily job carries on.</p>}
       {c.status === "PAUSED" && c.pausedReason && <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">{PAUSE_TEXT[c.pausedReason]}</p>}
+      <div>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setShowReport((v) => !v)}>
+          {showReport ? "Hide report" : "Show report"}
+        </Button>
+      </div>
+      {showReport && <ReportPanel id={c.id} />}
       {live && (
         <div className="flex gap-2">
           {c.status === "PAUSED" && (

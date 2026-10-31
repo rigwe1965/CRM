@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { getIntegration } from "@/lib/integrations";
 import { audit } from "@/lib/audit";
+import { isAutoOptOutWord, optOutByReply } from "@/lib/whatsapp-optout";
 import { trySendMail, appUrl } from "@/lib/mail";
 import { resolveLeadOwner } from "@/lib/web-lead";
 
@@ -119,7 +120,7 @@ export async function recordDeliveryStatus(tenantId: string, u: StatusUpdate): P
 export async function recordInbound(tenantId: string, msg: InboundMessage): Promise<"recorded" | "duplicate"> {
   if (await db.activity.findFirst({ where: { tenantId, externalId: msg.id }, select: { id: true } })) return "duplicate";
 
-  let contact = await db.contact.findFirst({ where: { tenantId, phoneE164: msg.from, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, ownerId: true, firstName: true, lastName: true } });
+  let contact = await db.contact.findFirst({ where: { tenantId, phoneE164: msg.from, deletedAt: null }, orderBy: { createdAt: "asc" }, select: { id: true, ownerId: true, firstName: true, lastName: true, whatsappOptIn: true } });
   const fallbackOwner = contact?.ownerId ? null : await resolveLeadOwner(tenantId);
   const ownerId = contact?.ownerId ?? fallbackOwner?.id;
   if (!ownerId) throw new Error("No active user to receive WhatsApp messages");
@@ -129,7 +130,7 @@ export async function recordInbound(tenantId: string, msg: InboundMessage): Prom
     const [firstName, ...rest] = (msg.name?.replace(/\s+/g, " ").trim() || msg.from).split(" ");
     contact = await db.contact.create({
       data: { tenantId, firstName, lastName: rest.join(" ") || "-", phone: msg.from, phoneE164: msg.from, type: "LEAD", leadStatus: "NEW", source: "WhatsApp", ownerId },
-      select: { id: true, ownerId: true, firstName: true, lastName: true },
+      select: { id: true, ownerId: true, firstName: true, lastName: true, whatsappOptIn: true },
     });
     created = true;
   }
@@ -145,6 +146,11 @@ export async function recordInbound(tenantId: string, msg: InboundMessage): Prom
   }
 
   const label = `${contact.firstName} ${contact.lastName === "-" ? "" : contact.lastName}`.trim();
+  // A bare "STOP" opts the customer out at once and needs no reply task. A failure here must not lose the message itself.
+  if (isAutoOptOutWord(msg.text)) {
+    const optedOut = await optOutByReply(tenantId, contact, ownerId, msg.text).catch((e) => (console.error("[whatsapp] opt-out failed", e instanceof Error ? e.message : e), false));
+    if (optedOut) return "recorded";
+  }
   const key = `wa-reply:${contact.id}`;
   const open = await db.task.findFirst({ where: { tenantId, automationKey: key, status: { in: ["TODO", "IN_PROGRESS"] } }, select: { id: true } });
   if (!open) {

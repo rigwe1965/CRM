@@ -498,3 +498,17 @@ export type CampaignBatch = {
   status: CampaignStatus;
   pausedReason: Campaign["pausedReason"];
 };
+
+export type CampaignReport = {
+  total: number;
+  sent: number;
+  delivered: number;
+  read: number;
+  failed: number;
+  deliveryFailed: number;
+  skipped: number;
+  waiting: number;
+  replies: number;
+  optedOut: number;
+  reasons: { kind: "failed" | "skipped" | "not delivered"; reason: string; count: number }[];
+};

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
 import type { FulfilmentStatus } from "@/lib/fulfilment";
-import type { AutomationsView, AudiencePreview, Campaign, CampaignAudience, CampaignBatch, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
+import type { AutomationsView, AudiencePreview, Campaign, CampaignAudience, CampaignBatch, CampaignReport, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -510,4 +510,14 @@ export const useResumeCampaign = (id: string) => useCampaignAction(id, async () 
 /** Sends the next batch of a running campaign. The page calls it again and again while the campaign runs. */
 export async function stepCampaign(id: string) {
   return (await request<{ data: CampaignBatch }>("POST", `/api/admin/campaigns/${id}/step`)).data;
+}
+
+/** How a campaign went. Refreshed every 30 seconds while shown, since Meta's delivery updates arrive over minutes. */
+export function useCampaignReport(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["campaigns", "report", id],
+    queryFn: async () => (await request<{ data: CampaignReport }>("GET", `/api/admin/campaigns/${id}/report`)).data,
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  });
 }
