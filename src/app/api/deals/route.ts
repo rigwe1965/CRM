@@ -6,6 +6,7 @@ import { dealInclude } from "@/lib/includes";
 import { liveFilter, ownerScope } from "@/lib/access";
 import { createDeal } from "@/lib/crm-actions";
 import { dealDto } from "@/lib/deals";
+import { TO_SHIP_STATUSES } from "@/lib/fulfilment";
 import { paymentSummaries } from "@/lib/payments";
 import { createDealSchema, dealListQuery } from "@/lib/validations/crm";
 
@@ -25,6 +26,8 @@ export const GET = authed(async ({ req, user }) => {
       ownerScope(user),
       {
         ...(q.stage && { stage: { in: q.stage } }),
+        ...(q.fulfilment && { fulfilmentStatus: { in: q.fulfilment } }),
+        ...(q.toShip && { stage: "CLOSED_WON" as const, fulfilmentStatus: { in: [...TO_SHIP_STATUSES] } }),
         ...(q.organizationId && { organizationId: q.organizationId }),
         ...(q.contactId && { contactId: q.contactId }),
         ...(q.ownerId && { ownerId: q.ownerId }),

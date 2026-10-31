@@ -12,6 +12,7 @@ import {
   createPaymentSchema,
   createStockAdjustmentSchema,
   createTaskSchema,
+  dealFulfilmentSchema,
   dealListQuery,
   dealStageSchema,
   exportDocumentQuery,
@@ -78,6 +79,7 @@ const OPERATIONS: Op[] = [
   { method: "get", path: "/deals/{id}", tag: "Deals", summary: "Get a deal" },
   { method: "patch", path: "/deals/{id}", tag: "Deals", summary: "Update a deal", description: "Changing `stage` also resets probability, closedAt and lostReason.", body: updateDealSchema },
   { method: "delete", path: "/deals/{id}", tag: "Deals", summary: "Soft-delete a deal", success: 204 },
+  { method: "post", path: "/deals/{id}/fulfilment", tag: "Deals", summary: "Move a won order along its shipping steps", description: "`status` is NOT_STARTED, PACKED, SHIPPED, DELIVERED or RETURNED; moving to SHIPPED or DELIVERED stamps `shippedAt` / `deliveredAt` once, and moving back clears the dates that no longer apply. `carrier` and `trackingNumber` can be sent with it or alone. 422 unless the deal is CLOSED_WON. Each change is noted on the timeline. Returns the deal. List filters: `toShip=true` (won, not started or packed) and `fulfilment=PACKED,SHIPPED`.", body: dealFulfilmentSchema },
   { method: "post", path: "/deals/{id}/stage", tag: "Deals", summary: "Move a deal to another pipeline stage", body: dealStageSchema },
   { method: "post", path: "/deals/{id}/restore", tag: "Deals", summary: "Restore a soft-deleted deal", admin: true },
   // Activities

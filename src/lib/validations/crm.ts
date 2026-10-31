@@ -11,6 +11,7 @@ import {
   TaskStatus,
 } from "@prisma/client";
 import { SLOT_SOURCE_KEYS } from "@/lib/whatsapp-template-slots";
+import { FULFILMENT_STATUSES } from "@/lib/fulfilment";
 
 // ─── Field helpers ──────────────────────────────────────
 
@@ -221,12 +222,22 @@ export const dealStageSchema = z.object({
   probability: z.number().int().min(0).max(100).optional(),
   lostReason: text(500),
 });
+export const dealFulfilmentSchema = z
+  .object({
+    status: z.enum(FULFILMENT_STATUSES).optional(),
+    carrier: text(60),
+    trackingNumber: text(100).refine((v) => !v || !/\s/.test(v), "A tracking number has no spaces"),
+  })
+  .refine(nonEmpty, atLeastOne);
 export const dealListQuery = z.object({
   ...pagination,
   sort: z
     .enum(["title", "amount", "stage", "probability", "expectedCloseDate", "createdAt", "updatedAt"])
     .default("createdAt"),
   stage: csv(z.enum(DealStage)).optional(),
+  fulfilment: csv(z.enum(FULFILMENT_STATUSES)).optional(),
+  /** Won orders that are not on their way yet (not started or packed). */
+  toShip: bool.optional(),
   organizationId: id.optional(),
   contactId: id.optional(),
   ownerId: id.optional(),

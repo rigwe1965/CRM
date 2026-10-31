@@ -75,6 +75,15 @@ enum ActivityType {
   WHATSAPP
 }
 
+// Where a sold order is on its way to the customer. Separate from the sales stage (DealStage).
+enum FulfilmentStatus {
+  NOT_STARTED
+  PACKED
+  SHIPPED
+  DELIVERED
+  RETURNED
+}
+
 // Which way a message went. Only set on WhatsApp activities.
 enum ActivityDirection {
   IN
@@ -357,6 +366,12 @@ model Deal {
   expectedCloseDate DateTime?
   closedAt          DateTime?
   lostReason        String?
+  // Shipping: only used once the deal is won. Moving the status sets shippedAt / deliveredAt.
+  fulfilmentStatus  FulfilmentStatus @default(NOT_STARTED)
+  carrier           String?
+  trackingNumber    String?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
   // Hair order details (all optional)
   productType       String?
   texture           String?
@@ -392,6 +407,7 @@ model Deal {
   @@index([deletedAt])
   @@index([tenantId])
   @@index([tenantId, stage, closedAt])
+  @@index([tenantId, fulfilmentStatus])
 }
 
 model Activity {

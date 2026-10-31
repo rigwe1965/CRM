@@ -14,7 +14,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { CalendarClock, CircleDollarSign, MoveRight, Pencil, Plus, Trash2, Wallet } from "lucide-react";
+import { CalendarClock, CircleDollarSign, MoveRight, Pencil, Plus, Trash2, Truck, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,10 @@ import { ConfirmDialog, EmptyState, ErrorState, FormField, PageHeader, SearchInp
 import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { FormShell } from "@/components/forms/form-kit";
 import { DealDialog } from "@/components/forms/deal-task-activity-dialogs";
+import { FulfilmentDialog, FULFILMENT_TONE } from "@/components/forms/fulfilment-dialog";
 import { PaymentsDialog } from "@/components/forms/payments-dialog";
+import { Badge } from "@/components/ui/badge";
+import { FULFILMENT_LABEL } from "@/lib/fulfilment";
 import { MoreHorizontal } from "lucide-react";
 import { DEAL_STAGES } from "@/lib/client/constants";
 import { dateOnly, dealsMoney, initials, isOverdue, money, moneyMap } from "@/lib/client/format";
@@ -68,6 +71,13 @@ function DealCardBody({ deal, menu }: { deal: Deal; menu?: React.ReactNode }) {
             : `${money(deal.payments.paid, deal.currency)} paid · ${money(deal.payments.balance, deal.currency)} left${deal.payments.overdue ? " · overdue" : ""}`}
         </p>
       )}
+      {deal.stage === "CLOSED_WON" && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Truck className="h-3 w-3" aria-hidden />
+          <Badge variant={FULFILMENT_TONE[deal.fulfilmentStatus]}>{FULFILMENT_LABEL[deal.fulfilmentStatus]}</Badge>
+          {deal.trackingNumber && <span className="truncate">{deal.carrier ? `${deal.carrier} ` : ""}{deal.trackingNumber}</span>}
+        </p>
+      )}
       <div className="mt-2 flex items-center justify-between">
         <span className={cn("inline-flex items-center gap-1 text-xs text-muted-foreground", overdue && "font-medium text-destructive")}>
           <CalendarClock className="h-3 w-3" />
@@ -85,12 +95,14 @@ function DealCard({
   deal,
   onEdit,
   onPayments,
+  onShipping,
   onDelete,
   onMove,
 }: {
   deal: Deal;
   onEdit: () => void;
   onPayments: () => void;
+  onShipping: () => void;
   onDelete: () => void;
   onMove: (stage: DealStage) => void;
 }) {
@@ -122,6 +134,11 @@ function DealCard({
               <DropdownMenuItem onSelect={onPayments}>
                 <Wallet /> Payments
               </DropdownMenuItem>
+              {deal.stage === "CLOSED_WON" && (
+                <DropdownMenuItem onSelect={onShipping}>
+                  <Truck /> Shipping
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Move to</DropdownMenuLabel>
               {DEAL_STAGES.filter((s) => s.value !== deal.stage).map((s) => (
@@ -211,7 +228,8 @@ function LostReasonForm({ deal, onClose, onConfirm }: { deal: Deal; onClose: () 
 export default function DealsPage() {
   const [search, setSearch] = useState("");
   const q = useDebounced(search);
-  const { data, isLoading, error, refetch } = useList<Deal>("deals", { pageSize: BOARD_LIMIT, q, sort: "updatedAt", order: "desc" });
+  const [toShip, setToShip] = useState(false);
+  const { data, isLoading, error, refetch } = useList<Deal>("deals", { pageSize: BOARD_LIMIT, q, sort: "updatedAt", order: "desc", ...(toShip && { toShip: "true" }) });
   const dealsChoice = (hint: string) =>
     chooseRows<Deal>(
       "deals",
@@ -224,6 +242,7 @@ export default function DealsPage() {
   const [creating, setCreating] = useState<{ stage?: DealStage } | null>(null);
   const [editing, setEditing] = useState<Deal | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [shippingId, setShippingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<Deal | null>(null);
   const [losing, setLosing] = useState<Deal | null>(null);
   const [dragging, setDragging] = useState<Deal | null>(null);
@@ -266,6 +285,9 @@ export default function DealsPage() {
         actions={
           <>
             <SearchInput value={search} onChange={setSearch} placeholder="Search deals…" className="w-full sm:w-56" />
+            <Button variant={toShip ? "default" : "outline"} aria-pressed={toShip} onClick={() => setToShip((v) => !v)}>
+              <Truck /> To ship
+            </Button>
             {/* Items, payments and instalments are picked by deal: tick deals, get those deals' rows. */}
             <ExportMenu
               items={[
@@ -312,7 +334,7 @@ export default function DealsPage() {
               {DEAL_STAGES.map((stage) => (
                 <Column key={stage.value} stage={stage} deals={byStage.get(stage.value) ?? []} onAdd={() => setCreating({ stage: stage.value })}>
                   {(byStage.get(stage.value) ?? []).map((deal) => (
-                    <DealCard key={deal.id} deal={deal} onEdit={() => setEditing(deal)} onPayments={() => setPayingId(deal.id)} onDelete={() => setDeleting(deal)} onMove={(s) => requestMove(deal, s)} />
+                    <DealCard key={deal.id} deal={deal} onEdit={() => setEditing(deal)} onPayments={() => setPayingId(deal.id)} onShipping={() => setShippingId(deal.id)} onDelete={() => setDeleting(deal)} onMove={(s) => requestMove(deal, s)} />
                   ))}
                 </Column>
               ))}
@@ -330,6 +352,7 @@ export default function DealsPage() {
 
       {creating && <DealDialog open onOpenChange={(o) => !o && setCreating(null)} defaults={{ stage: creating.stage }} />}
       {editing && <DealDialog open onOpenChange={(o) => !o && setEditing(null)} deal={editing} />}
+      <FulfilmentDialog deal={data?.data.find((d) => d.id === shippingId) ?? null} onClose={() => setShippingId(null)} />
       <PaymentsDialog deal={data?.data.find((d) => d.id === payingId) ?? null} onClose={() => setPayingId(null)} />
       <LostReasonDialog
         deal={losing}

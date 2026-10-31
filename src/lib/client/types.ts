@@ -1,6 +1,8 @@
 // Shapes returned by the REST API (dates arrive as ISO strings). Kept free of @prisma/client
 // so client bundles never import the Prisma package.
 
+import type { FulfilmentStatus } from "@/lib/fulfilment";
+
 export type Role = "ADMIN" | "SALES" | "SUPPORT";
 export type ContactType = "LEAD" | "PROSPECT" | "CUSTOMER" | "PARTNER" | "OTHER";
 export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "UNQUALIFIED";
@@ -76,6 +78,11 @@ export type Deal = {
   expectedCloseDate: string | null;
   closedAt: string | null;
   lostReason: string | null;
+  fulfilmentStatus: FulfilmentStatus;
+  carrier: string | null;
+  trackingNumber: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
   productType: string | null;
   texture: string | null;
   lengthInches: string | null;

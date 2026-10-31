@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
+import type { FulfilmentStatus } from "@/lib/fulfilment";
 import type { AutomationsView, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
@@ -212,6 +213,9 @@ function usePaymentMutation<V>(fn: (v: V) => Promise<unknown>) {
 
 export const useAddPayment = (dealId: string) =>
   usePaymentMutation((body: Record<string, unknown>) => request("POST", `/api/deals/${dealId}/payments`, body));
+
+export const useSetFulfilment = (dealId: string) =>
+  usePaymentMutation((body: { status?: FulfilmentStatus; carrier?: string | null; trackingNumber?: string | null }) => request("POST", `/api/deals/${dealId}/fulfilment`, body));
 
 export const useDeletePayment = (dealId: string) =>
   usePaymentMutation((paymentId: string) => request("DELETE", `/api/deals/${dealId}/payments/${paymentId}`));
