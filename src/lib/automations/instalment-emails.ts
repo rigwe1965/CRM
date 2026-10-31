@@ -7,6 +7,7 @@ import { loadInstalmentEmails } from "@/lib/automations/settings";
 import { customerInstalmentEmail, formatAmount } from "@/lib/email-templates";
 import { appUrl, trySendMail } from "@/lib/mail";
 import { reminderPayLink } from "@/lib/payment-links";
+import { reminderOrderLink } from "@/lib/order-links";
 import { senderFor } from "@/lib/sender";
 import { summarize } from "@/lib/payments";
 import { assertUnderDailyCap } from "@/lib/usage-limits";
@@ -180,6 +181,16 @@ async function planReminders(tenantId: string, config: InstalmentEmailsConfig, c
 }
 
 /**
+ * The link a live reminder carries: the customer's order page (it shows what is due and has a Pay now button), or,
+ * if that can't be made, the plain Stripe payment link, or nothing. Never throws.
+ */
+async function reminderLink(tenantId: string, by: { id: string; email: string }, p: PlannedEmail): Promise<string | undefined> {
+  const page = await reminderOrderLink({ id: by.id, tenantId }, p.dealId);
+  if (page) return page;
+  return (await reminderPayLink({ id: by.id, tenantId, email: by.email }, { id: p.dealId, title: p.dealTitle }, p.amountDue, p.currency, appUrl())) ?? undefined;
+}
+
+/**
  * Emails one planned reminder and records it. Test mode sends to the configured test address (marked [TEST],
  * with who would really have received it) and changes nothing else. Live mode emails the customer with
  * replies going to the deal owner, adds a secure pay link when online payment is set up, logs an Email
@@ -198,7 +209,7 @@ async function sendOne(
   const test = config.mode === "TEST";
   const payUrl = test
     ? PAY_LINK_PREVIEW
-    : ((await reminderPayLink({ id: by.id, tenantId, email: by.email }, { id: p.dealId, title: p.dealTitle }, p.amountDue, p.currency, appUrl())) ?? undefined);
+    : await reminderLink(tenantId, by, p);
   const mail = customerInstalmentEmail({
     brand: config.brandName,
     firstName: p.firstName,
@@ -275,7 +286,7 @@ async function sendOneWhatsapp(
   await assertUnderDailyCap(tenantId, "whatsapp");
   const payUrl = test
     ? PAY_LINK_PREVIEW
-    : ((await reminderPayLink({ id: by.id, tenantId, email: by.email }, { id: p.dealId, title: p.dealTitle }, p.amountDue, p.currency, appUrl())) ?? undefined);
+    : await reminderLink(tenantId, by, p);
   const params = whatsappParams(p, payUrl);
   let messageId: string;
   try {

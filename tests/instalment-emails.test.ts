@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, audit, send, payLink } = vi.hoisted(() => ({
+const { db, audit, send, payLink, orderLink } = vi.hoisted(() => ({
   db: {
     tenant: { findFirst: vi.fn(async () => ({ name: "Test Co", brandName: null })) },
     automationSetting: { findUnique: vi.fn() },
@@ -12,11 +12,13 @@ const { db, audit, send, payLink } = vi.hoisted(() => ({
   audit: vi.fn(),
   send: vi.fn(),
   payLink: vi.fn(),
+  orderLink: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/audit", () => ({ audit }));
 vi.mock("@/lib/mail", async (orig) => ({ ...(await orig<typeof import("@/lib/mail")>()), trySendMail: send, appUrl: () => "https://crm.test" }));
 vi.mock("@/lib/payment-links", () => ({ reminderPayLink: payLink }));
+vi.mock("@/lib/order-links", () => ({ reminderOrderLink: orderLink }));
 
 import { DEFAULT_INSTALMENT_EMAILS, instalmentEmailsSchema, resolveInstalmentEmails } from "@/lib/automations/config";
 import {
@@ -171,6 +173,7 @@ describe("running it", () => {
     db.instalment.findMany.mockResolvedValue([row()]);
     db.task.findFirst.mockResolvedValue(null);
     send.mockResolvedValue(true);
+    orderLink.mockResolvedValue(null);
     payLink.mockResolvedValue(null);
   });
 
@@ -205,6 +208,24 @@ describe("running it", () => {
       title: "Call Adaeze Okafor: payment is overdue", priority: "HIGH", assigneeId: "owner1", automationKey: "overdue-call:i1",
     });
     expect(audit).toHaveBeenCalledWith({ email: "automation", tenantId: "t1" }, expect.objectContaining({ action: "automation.instalment_emails" }));
+  });
+
+  it("live mode: puts the customer's order page in the email, and makes no Stripe link when it has one", async () => {
+    saved(live);
+    orderLink.mockResolvedValue("https://crm.test/my-order/abc");
+    await runInstalmentEmails("t1", NOW);
+    expect(orderLink).toHaveBeenCalledWith({ id: "owner1", tenantId: "t1" }, "d1");
+    expect(payLink).not.toHaveBeenCalled();
+    expect(send.mock.calls[0][0].text).toContain("https://crm.test/my-order/abc");
+    expect(send.mock.calls[0][0].html).toContain("Pay now");
+  });
+
+  it("live mode: falls back to the plain Stripe link when the order page can't be made", async () => {
+    saved(live);
+    orderLink.mockResolvedValue(null);
+    payLink.mockResolvedValue("https://buy.stripe.test/x");
+    await runInstalmentEmails("t1", NOW);
+    expect(send.mock.calls[0][0].text).toContain("https://buy.stripe.test/x");
   });
 
   it("live mode: puts a secure pay link for the amount due in the email, made as the deal owner", async () => {

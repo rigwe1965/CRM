@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, audit, payLink, sendTemplate, configured, cap, integration } = vi.hoisted(() => ({
+const { db, audit, payLink, orderLink, sendTemplate, configured, cap, integration } = vi.hoisted(() => ({
   db: {
     tenant: { findFirst: vi.fn(async () => ({ name: "Test Co", brandName: null })) },
     automationSetting: { findUnique: vi.fn() },
@@ -11,6 +11,7 @@ const { db, audit, payLink, sendTemplate, configured, cap, integration } = vi.ho
   },
   audit: vi.fn(),
   payLink: vi.fn(),
+  orderLink: vi.fn(),
   sendTemplate: vi.fn(),
   configured: vi.fn(),
   cap: vi.fn(),
@@ -19,6 +20,7 @@ const { db, audit, payLink, sendTemplate, configured, cap, integration } = vi.ho
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/audit", () => ({ audit }));
 vi.mock("@/lib/payment-links", () => ({ reminderPayLink: payLink }));
+vi.mock("@/lib/order-links", () => ({ reminderOrderLink: orderLink }));
 vi.mock("@/lib/usage-limits", () => ({ assertUnderDailyCap: cap }));
 vi.mock("@/lib/whatsapp", async (orig) => ({ ...(await orig<typeof import("@/lib/whatsapp")>()), sendWhatsAppTemplate: sendTemplate, whatsappConfigured: configured }));
 vi.mock("@/lib/integrations", () => ({ getIntegration: integration }));
@@ -63,6 +65,7 @@ beforeEach(() => {
   configured.mockResolvedValue(true);
   cap.mockResolvedValue(undefined);
   payLink.mockResolvedValue("https://pay.test/l/1");
+  orderLink.mockResolvedValue(null);
 });
 
 describe("WhatsApp reminder settings", () => {
@@ -122,6 +125,14 @@ describe("the daily WhatsApp run", () => {
     expect(db.activity.create.mock.calls[0][0].data).toMatchObject({ tenantId: "t1", type: "WHATSAPP", direction: "OUT", contactId: "c1", dealId: "d1", externalId: "wamid.1" });
     expect(db.task.create).toHaveBeenCalledTimes(1);
     expect(audit).toHaveBeenCalledWith({ email: "automation", tenantId: "t1" }, expect.objectContaining({ action: "automation.instalment_whatsapps" }));
+  });
+
+  it("live: sends the customer's order page as the link when there is one, instead of a Stripe link", async () => {
+    live();
+    orderLink.mockResolvedValue("https://crm.test/my-order/abc");
+    await runInstalmentWhatsapps("t1", NOW);
+    expect(sendTemplate).toHaveBeenCalledWith("t1", "+2348012345678", "t_o2", "en", ["Adaeze", "$100.00", "2026-11-03", "https://crm.test/my-order/abc"]);
+    expect(payLink).not.toHaveBeenCalled();
   });
 
   it("test mode: goes to the test number with a placeholder link and changes nothing about the customer", async () => {

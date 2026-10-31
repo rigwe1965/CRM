@@ -27,7 +27,7 @@ vi.mock("@/lib/route", () => ({
 }));
 
 import { DELETE, GET, POST } from "@/app/api/deals/[id]/customer-link/route";
-import { createOrderLink, currentOrderLink, DEFAULT_LINK_DAYS, recordOrderLinkView, resolveOrderLink, revokeOrderLink } from "@/lib/order-links";
+import { createOrderLink, currentOrderLink, DEFAULT_LINK_DAYS, recordOrderLinkView, reminderOrderLink, resolveOrderLink, revokeOrderLink } from "@/lib/order-links";
 
 const NOW = new Date("2026-11-01T10:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
@@ -238,5 +238,30 @@ describe("routes", () => {
     const res = await DELETE(new Request("http://x.test", { method: "DELETE" }), ctx);
     expect(res.status).toBe(200);
     expect((await json(res)).data?.link).toMatchObject({ status: "REVOKED", url: null });
+  });
+});
+
+describe("the link a reminder carries", () => {
+  it("reuses the live link, so a reminder never kills the one the customer already has", async () => {
+    const { dto } = await made();
+    db.customerOrderLink.findFirst.mockResolvedValue(row());
+    db.customerOrderLink.create.mockClear();
+    expect(await reminderOrderLink(user, "d1", NOW)).toBe(dto.url);
+    expect(db.customerOrderLink.create).not.toHaveBeenCalled();
+  });
+
+  it("makes a link when the order has none, or only a closed one", async () => {
+    db.customerOrderLink.findFirst.mockResolvedValue(null);
+    expect(await reminderOrderLink(user, "d1", NOW)).toMatch(/^https:\/\/crm\.test\/my-order\/[A-Za-z0-9_-]{43}$/);
+    await made();
+    db.customerOrderLink.findFirst.mockResolvedValue(row({ revokedAt: NOW }));
+    db.customerOrderLink.create.mockClear();
+    expect(await reminderOrderLink(user, "d1", NOW)).toMatch(/\/my-order\//);
+    expect(db.customerOrderLink.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns null instead of throwing when the database fails", async () => {
+    db.customerOrderLink.findFirst.mockRejectedValue(new Error("db down"));
+    expect(await reminderOrderLink(user, "d1", NOW)).toBeNull();
   });
 });

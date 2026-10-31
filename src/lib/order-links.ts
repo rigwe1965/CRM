@@ -80,6 +80,22 @@ export async function createOrderLink(user: { id: string; tenantId: string }, de
   return toDto(row, now);
 }
 
+/**
+ * The address a reminder carries: the order's live link, or a new one when it has none (so a reminder never replaces
+ * a link the customer already holds). Never throws: on any failure it returns null and the reminder falls back to
+ * the plain payment link. Caller runs as the business.
+ */
+export async function reminderOrderLink(user: { id: string; tenantId: string }, dealId: string, now = new Date()): Promise<string | null> {
+  try {
+    const current = await currentOrderLink(user.tenantId, dealId, now);
+    if (current?.status === "ACTIVE" && current.url) return current.url;
+    return (await createOrderLink(user, dealId, DEFAULT_LINK_DAYS, now)).url;
+  } catch (e) {
+    console.error("[order-link] reminder link skipped", dealId, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Switches the order's link off at once. Returns whether there was a live link to revoke. */
 export async function revokeOrderLink(tenantId: string, dealId: string, now = new Date()): Promise<boolean> {
   const { count } = await db.customerOrderLink.updateMany({ where: { tenantId, dealId, revokedAt: null }, data: { revokedAt: now } });
