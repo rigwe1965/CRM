@@ -49,6 +49,8 @@ export type Contact = {
   phoneE164: string | null;
   emailOptOut: boolean;
   whatsappOptIn: boolean;
+  whatsappOptInAt?: string | null;
+  whatsappOptInSource?: string | null;
   title: string | null;
   type: ContactType;
   leadStatus: LeadStatus | null;
@@ -455,3 +457,31 @@ export type UnmatchedSale = { dealId: string; dealTitle: string; product: string
 export type Stock = { rows: StockRow[]; unmatched: UnmatchedSale[]; defaultThreshold: number; alertsOn: boolean };
 
 export type SessionUser = { id: string; tenantId: string; name: string; email: string; role: Role; mfaPending?: boolean; tenantWritable?: boolean };
+
+export type CampaignAudience = {
+  tagIds: string[];
+  types: ContactType[];
+  leadStatuses: LeadStatus[];
+  sources: string[];
+  noOrderDays?: number | null;
+  paidInFull: boolean;
+};
+export type AudiencePreview = { total: number; notReachable: number; tooLarge: boolean; max: number; sample: { id: string; name: string }[] };
+export type CampaignStatus = "DRAFT" | "QUEUED" | "SENDING" | "PAUSED" | "COMPLETED" | "STOPPED";
+export type Campaign = {
+  id: string;
+  name: string;
+  status: CampaignStatus;
+  templateId: string;
+  templateName: string;
+  templateLanguage: string;
+  audience: CampaignAudience;
+  values: string[];
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: Person;
+  /** Customers per outcome (PENDING, SENT, DELIVERED, READ, FAILED, SKIPPED); empty for a draft. */
+  counts?: Record<string, number>;
+};

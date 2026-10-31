@@ -8,6 +8,7 @@ import { assertWithinPlan } from "@/lib/plan-limits";
 import { normalizePhone } from "@/lib/phone";
 import { notifyDealStageChange } from "@/lib/notifications";
 import { runStageAutomations } from "@/lib/automations";
+import { optInColumns } from "@/lib/whatsapp-optin";
 import type { createActivitySchema, createContactSchema, createDealSchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
 
 /**
@@ -98,6 +99,7 @@ export async function createContact(user: SessionUser, input: z.infer<typeof cre
       ...tenantScope(user),
       ownerId,
       phoneE164: normalizePhone(body.phone),
+      ...optInColumns(body.whatsappOptIn, false),
       ...(tagIds?.length ? { tags: { create: [...new Set(tagIds)].map((tagId) => ({ tenantId: user.tenantId, tagId })) } } : {}),
     },
     include: contactInclude,

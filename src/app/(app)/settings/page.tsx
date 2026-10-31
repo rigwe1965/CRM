@@ -32,6 +32,7 @@ import { IntegrationsCard } from "@/components/settings/integrations";
 import { DataExportCard } from "@/components/settings/data-export";
 import { EmailTemplatesCard } from "@/components/settings/email-templates";
 import { WhatsappTemplatesCard } from "@/components/settings/whatsapp-templates";
+import { CampaignsCard } from "@/components/settings/campaigns";
 import { LeadFormCard } from "@/components/settings/lead-form";
 import { TagsCard } from "@/components/settings/tags";
 import { MfaCard, SessionsCard } from "@/components/settings/security";
@@ -391,6 +392,7 @@ export default function SettingsPage() {
           {user.role === "ADMIN" && <TabsTrigger value="team">Team</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="tags">Tags</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="templates">Templates</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="campaigns">Campaigns</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="automations">Automations</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="ivy">Ivy</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="leadform">Lead form</TabsTrigger>}
@@ -438,6 +440,11 @@ export default function SettingsPage() {
               <EmailTemplatesCard />
               <WhatsappTemplatesCard />
             </div>
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && (
+          <TabsContent value="campaigns">
+            <CampaignsCard />
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

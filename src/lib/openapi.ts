@@ -3,6 +3,7 @@ import {
   activityListQuery,
   contactListQuery,
   createActivitySchema,
+  createCampaignSchema,
   createContactSchema,
   createDealSchema,
   createInvoiceSchema,
@@ -25,6 +26,7 @@ import {
   setStockLevelSchema,
   taskListQuery,
   updateActivitySchema,
+  updateCampaignSchema,
   sendContactEmailSchema,
   updateContactSchema,
   updateDealSchema,
@@ -119,6 +121,13 @@ const OPERATIONS: Op[] = [
   { method: "post", path: "/stock/adjustments", tag: "Stock", summary: "Record a manual stock adjustment", description: "`quantity` is signed and non-zero: positive adds pieces (found stock, opening stock), negative removes them (damaged, lost). Matched to a stock row on product, colour and length; if no invoice line matches, it creates its own row.", body: createStockAdjustmentSchema, success: 201 },
   { method: "patch", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Change an adjustment's quantity, reason or note", description: "The product, colour and length cannot be changed; delete and re-create the adjustment instead.", body: updateStockAdjustmentSchema },
   { method: "delete", path: "/stock/adjustments/{id}", tag: "Stock", summary: "Delete a stock adjustment (hard delete)", success: 204 },
+  // Campaigns (admins only)
+  { method: "get", path: "/admin/campaigns", tag: "Campaigns", summary: "Broadcast campaigns, newest first (admins)", description: "Each has its template, audience filter, status (DRAFT, QUEUED, SENDING, PAUSED, COMPLETED, STOPPED) and `counts` per recipient outcome." },
+  { method: "post", path: "/admin/campaigns", tag: "Campaigns", summary: "Save a draft campaign (admins)", description: "Nothing is sent. The template must be APPROVED by Meta and switched on, and its blanks only the customer's first or full name or text typed once for everyone in `values`. `audience` filters customers by `tagIds` (any of), `types`, `leadStatuses`, `sources`, `noOrderDays` and `paidInFull`; only customers who agreed to WhatsApp and have a WhatsApp-ready number are ever included.", body: createCampaignSchema, success: 201 },
+  { method: "get", path: "/admin/campaigns/{id}", tag: "Campaigns", summary: "One campaign (admins)" },
+  { method: "patch", path: "/admin/campaigns/{id}", tag: "Campaigns", summary: "Edit a draft campaign (admins)", description: "409 NOT_A_DRAFT once it has been started.", body: updateCampaignSchema },
+  { method: "delete", path: "/admin/campaigns/{id}", tag: "Campaigns", summary: "Delete a draft campaign (admins, hard delete)", description: "The campaign's details are kept in the audit log. 409 NOT_A_DRAFT once it has been started.", success: 204 },
+  { method: "get", path: "/admin/campaigns/audience", tag: "Campaigns", summary: "Preview who an audience filter would reach (admins)", description: "Query `audience` is the filter as JSON. Returns `total`, `notReachable` (match the filter but have not agreed to WhatsApp or have no WhatsApp-ready number), `tooLarge` (over `max`, the most one campaign may reach) and a `sample` of ten names." },
   // Dashboard
   { method: "get", path: "/dashboard", tag: "Dashboard", summary: "Counts, pipeline value, revenue and recent activity" },
   // Export

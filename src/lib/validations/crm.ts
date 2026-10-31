@@ -274,6 +274,36 @@ export const sendWhatsappTemplateSchema = z.object({
   values: z.array(z.string().max(200, "Keep it under 200 characters")).max(20).optional(),
 });
 
+// ─── Broadcast campaigns ────────────────────────────────
+
+/**
+ * Who a campaign goes to, on top of "agreed to WhatsApp, has a WhatsApp-ready number, not deleted" which always applies.
+ * Empty lists mean "no restriction". `noOrderDays`: no won order created in the last N days (customers who never ordered
+ * count). `paidInFull`: has at least one won order and every won order is paid in full.
+ */
+export const campaignAudienceSchema = z.object({
+  tagIds: z.array(id).max(50).default([]),
+  types: z.array(z.enum(ContactType)).max(5).default([]),
+  leadStatuses: z.array(z.enum(LeadStatus)).max(4).default([]),
+  sources: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
+  noOrderDays: z.number().int().min(1).max(3650).nullish(),
+  paidInFull: z.boolean().default(false),
+});
+export type CampaignAudience = z.infer<typeof campaignAudienceSchema>;
+
+/** `values[i]` is the text for the i-th blank when it is typed once for everyone. */
+const campaignValues = z.array(z.string().trim().max(200, "Keep it under 200 characters")).max(20);
+export const createCampaignSchema = z.object({
+  name: requiredText(120),
+  templateId: id,
+  audience: campaignAudienceSchema.default(() => campaignAudienceSchema.parse({})),
+  values: campaignValues.default([]),
+});
+export const updateCampaignSchema = z
+  .object({ name: requiredText(120), templateId: id, audience: campaignAudienceSchema, values: campaignValues })
+  .partial()
+  .refine(nonEmpty, atLeastOne);
+
 /** An admin chooses where each blank's value comes from, or switches the template off. The wording itself comes from Meta. */
 export const updateWhatsappTemplateSchema = z
   .object({

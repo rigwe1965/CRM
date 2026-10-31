@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
 import type { FulfilmentStatus } from "@/lib/fulfilment";
-import type { AutomationsView, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
+import type { AutomationsView, AudiencePreview, Campaign, CampaignAudience, CustomerLink, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -458,5 +458,41 @@ export function useSetStockLevel() {
       void qc.invalidateQueries({ queryKey: ["stock"] });
       void qc.invalidateQueries({ queryKey: ["automations"] });
     },
+  });
+}
+
+// ─── Broadcast campaigns (admin) ────────────────────────
+
+export function useCampaigns() {
+  return useQuery({
+    queryKey: ["campaigns"],
+    queryFn: async () => (await request<{ data: Campaign[] }>("GET", "/api/admin/campaigns")).data,
+  });
+}
+
+type CampaignInput = { name: string; templateId: string; audience: CampaignAudience; values: string[] };
+
+export function useSaveCampaign(id?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CampaignInput) => (await request<{ data: Campaign }>(id ? "PATCH" : "POST", id ? `/api/admin/campaigns/${id}` : "/api/admin/campaigns", body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns"] }),
+  });
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => request("DELETE", `/api/admin/campaigns/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns"] }),
+  });
+}
+
+/** Who the filter would reach. Re-asked (after a short pause, by the caller) whenever the filter changes. */
+export function useAudiencePreview(audience: CampaignAudience) {
+  return useQuery({
+    queryKey: ["campaigns", "audience", audience],
+    queryFn: async () => (await request<{ data: AudiencePreview }>("GET", `/api/admin/campaigns/audience?audience=${encodeURIComponent(JSON.stringify(audience))}`)).data,
+    placeholderData: keepPreviousData,
   });
 }

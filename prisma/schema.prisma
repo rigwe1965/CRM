@@ -140,6 +140,7 @@ model User {
   recordedPayments   Payment[]         @relation("PaymentRecorder")
   paymentLinks       PaymentLink[]     @relation("PaymentLinkCreator")
   customerOrderLinks CustomerOrderLink[] @relation("CustomerOrderLinkCreator")
+  campaigns          Campaign[]          @relation("CampaignCreator")
   savedFilters       SavedFilter[]
   aiConversations    AiConversation[]
   // Mutes the daily "Suggested actions" for this person (they can turn them back on in the Ivy panel).
@@ -248,6 +249,8 @@ model Tenant {
   savedFilters        SavedFilter[]
   emailTemplates      EmailTemplate[]
   whatsappTemplates   WhatsappTemplate[]
+  campaigns           Campaign[]
+  campaignRecipients  CampaignRecipient[]
   automationSettings  AutomationSetting[]
   integrations        TenantIntegration[]
   invoices            Invoice[]
@@ -319,6 +322,9 @@ model Contact {
   emailOptOut    Boolean     @default(false)
   // When true, the customer has agreed to WhatsApp messages from the business (payment reminders). Off until someone records it.
   whatsappOptIn  Boolean     @default(false)
+  // When and how that agreement was recorded (null for ticks made before this was kept). Cleared when it is withdrawn.
+  whatsappOptInAt     DateTime?
+  whatsappOptInSource String?
   title          String?
   type           ContactType @default(LEAD)
   leadStatus     LeadStatus? @default(NEW)
@@ -342,6 +348,7 @@ model Contact {
   activities   Activity[]
   tasks        Task[]
   tags         ContactTag[]
+  campaignRecipients CampaignRecipient[]
 
   @@unique([tenantId, email])
   @@index([lastName, firstName])
@@ -568,8 +575,76 @@ model WhatsappTemplate {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  campaigns    Campaign[]
+
   @@unique([tenantId, name, language])
   @@index([tenantId, status])
+}
+
+// ─── Broadcast campaigns ────────────────────────────────
+
+enum CampaignStatus {
+  DRAFT
+  QUEUED
+  SENDING
+  PAUSED
+  COMPLETED
+  STOPPED
+}
+
+enum CampaignRecipientStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SKIPPED
+}
+
+// One approved WhatsApp template sent to a chosen group of opted-in customers. Admin only. `audience` holds the filter
+// (tags, types, ...) and `values` the text for blanks that are typed once for everyone.
+model Campaign {
+  id          String         @id @default(cuid())
+  tenantId    String
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  name        String
+  templateId  String
+  template    WhatsappTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  audience    Json           @default("{}")
+  values      Json           @default("[]")
+  status      CampaignStatus @default(DRAFT)
+  createdById String
+  createdBy   User           @relation("CampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  recipients CampaignRecipient[]
+
+  @@index([tenantId, status])
+  @@index([templateId])
+  @@index([createdById])
+}
+
+// One customer in one campaign. The unique pair is what stops anyone getting the same campaign twice.
+model CampaignRecipient {
+  id         String                  @id @default(cuid())
+  tenantId   String
+  tenant     Tenant                  @relation(fields: [tenantId], references: [id])
+  campaignId String
+  campaign   Campaign                @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contactId  String
+  contact    Contact                 @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  status     CampaignRecipientStatus @default(PENDING)
+  reason     String?
+  messageId  String?
+  sentAt     DateTime?
+  createdAt  DateTime                @default(now())
+
+  @@unique([campaignId, contactId])
+  @@index([tenantId, campaignId, status])
+  @@index([contactId])
 }
 
 // ─── Automations ────────────────────────────────────────

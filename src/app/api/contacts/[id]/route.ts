@@ -5,6 +5,7 @@ import { assertLinks, assertTags, notFound, ownerScope, resolveOwner, tenantScop
 import { updateContactSchema } from "@/lib/validations/crm";
 import { contactInclude } from "@/lib/includes";
 import { normalizePhone } from "@/lib/phone";
+import { optInColumns } from "@/lib/whatsapp-optin";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
   const { tagIds, ...body } = await readBody(req, updateContactSchema);
   const existing = await db.contact.findFirst({
     where: { id: params.id, deletedAt: null, ...ownerScope(user) },
-    select: { id: true },
+    select: { id: true, whatsappOptIn: true },
   });
   if (!existing) throw notFound("Contact");
   await assertLinks(user, { organizationId: body.organizationId });
@@ -37,6 +38,7 @@ export const PATCH = authed<P>(async ({ req, user, params }) => {
       ...body,
       ownerId,
       ...(body.phone !== undefined && { phoneE164: normalizePhone(body.phone) }),
+      ...optInColumns(body.whatsappOptIn, existing.whatsappOptIn),
       // The list replaces the contact's tags as a whole.
       ...(tagIds !== undefined && { tags: { deleteMany: {}, create: [...new Set(tagIds)].map((tagId) => ({ tenantId: user.tenantId, tagId })) } }),
     },

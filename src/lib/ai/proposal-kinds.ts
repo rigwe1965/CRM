@@ -14,6 +14,7 @@ import { dealPaymentsView, summarize } from "@/lib/payments";
 import { createActivitySchema, createContactSchema, createDealSchema, createPaymentSchema, createTaskSchema, dealStageSchema, scheduleSchema, updateTaskSchema } from "@/lib/validations/crm";
 import { ToolError } from "@/lib/ai/tools/types";
 import { fullName } from "@/lib/ai/tools/result";
+import { optInColumns } from "@/lib/whatsapp-optin";
 
 /**
  * What Ivy can propose (AI_ASSISTANT_PLAN.md, Phase 2). For each kind: `input` is what the model may send, `prepare`
@@ -531,7 +532,7 @@ const contactOptOut = {
   },
   async apply(user: SessionUser, p: Record<string, unknown>): Promise<Applied> {
     const { contactId } = parseOrTell(optOutInput, p);
-    const { count } = await db.contact.updateMany({ where: { id: contactId, deletedAt: null, ...ownerScope(user) }, data: { whatsappOptIn: false } });
+    const { count } = await db.contact.updateMany({ where: { id: contactId, deletedAt: null, ...ownerScope(user) }, data: { whatsappOptIn: false, ...optInColumns(false, true) } });
     if (count === 0) throw new ApiError(404, "That contact no longer exists, so nothing was changed.", "NOT_FOUND");
     return { entity: "contact", id: contactId, href: `/contacts/${contactId}` };
   },

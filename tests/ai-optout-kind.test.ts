@@ -42,7 +42,8 @@ describe("CONTACT_OPT_OUT", () => {
     const done = await apply({ contactId: "c1" });
     expect(done).toEqual({ entity: "contact", id: "c1", href: "/contacts/c1" });
     const call = db.contact.updateMany.mock.calls[0][0];
-    expect(call.data).toEqual({ whatsappOptIn: false });
+    // The record of when and how they agreed is cleared with the tick.
+    expect(call.data).toEqual({ whatsappOptIn: false, whatsappOptInAt: null, whatsappOptInSource: null });
     expect(call.where).toMatchObject({ id: "c1", deletedAt: null, tenantId: "t1", ownerId: "u-sales" });
   });
 
