@@ -20,6 +20,8 @@ export const whatsappSettings = z.object({
   phoneNumberId: z.string().trim().regex(/^\d{5,30}$/, "The number's ID in Meta (digits), not the phone number"),
   appSecret: z.string().trim().min(10, "Required"),
   verifyToken: z.string().trim().min(16, "At least 16 characters"),
+  // Only needed to copy message templates from Meta; sending and receiving work without it.
+  businessAccountId: z.string().trim().regex(/^\d{5,30}$/, "The WhatsApp Business Account ID in Meta (digits)").optional(),
 });
 const origin = z
   .string()
@@ -48,7 +50,7 @@ function fromEnv<K extends IntegrationKind>(kind: K): Settings[K] | null {
   let raw: Settings[K] | null = null;
   if (kind === "STRIPE" && e.STRIPE_SECRET_KEY && e.STRIPE_WEBHOOK_SECRET) raw = { secretKey: e.STRIPE_SECRET_KEY, webhookSecret: e.STRIPE_WEBHOOK_SECRET } as Settings[K];
   if (kind === "WHATSAPP" && e.WHATSAPP_ACCESS_TOKEN && e.WHATSAPP_PHONE_NUMBER_ID && e.WHATSAPP_APP_SECRET && e.WHATSAPP_VERIFY_TOKEN) {
-    raw = { accessToken: e.WHATSAPP_ACCESS_TOKEN, phoneNumberId: e.WHATSAPP_PHONE_NUMBER_ID, appSecret: e.WHATSAPP_APP_SECRET, verifyToken: e.WHATSAPP_VERIFY_TOKEN } as Settings[K];
+    raw = { accessToken: e.WHATSAPP_ACCESS_TOKEN, phoneNumberId: e.WHATSAPP_PHONE_NUMBER_ID, appSecret: e.WHATSAPP_APP_SECRET, verifyToken: e.WHATSAPP_VERIFY_TOKEN, businessAccountId: e.WHATSAPP_BUSINESS_ACCOUNT_ID || undefined } as Settings[K];
   }
   if (kind === "ANTHROPIC" && e.ANTHROPIC_API_KEY) raw = { apiKey: e.ANTHROPIC_API_KEY } as Settings[K];
   if (kind === "LEAD_FORM") raw = { origins: (e.LEAD_FORM_ORIGINS ?? "").split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean) } as Settings[K];

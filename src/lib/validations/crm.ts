@@ -10,6 +10,7 @@ import {
   TaskPriority,
   TaskStatus,
 } from "@prisma/client";
+import { SLOT_SOURCE_KEYS } from "@/lib/whatsapp-template-slots";
 
 // ─── Field helpers ──────────────────────────────────────
 
@@ -252,6 +253,16 @@ const emailTemplateFields = z.object({
 });
 export const createEmailTemplateSchema = emailTemplateFields;
 export const updateEmailTemplateSchema = emailTemplateFields.partial().refine(nonEmpty, atLeastOne);
+
+// ─── WhatsApp templates ─────────────────────────────────
+
+/** An admin chooses where each blank's value comes from, or switches the template off. The wording itself comes from Meta. */
+export const updateWhatsappTemplateSchema = z
+  .object({
+    active: z.boolean().optional(),
+    slots: z.array(z.object({ label: requiredText(40), source: z.enum(SLOT_SOURCE_KEYS) })).max(20).optional(),
+  })
+  .refine(nonEmpty, atLeastOne);
 
 // ─── Activities ─────────────────────────────────────────
 

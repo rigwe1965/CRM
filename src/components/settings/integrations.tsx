@@ -16,7 +16,7 @@ import { errorMessage } from "@/lib/client/hooks";
 
 type View = {
   stripe: { configured: boolean; source: "settings" | "env" | null; webhookUrl: string };
-  whatsapp: { configured: boolean; source: "settings" | "env" | null; phoneNumberId: string | null; webhookUrl: string };
+  whatsapp: { configured: boolean; source: "settings" | "env" | null; phoneNumberId: string | null; businessAccountId: string | null; webhookUrl: string };
   leadForm: { configured: boolean; source: "settings" | "env" | null; origins: string[]; formUrl: string };
 };
 
@@ -70,7 +70,7 @@ export function IntegrationsCard() {
   });
 
   const [stripe, setStripe] = useState({ secretKey: "", webhookSecret: "" });
-  const [wa, setWa] = useState({ accessToken: "", phoneNumberId: "", appSecret: "", verifyToken: "" });
+  const [wa, setWa] = useState({ accessToken: "", phoneNumberId: "", businessAccountId: "", appSecret: "", verifyToken: "" });
   const [origins, setOrigins] = useState<string | null>(null);
 
   if (isLoading) return <Skeleton className="h-64" />;
@@ -115,12 +115,16 @@ export function IntegrationsCard() {
         <CardContent className="space-y-4">
           <Status {...data.whatsapp} />
           {data.whatsapp.phoneNumberId && <p className="text-sm text-muted-foreground">Phone number ID: {data.whatsapp.phoneNumberId}</p>}
+          {data.whatsapp.businessAccountId && <p className="text-sm text-muted-foreground">Business Account ID: {data.whatsapp.businessAccountId}</p>}
           <Address label="Callback address for Meta" url={data.whatsapp.webhookUrl} />
           <form
             className="grid max-w-xl gap-3"
             onSubmit={(e) => {
               e.preventDefault();
-              save.mutate({ kind: "whatsapp", body: wa }, { onSuccess: () => setWa({ accessToken: "", phoneNumberId: "", appSecret: "", verifyToken: "" }) });
+              save.mutate(
+                { kind: "whatsapp", body: { ...wa, businessAccountId: wa.businessAccountId.trim() || undefined } },
+                { onSuccess: () => setWa({ accessToken: "", phoneNumberId: "", businessAccountId: "", appSecret: "", verifyToken: "" }) },
+              );
             }}
           >
             <FormField label="Access token" hint="A permanent system-user token.">
@@ -128,6 +132,9 @@ export function IntegrationsCard() {
             </FormField>
             <FormField label="Phone number ID" hint="The number's ID in Meta (digits), not the phone number itself.">
               <Input value={wa.phoneNumberId} onChange={(e) => setWa({ ...wa, phoneNumberId: e.target.value })} required />
+            </FormField>
+            <FormField label="WhatsApp Business Account ID (optional)" hint="Needed only to copy your message templates from Meta (Settings → Templates). Find it in WhatsApp Manager; digits only.">
+              <Input value={wa.businessAccountId} onChange={(e) => setWa({ ...wa, businessAccountId: e.target.value })} />
             </FormField>
             <FormField label="App secret" hint="Used to check that messages really come from Meta.">
               <PasswordInput autoComplete="off" value={wa.appSecret} onChange={(e) => setWa({ ...wa, appSecret: e.target.value })} required />

@@ -237,6 +237,7 @@ model Tenant {
   contactTags         ContactTag[]
   savedFilters        SavedFilter[]
   emailTemplates      EmailTemplate[]
+  whatsappTemplates   WhatsappTemplate[]
   automationSettings  AutomationSetting[]
   integrations        TenantIntegration[]
   invoices            Invoice[]
@@ -520,6 +521,32 @@ model EmailTemplate {
 
   @@unique([tenantId, name])
   @@index([tenantId])
+}
+
+// A WhatsApp message template as Meta knows it. Templates are created and approved in Meta's WhatsApp Manager;
+// "Refresh from Meta" copies them here (name, language, wording, status). `slots` says what fills {{1}}, {{2}}...:
+// [{ "label": "First name", "source": "firstName" }]. A template Meta no longer lists is kept with status REMOVED.
+model WhatsappTemplate {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  name         String
+  language     String
+  category     String   @default("UTILITY")
+  body         String
+  // APPROVED, PENDING, REJECTED, PAUSED, DISABLED or REMOVED (as Meta reports it).
+  status       String   @default("PENDING")
+  // False when the template has a media header, a button with a variable or named variables, which this CRM does not send yet.
+  supported    Boolean  @default(true)
+  active       Boolean  @default(true)
+  slots        Json     @default("[]")
+  metaId       String?
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, name, language])
+  @@index([tenantId, status])
 }
 
 // ─── Automations ────────────────────────────────────────

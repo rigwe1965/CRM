@@ -31,6 +31,7 @@ import { BusinessCard } from "@/components/settings/business";
 import { IntegrationsCard } from "@/components/settings/integrations";
 import { DataExportCard } from "@/components/settings/data-export";
 import { EmailTemplatesCard } from "@/components/settings/email-templates";
+import { WhatsappTemplatesCard } from "@/components/settings/whatsapp-templates";
 import { LeadFormCard } from "@/components/settings/lead-form";
 import { TagsCard } from "@/components/settings/tags";
 import { MfaCard, SessionsCard } from "@/components/settings/security";
@@ -433,7 +434,10 @@ export default function SettingsPage() {
         )}
         {user.role === "ADMIN" && (
           <TabsContent value="templates">
-            <EmailTemplatesCard />
+            <div className="space-y-6">
+              <EmailTemplatesCard />
+              <WhatsappTemplatesCard />
+            </div>
           </TabsContent>
         )}
         {user.role === "ADMIN" && (

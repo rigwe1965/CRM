@@ -4,7 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClie
 import { toast } from "sonner";
 import { ApiClientError, qs, request, type Query } from "./api";
 import { DEAL_STAGES } from "./constants";
-import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus } from "./types";
+import type { AutomationsView, Dashboard, Deal, DuplicateMatch, EmailTemplate, Reports, SavedFilter, Tag, DealStage, Paginated, PaymentLinksView, PaymentsView, ReconcileReport, RemindersView, Stock, Task, TaskStatus, WhatsappTemplate, WhatsappTemplateSlot } from "./types";
 
 export type Resource = "contacts" | "organizations" | "deals" | "tasks" | "activities" | "invoices" | "stock/adjustments";
 
@@ -342,6 +342,31 @@ export function useSaveEmailTemplate(id?: string) {
     mutationFn: async (body: { name?: string; subject?: string; body?: string }) =>
       (await request<{ data: EmailTemplate }>(id ? "PATCH" : "POST", `/api/email-templates${id ? `/${id}` : ""}`, body)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["email-templates"] }),
+  });
+}
+
+export function useWhatsappTemplates() {
+  return useQuery({
+    queryKey: ["whatsapp-templates"],
+    queryFn: async () => (await request<{ data: WhatsappTemplate[] }>("GET", "/api/whatsapp-templates")).data,
+    staleTime: SLOW_CHANGING,
+  });
+}
+
+/** Copies the templates and their approval status from Meta. */
+export function useSyncWhatsappTemplates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await request<{ data: { created: number; updated: number; removed: number } }>("POST", "/api/whatsapp-templates/sync")).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsapp-templates"] }),
+  });
+}
+
+export function useUpdateWhatsappTemplate(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { active?: boolean; slots?: WhatsappTemplateSlot[] }) => (await request<{ data: WhatsappTemplate }>("PATCH", `/api/whatsapp-templates/${id}`, body)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsapp-templates"] }),
   });
 }
 

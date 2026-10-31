@@ -12,6 +12,7 @@ export async function integrationsView(tenantId: string) {
       configured: !!whatsapp,
       source: whatsapp?.source ?? null,
       phoneNumberId: whatsapp?.settings.phoneNumberId ?? null,
+      businessAccountId: whatsapp?.settings.businessAccountId ?? null,
       webhookUrl: `${base}/api/webhooks/whatsapp/${tenantId}`,
     },
     leadForm: { configured: !!leadForm?.settings.origins.length, source: leadForm?.source ?? null, origins: leadForm?.settings.origins ?? [], formUrl: `${base}/api/public/lead/${tenantId}` },

@@ -179,6 +179,20 @@ export type SavedFilter = {
 
 export type EmailTemplate = { id: string; name: string; subject: string; body: string; createdAt: string; updatedAt: string };
 
+export type WhatsappTemplateSlot = { label: string; source: "firstName" | "fullName" | "dealTitle" | "amountDue" | "dueDate" | "trackingNumber" | "manual" };
+export type WhatsappTemplate = {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  body: string;
+  status: string;
+  supported: boolean;
+  active: boolean;
+  slots: WhatsappTemplateSlot[];
+  lastSyncedAt: string;
+};
+
 export type StageRule = { enabled: boolean; title: string; dueInDays: number; priority: TaskPriority };
 export type StageTasksConfig = { enabled: boolean; stages: Record<DealStage, StageRule> };
 export type QuietLeadsConfig = { enabled: boolean; days: number };
