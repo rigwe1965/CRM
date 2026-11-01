@@ -50,6 +50,10 @@ const PUBLIC_PAGES = new Set([
   "/sign-up",
   "/verify-email",
   "/pay/result",
+  // The legal documents must be readable before anyone has an account.
+  "/terms",
+  "/privacy",
+  "/dpa",
 ]);
 // /api/webhooks/ is signed by the sender (checked in each route), not by a session.
 // /.well-known/ holds security.txt, which must be readable by anyone who finds a vulnerability.

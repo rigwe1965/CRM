@@ -39,6 +39,8 @@ export const signupSchema = z.object({
   name: z.string().trim().min(1, "Enter your name").max(100),
   email,
   password: passwordSchema,
+  /** The person ticked the box agreeing to the terms, privacy policy and data processing addendum. */
+  acceptTerms: z.literal(true, { error: "Please accept the terms to continue" }),
   // Cloudflare Turnstile's one-time token; required by the route whenever the CAPTCHA is configured.
   captchaToken: z.string().max(4096).optional(),
 });

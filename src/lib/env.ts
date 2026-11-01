@@ -23,6 +23,10 @@ const productionEnv = z
     SENTRY_ENVIRONMENT: z.string().optional(),
     HEALTHCHECK_PING_URL: z.string().refine((v) => v === "" || (URL.canParse(v) && v.startsWith("https://")), "must be an https:// URL").optional(),
     ALLOW_UNRESTRICTED_DB_ROLE: z.string().optional(),
+    LEGAL_ENTITY_NAME: z.string().optional(),
+    LEGAL_ADDRESS: z.string().optional(),
+    LEGAL_GOVERNING_LAW: z.string().optional(),
+    LEGAL_REVIEWED: z.enum(["0", "1", ""]).optional(),
     SUPPORT_EMAIL: z.string().refine((v) => v === "" || validEmail(v), "must be an email address").optional(),
     SECURITY_EMAIL: z.string().refine((v) => v === "" || validEmail(v), "must be an email address").optional(),
     STATUS_PAGE_URL: z.string().refine((v) => v === "" || validHttpsUrl(v), "must be an https:// URL").optional(),
@@ -105,6 +109,7 @@ export function productionWarnings(env: Record<string, string | undefined>): str
   if (!env.VERCEL && !env.TRUSTED_PROXY_COUNT) {
     warnings.push("TRUSTED_PROXY_COUNT is not set, so rate limits assume exactly one reverse proxy in front of the app. Set it to the real number, and keep the app unreachable except through the proxy.");
   }
+  if (env.LEGAL_REVIEWED !== "1") warnings.push("LEGAL_REVIEWED is not 1, so the terms, privacy policy and data processing addendum still show a draft notice. Set it only after a lawyer has approved them and LEGAL_ENTITY_NAME, LEGAL_ADDRESS and LEGAL_GOVERNING_LAW are filled in.");
   if (!validEmail(env.SUPPORT_EMAIL)) warnings.push("SUPPORT_EMAIL is not set, so customers are shown no way to reach you and /.well-known/security.txt does not exist. Set it to an address you read every day.");
   return warnings;
 }

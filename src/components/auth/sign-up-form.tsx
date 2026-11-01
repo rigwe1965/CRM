@@ -29,6 +29,7 @@ export function SignUpForm({ captchaSiteKey }: { captchaSiteKey: string | null }
       name: String(form.get("name") ?? ""),
       email: String(form.get("email") ?? ""),
       password,
+      acceptTerms: form.get("acceptTerms") === "on" ? true : undefined,
       captchaToken: captcha ?? undefined,
     });
     setPending(false);
@@ -64,6 +65,17 @@ export function SignUpForm({ captchaSiteKey }: { captchaSiteKey: string | null }
       <Field label="Email" name="email" type="email" autoComplete="email" required disabled={pending} error={fieldErrors.email?.[0]} />
       <Field label="Password" name="password" type="password" autoComplete="new-password" required disabled={pending} hint="At least 10 characters, with a letter and a number." error={fieldErrors.password?.[0]} />
       <Field label="Confirm password" name="confirm" type="password" autoComplete="new-password" required disabled={pending} error={fieldErrors.confirm?.[0]} />
+      <div className="space-y-1">
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" name="acceptTerms" required disabled={pending} className="mt-1" aria-invalid={!!fieldErrors.acceptTerms} />
+          <span>
+            I agree to the <Link href="/terms" target="_blank" className="underline">Terms of Service</Link>, the{" "}
+            <Link href="/privacy" target="_blank" className="underline">Privacy Policy</Link> and the{" "}
+            <Link href="/dpa" target="_blank" className="underline">Data Processing Addendum</Link> for my business.
+          </span>
+        </label>
+        {fieldErrors.acceptTerms?.[0] && <p className="text-xs text-red-600">{fieldErrors.acceptTerms[0]}</p>}
+      </div>
       {captchaSiteKey && <Turnstile siteKey={captchaSiteKey} onToken={setCaptcha} resetKey={captchaRound} />}
       <SubmitButton pending={pending || (!!captchaSiteKey && !captcha)} pendingText={pending ? "Creating…" : "Complete the check above"}>
         Start free trial
