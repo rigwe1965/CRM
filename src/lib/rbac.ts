@@ -14,9 +14,9 @@ export function hasRole(role: Role | undefined, allowed: readonly Role[]): boole
  * own data only, no admin pages) so they can still reach Settings → Security to set it up. On by
  * default in production; set REQUIRE_ADMIN_MFA=0 to switch off, or =1 to force it elsewhere.
  */
-export const adminMfaRequired = () => {
-  const v = process.env.REQUIRE_ADMIN_MFA;
-  return v === undefined || v === "" ? process.env.NODE_ENV === "production" : v === "1" || v === "true";
+export const adminMfaRequired = (env: Record<string, string | undefined> = process.env) => {
+  const v = env.REQUIRE_ADMIN_MFA;
+  return v === undefined || v === "" ? env.NODE_ENV === "production" : v === "1" || v === "true";
 };
 
 export const mfaPending = (role: Role | undefined, mfaEnabled: boolean, required = adminMfaRequired()) =>
