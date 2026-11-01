@@ -1,0 +1,56 @@
+name: Restore drill
+
+# A backup nobody has restored is a hope, not a backup. Every week this takes a real pg_dump of a freshly migrated and
+# seeded database, restores it into an empty one, compares row counts, and checks the protections the app relies on
+# (row-level security, the append-only audit log) survived. It proves backups of THIS schema restore; it does not test
+# the database provider's own backups, which still need a manual drill (TECHNICIAN.md, "Restore drill").
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: crm
+          POSTGRES_PASSWORD: crm
+          POSTGRES_DB: crm
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U crm" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
+      DIRECT_URL: postgresql://crm:crm@localhost:5432/crm?schema=public
+      RESTORED_URL: postgresql://crm:crm@localhost:5432/crm_restored?schema=public
+      PGPASSWORD: crm
+      NEXTAUTH_SECRET: ci-only-secret-ci-only-secret-0123456789
+      NEXTAUTH_URL: http://localhost:3000
+      SEED_USER_PASSWORD: ci-only-Seed-pass-123
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install a pg_dump that matches the server
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+      - name: Build and fill the source database
+        run: |
+          npm run db:deploy
+          npm run db:seed
+      - name: Take the backup
+        run: /usr/lib/postgresql/16/bin/pg_dump "postgresql://crm:crm@localhost:5432/crm" -Fc -f crm.dump
+      - name: Restore it into an empty database
+        run: |
+          psql "postgresql://crm:crm@localhost:5432/postgres" -c 'CREATE DATABASE crm_restored'
+          /usr/lib/postgresql/16/bin/pg_restore -d "postgresql://crm:crm@localhost:5432/crm_restored" --no-owner crm.dump
+      - name: Row counts match
+        run: npm run db:verify -- "$DATABASE_URL" "$RESTORED_URL"
+      - name: Protections survived the restore
+        run: npm run db:smoke -- "$RESTORED_URL"

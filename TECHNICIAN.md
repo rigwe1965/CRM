@@ -158,6 +158,8 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 - Shortcut: `bash scripts/backup.sh` runs the same `pg_dump` into `backups/crm-<timestamp>.dump` (git-ignored; it holds real customer data, so keep it somewhere private).
 
 ### Restore drill (do this once before launch, then every quarter)
+**Automatic part:** `.github/workflows/restore-drill.yml` runs weekly (and on demand from the Actions tab). It dumps a freshly migrated and seeded database, restores it into an empty one, then runs `db:verify` and `npm run db:smoke -- "<restored url>"`, which also checks that every migration finished, row-level security is on for every business table, and the audit log still refuses updates. It proves backups of this schema restore; it does **not** test your database provider's own backups, so the manual drill below is still needed.
+
 A backup nobody has restored is a hope, not a backup.
 1. Take a backup: `bash scripts/backup.sh`.
 2. Create an empty scratch database (a Neon branch, or `createdb crm_restore_test` locally). Never restore over the live one.
