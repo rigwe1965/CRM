@@ -12,6 +12,7 @@ const productionEnv = z
     AUTH_SECRET: z.string().optional(),
     NEXTAUTH_URL: z.string().optional(),
     VERCEL: z.string().optional(),
+    TRUSTED_PROXY_COUNT: z.string().refine((v) => v === "" || /^[1-9]\d?$/.test(v), "must be a whole number from 1 to 99 (how many reverse proxies are in front of the app)").optional(),
     AUTH_TRUST_HOST: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_SERVER: z.string().optional(),
@@ -81,7 +82,19 @@ const productionEnv = z
 
 export function assertProductionEnv() {
   const result = productionEnv.safeParse(process.env);
-  if (result.success) return;
+  if (result.success) {
+    for (const w of productionWarnings(process.env)) console.warn(`[env] ${w}`);
+    return;
+  }
   const lines = result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`);
   throw new Error(`Invalid production environment:\n${lines.join("\n")}`);
+}
+
+/** Settings that are allowed but worth a second look. Logged at start-up; they never stop the server. */
+export function productionWarnings(env: Record<string, string | undefined>): string[] {
+  const warnings: string[] = [];
+  if (!env.VERCEL && !env.TRUSTED_PROXY_COUNT) {
+    warnings.push("TRUSTED_PROXY_COUNT is not set, so rate limits assume exactly one reverse proxy in front of the app. Set it to the real number, and keep the app unreachable except through the proxy.");
+  }
+  return warnings;
 }

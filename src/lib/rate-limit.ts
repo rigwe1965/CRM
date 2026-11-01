@@ -105,12 +105,25 @@ export async function isKnownIp(userId: string, ip: string): Promise<boolean> {
  *    (default 1, e.g. nginx or a load balancer): the entry that many places from the right is the
  *    address the outermost trusted proxy saw. The app must not be reachable directly, bypassing them.
  */
+let warnedShortChain = false;
+function warnShortChain(hops: number, proxies: number) {
+  if (warnedShortChain) return;
+  warnedShortChain = true;
+  console.warn(`[rate-limit] X-Forwarded-For has ${hops} address(es) but TRUSTED_PROXY_COUNT is ${proxies}: the app may be reachable without going through the proxy, or the count is wrong. Check the deployment.`);
+}
+
 export function clientIp(headers: Headers): string {
   const forwarded = (headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (forwarded.length) {
     if (process.env.VERCEL) return forwarded[0];
     const proxies = Math.max(1, Number.parseInt(process.env.TRUSTED_PROXY_COUNT ?? "1", 10) || 1);
-    return forwarded[Math.max(0, forwarded.length - proxies)];
+    if (forwarded.length < proxies) {
+      // Fewer hops than proxies we were told about: the request did not pass through all of them (reached directly, or
+      // the count is wrong). Everything to the left is client-controlled, so take the rightmost entry, never the leftmost.
+      warnShortChain(forwarded.length, proxies);
+      return forwarded[forwarded.length - 1];
+    }
+    return forwarded[forwarded.length - proxies];
   }
   return headers.get("x-real-ip") || "unknown";
 }
