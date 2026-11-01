@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, audit, trySendMail, rateLimit } = vi.hoisted(() => ({
+const { db, audit, trySendMail, rateLimit, assertWithinPlan, assertUnderDailyCap } = vi.hoisted(() => ({
+  assertWithinPlan: vi.fn(async (..._a: unknown[]) => undefined),
+  assertUnderDailyCap: vi.fn(async (..._a: unknown[]) => undefined),
   db: {
     automationSetting: { findUnique: vi.fn(), upsert: vi.fn() },
     user: { findFirst: vi.fn() },
@@ -16,6 +18,8 @@ const { db, audit, trySendMail, rateLimit } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/audit", () => ({ audit }));
+vi.mock("@/lib/plan-limits", () => ({ assertWithinPlan }));
+vi.mock("@/lib/usage-limits", () => ({ assertUnderDailyCap }));
 vi.mock("@/lib/mail", () => ({ trySendMail, appUrl: () => "https://crm.test" }));
 vi.mock("@/lib/rate-limit", () => ({ rateLimit, clientIp: () => "1.2.3.4", LIMITS: { webLead: {}, webLeadAll: {} } }));
 
@@ -38,6 +42,25 @@ beforeEach(() => {
   db.user.findFirst.mockResolvedValue(admin);
   db.contact.findFirst.mockResolvedValue(null);
   db.contact.create.mockResolvedValue({ id: "c1" });
+});
+
+describe("website lead form: plan and mail limits", () => {
+  it("saves no new contact, and still says thanks, when the business is at its contact limit", async () => {
+    const { ApiError } = await import("@/lib/api");
+    assertWithinPlan.mockRejectedValueOnce(new ApiError(403, "limit", "PLAN_LIMIT"));
+    const res = await post({ name: "Ada Okafor", email: "a@x.test" });
+    expect(res.status).toBe(200);
+    expect(db.contact.create).not.toHaveBeenCalled();
+    expect(trySendMail).not.toHaveBeenCalled();
+  });
+  it("keeps the lead but sends no alert when the daily email allowance is used", async () => {
+    const { ApiError } = await import("@/lib/api");
+    assertUnderDailyCap.mockRejectedValueOnce(new ApiError(429, "cap", "USAGE_LIMIT"));
+    const res = await post({ name: "Ada Okafor", email: "a@x.test" });
+    expect(res.status).toBe(200);
+    expect(db.contact.create).toHaveBeenCalled();
+    expect(trySendMail).not.toHaveBeenCalled();
+  });
 });
 
 describe("website lead form", () => {

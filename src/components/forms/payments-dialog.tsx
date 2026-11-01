@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState, FormField } from "@/components/common/page";
 import { PdfButton } from "@/components/export/export-menu";
+import { useCurrentUser } from "@/components/providers";
 import { PAYMENT_METHODS, paymentMethodLabel } from "@/lib/client/constants";
 import { dateOnly, money, toDateInput } from "@/lib/client/format";
 import {
@@ -492,6 +493,8 @@ function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
   const { summary } = view;
   const settled = summary.balance <= 0;
   const del = useDeletePayment(dealId);
+  // Only admins remove payments, and never one Stripe confirmed (that is refunded in Stripe).
+  const canDelete = useCurrentUser().role === "ADMIN";
 
   return (
     <div className="space-y-6">
@@ -525,6 +528,7 @@ function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
                     {p.note ? ` · ${p.note}` : ""} · {p.recordedBy ? `by ${p.recordedBy.name}` : "paid online"}
                   </p>
                 </div>
+                {canDelete && p.source !== "ONLINE" && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -539,6 +543,7 @@ function PaymentsContent({ deal, view }: { deal: Deal; view: PaymentsView }) {
                 >
                   <Trash2 />
                 </Button>
+                )}
               </li>
             ))}
           </ul>

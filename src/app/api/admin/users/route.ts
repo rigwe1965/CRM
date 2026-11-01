@@ -26,7 +26,11 @@ export const POST = authed(async ({ req, user: admin }) => {
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-      throw new ApiError(409, "A user with this email already exists", "CONFLICT", { email: ["A user with this email already exists"] });
+      // Emails are unique across the whole platform. Only a clash inside this business is reported; an address that
+      // belongs to another business gets the same neutral answer as success, so this form cannot be used to find out who is registered.
+      const mine = await db.user.findFirst({ where: { email, ...tenantScope(admin) }, select: { id: true } });
+      if (mine) throw new ApiError(409, "A user with this email already exists", "CONFLICT", { email: ["A user with this email already exists"] });
+      return NextResponse.json({ pending: true, emailed: false }, { status: 202 });
     }
     throw e;
   }

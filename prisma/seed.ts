@@ -213,6 +213,10 @@ async function main() {
     invoices: await prisma.invoice.count(),
   };
   console.log("Seeded:", counts);
+  if (!process.env.SEED_USER_PASSWORD || process.env.SEED_USER_PASSWORD === "ChangeMe123!") {
+    console.warn("[seed] WARNING: the sample users (admin@crm.test, sales@crm.test, support@crm.test) use the publicly known password ChangeMe123!.");
+    console.warn("[seed] Set SEED_USER_PASSWORD to something private if anyone else can reach this server, and never seed a real database.");
+  }
 }
 
 main()

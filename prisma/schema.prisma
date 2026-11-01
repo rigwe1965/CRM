@@ -248,6 +248,8 @@ model Tenant {
   senderLocalPart      String?
   senderDomainId       String?
   senderVerifiedAt     DateTime?
+  // When the current domain was claimed. An unverified claim lapses after SENDER_CLAIM_DAYS (src/lib/sender.ts).
+  senderClaimedAt      DateTime?
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 

@@ -223,7 +223,7 @@ npm run dev
 
 If your package manager skips install scripts, run `npm run db:generate` manually to generate the Prisma client.
 
-Seeded users (all use `SEED_USER_PASSWORD`, default `ChangeMe123!`):
+Seeded users (all use `SEED_USER_PASSWORD`, default `ChangeMe123!`, a publicly known password: set your own if anyone else can reach the server, and never seed a real database):
 
 | Email | Role |
 | --- | --- |

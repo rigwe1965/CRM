@@ -1,5 +1,8 @@
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { ApiError } from "@/lib/api";
+import { assertWithinPlan } from "@/lib/plan-limits";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
 import { getIntegration } from "@/lib/integrations";
 import { appUrl, trySendMail } from "@/lib/mail";
 import { normalizePhone } from "@/lib/phone";
@@ -54,6 +57,19 @@ export async function captureWebLead(tenantId: string, input: z.infer<typeof web
   const message = input.message?.trim() || null;
 
   const existing = email ? await db.contact.findFirst({ where: { tenantId, email: { equals: email, mode: "insensitive" }, deletedAt: null }, select: { id: true, ownerId: true, firstName: true, lastName: true } }) : null;
+  // A stranger's form must not push a business past its plan: at the contact limit nothing new is saved (the owner
+  // is not emailed either); a visitor still sees "thanks", so the form reveals nothing.
+  if (!existing) {
+    try {
+      await assertWithinPlan(tenantId, "contacts");
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "PLAN_LIMIT") {
+        console.warn(`[web-lead] contact limit reached for ${tenantId}: website enquiry not saved`);
+        return { contactId: null, created: false };
+      }
+      throw e;
+    }
+  }
   const authorId = existing?.ownerId ?? owner.id;
   const contactId =
     existing?.id ??
@@ -93,6 +109,13 @@ export async function captureWebLead(tenantId: string, input: z.infer<typeof web
 
   // Tell the owner. A failed email must not lose the lead, which is already saved.
   const to = existing?.ownerId ? (await db.user.findFirst({ where: { tenantId, id: existing.ownerId, isActive: true }, select: { email: true } }))?.email ?? owner.email : owner.email;
+  // The notification counts against the business's daily email allowance like any other message it sends.
+  try {
+    await assertUnderDailyCap(tenantId, "emails");
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "USAGE_LIMIT") return { contactId, created: !existing };
+    throw e;
+  }
   const open = `Open: ${appUrl()}/contacts/${contactId}`;
   if (existing) {
     // Typed details are not trusted: the email names the stored contact and shows only a short, marked preview.

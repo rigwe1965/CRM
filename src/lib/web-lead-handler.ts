@@ -63,9 +63,9 @@ export async function leadPost(req: Request, tenantId: string): Promise<Response
   }
   if (parsed.data.website) return reply({ ok: true }); // a bot: pretend it worked, save nothing
 
-  // Enforced only when the form sent a token, so forms pasted before the CAPTCHA existed keep working until re-pasted.
+  // Required whenever a CAPTCHA is configured: a request that simply leaves the token out is refused, not waved through.
   const { captchaToken, ...lead } = parsed.data;
-  if (captchaToken !== undefined && captchaConfigured() && !(await verifyCaptcha(captchaToken, clientIp(req.headers)))) {
+  if (captchaConfigured() && !(await verifyCaptcha(captchaToken, clientIp(req.headers)))) {
     return reply({ error: "Please confirm you are not a robot and try again.", code: "CAPTCHA_FAILED" }, 400);
   }
 

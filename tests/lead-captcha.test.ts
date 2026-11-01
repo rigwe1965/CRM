@@ -30,9 +30,11 @@ afterEach(() => {
 });
 
 describe("website lead form CAPTCHA", () => {
-  it("lets a form with no token through, so forms pasted before the CAPTCHA keep working", async () => {
-    expect((await post()).status).toBe(200);
-    expect(captureWebLead).toHaveBeenCalledTimes(1);
+  it("refuses a request with no token at all, so a bot cannot skip the check by leaving it out", async () => {
+    const res = await post();
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: "CAPTCHA_FAILED" });
+    expect(captureWebLead).not.toHaveBeenCalled();
   });
 
   it("refuses a wrong token, or one Cloudflare can't confirm, without saving a lead", async () => {
@@ -53,8 +55,8 @@ describe("website lead form CAPTCHA", () => {
     expect(captureWebLead).toHaveBeenCalledWith("t1", expect.not.objectContaining({ captchaToken: expect.anything() }));
   });
 
-  it("ignores a token when no keys are set (development)", async () => {
+  it("does not ask for a token when no keys are set (development)", async () => {
     delete process.env.TURNSTILE_SECRET_KEY;
-    expect((await post({ captchaToken: "anything" })).status).toBe(200);
+    expect((await post()).status).toBe(200);
   });
 });

@@ -10,6 +10,10 @@ on:
     - cron: "17 5 * * 1"
   workflow_dispatch:
 
+# Nothing here needs to write to the repository, so the token may only read it.
+permissions:
+  contents: read
+
 jobs:
   drill:
     runs-on: ubuntu-latest
@@ -32,8 +36,8 @@ jobs:
       NEXTAUTH_URL: http://localhost:3000
       SEED_USER_PASSWORD: ci-only-Seed-pass-123
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
