@@ -55,6 +55,7 @@ describe("production proxy settings", () => {
     const { assertProductionEnv, productionWarnings } = await import("@/lib/env");
     apply();
     vi.stubEnv("TRUSTED_PROXY_COUNT", "");
+    vi.stubEnv("SUPPORT_EMAIL", "help@shop.test"); // set, so the only warning left is the proxy one
     expect(productionWarnings(process.env)).toHaveLength(1);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(() => assertProductionEnv()).not.toThrow();
@@ -64,8 +65,9 @@ describe("production proxy settings", () => {
 
   it("does not warn when it is set, or on Vercel", async () => {
     const { productionWarnings } = await import("@/lib/env");
-    expect(productionWarnings({ TRUSTED_PROXY_COUNT: "2" })).toEqual([]);
-    expect(productionWarnings({ VERCEL: "1" })).toEqual([]);
+    const ok = { SUPPORT_EMAIL: "help@shop.test" };
+    expect(productionWarnings({ ...ok, TRUSTED_PROXY_COUNT: "2" })).toEqual([]);
+    expect(productionWarnings({ ...ok, VERCEL: "1" })).toEqual([]);
   });
 
   it("refuses a value that is not a positive whole number", async () => {
