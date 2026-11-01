@@ -44,8 +44,10 @@ vi.mock("@/lib/mail", () => ({
   trySendMail: vi.fn(async (m: { to: string; subject: string; text: string }) => (mail.push(m), true)),
   sendMail: vi.fn(async () => undefined),
 }));
-// The route is called outside a request, where Next's `after` has no scope: run the work now.
-vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void fn() }));
+// The route is called outside a request, where Next's `after` has no scope: run the work now, and keep the promise so
+// the test can wait for it (the sign-up work hashes a password, so it finishes after the response has been returned).
+const afterWork = vi.hoisted(() => [] as Promise<unknown>[]);
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void afterWork.push(Promise.resolve().then(fn)) }));
 
 import * as adminTenant from "@/app/api/admin/tenant/route";
 import * as adminUsers from "@/app/api/admin/users/route";
@@ -109,7 +111,11 @@ run("sign-up, trial and billing", () => {
   // ── Signing up ──────────────────────────────────────────────────────────────────────────────────────────────
   describe("sign-up", () => {
     const body = { businessName: "Fresh Hair Co", name: "Nia Okoro", email: "nia@fresh.test", password: "Sup3r-secret-pw" };
-    const post = (b2: unknown = body) => call(signup.POST as Handler, null, { method: "POST", body: b2 });
+    const post = async (b2: unknown = body) => {
+      const res = await call(signup.POST as Handler, null, { method: "POST", body: b2 });
+      await Promise.all(afterWork.splice(0));
+      return res;
+    };
     const tokenFromMail = () => new URL(mail.find((m) => /verify-email/.test(m.text))!.text.match(/https:\/\/\S+/)![0]).searchParams.get("token")!;
 
     it("is closed unless the owner switches it on", async () => {
