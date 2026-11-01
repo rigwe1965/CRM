@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowDown, ArrowUp, Plus, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { RowMenu } from "@/components/common/items";
 import { chooseRows, ExportMenu } from "@/components/export/export-menu";
 import { useCurrentUser } from "@/components/providers";
 import { ContactDialog } from "@/components/forms/contact-org-dialogs";
+import { ImportContactsDialog } from "@/components/forms/import-contacts-dialog";
 import { CONTACT_TYPES, LEAD_STATUSES, contactTypeInfo, leadStatusInfo } from "@/lib/client/constants";
 import { fullName, initials, shortDate } from "@/lib/client/format";
 import { errorMessage, useList, useRemove, useTags } from "@/lib/client/hooks";
@@ -34,6 +35,7 @@ export default function ContactsPage() {
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState<Contact | null>(null);
 
@@ -90,6 +92,9 @@ export default function ContactsPage() {
                 ]}
               />
             )}
+            <Button variant="outline" onClick={() => setImporting(true)}>
+              <Upload /> Import
+            </Button>
             <Button onClick={() => setCreating(true)}>
               <Plus /> New contact
             </Button>
@@ -263,6 +268,7 @@ export default function ContactsPage() {
       </Card>
 
       <ContactDialog open={creating} onOpenChange={setCreating} />
+      {importing && <ImportContactsDialog onClose={() => setImporting(false)} />}
       {editing && <ContactDialog open onOpenChange={(o) => !o && setEditing(null)} contact={editing} />}
       <ConfirmDialog
         open={!!deleting}

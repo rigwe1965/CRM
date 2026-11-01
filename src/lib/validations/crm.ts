@@ -127,6 +127,22 @@ export const contactListQuery = z.object({
   includeDeleted: bool.optional(),
 });
 
+/** One line of a customer list. Checked row by row on the server, so one bad line never sinks the others. */
+export const importContactRow = z.object({
+  firstName: requiredText(100),
+  lastName: requiredText(100),
+  // A spreadsheet cell with no email arrives as "": that means none, not a bad address.
+  email: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), emailField),
+  phone: text(40),
+  city: text(100),
+  state: text(100),
+  country: text(100),
+});
+export const importContactsSchema = z.object({
+  type: z.enum(["LEAD", "CUSTOMER"]).default("CUSTOMER"),
+  rows: z.array(z.unknown()).min(1, "The file has no customers in it").max(500, "Import up to 500 customers at a time"),
+});
+
 // ─── Tags and saved filters ─────────────────────────────
 
 const tagName = z.string().trim().min(1, "Required").max(40);
