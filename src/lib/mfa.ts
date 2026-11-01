@@ -126,13 +126,37 @@ export function decryptSecretInfo(stored: string): { plain: string; current: boo
 
 export const decryptSecret = (stored: string) => decryptSecretInfo(stored).plain;
 
-// ── Recovery codes: shown once, stored as SHA-256 hashes, single use ──────────────────────────
+// ── Recovery codes: shown once, stored as keyed hashes, single use ───────────────────────────
+// New codes are stored as "v2:" + HMAC-SHA256 under a key derived from the same secret material as the two-step
+// secrets, so a leaked database alone cannot be used to guess codes offline. Codes saved before that are plain SHA-256
+// hashes: they still work, until used (`recoveryCodeHashes` lists both forms).
 const normalizeRecovery = (c: string) => c.toLowerCase().replace(/[^a-z0-9]/g, "");
-export const hashRecoveryCode = (c: string) => createHash("sha256").update(normalizeRecovery(c)).digest("hex");
+const legacyRecoveryHash = (c: string) => createHash("sha256").update(normalizeRecovery(c)).digest("hex");
 
+const recoveryKeyFrom = (material: Buffer) => Buffer.from(hkdfSync("sha256", material, "", "ivycandy-crm recovery code v2", 32));
+const keyedHash = (key: Buffer, c: string) => "v2:" + createHmac("sha256", key).update(normalizeRecovery(c)).digest("hex");
+
+/** The key new codes are hashed with, then the ones older codes may have used (the previous key during a rotation, or the app secret before a dedicated key was set). */
+function recoveryKeys(): Buffer[] {
+  const keys: Buffer[] = [];
+  for (const raw of [process.env.MFA_ENCRYPTION_KEY, process.env.MFA_ENCRYPTION_KEY_PREVIOUS]) if (raw) keys.push(recoveryKeyFrom(Buffer.from(raw, "base64")));
+  try {
+    keys.push(recoveryKeyFrom(legacyKey()));
+  } catch {
+    // no app secret configured: nothing older to match
+  }
+  return keys;
+}
+
+export const hashRecoveryCode = (c: string) => keyedHash(recoveryKeys()[0], c);
+
+/** Every form a stored hash of this code may have: current keyed, older keys, then the old plain SHA-256. */
+export const recoveryCodeHashes = (c: string) => [...recoveryKeys().map((k) => keyedHash(k, c)), legacyRecoveryHash(c)];
+
+/** 15 characters of base32 (75 bits), shown as xxxxx-xxxxx-xxxxx. */
 export function generateRecoveryCodes(n = 8): string[] {
   return Array.from({ length: n }, () => {
-    const raw = base32Encode(randomBytes(7)).toLowerCase().slice(0, 10);
-    return `${raw.slice(0, 5)}-${raw.slice(5)}`;
+    const raw = base32Encode(randomBytes(10)).toLowerCase().slice(0, 15);
+    return `${raw.slice(0, 5)}-${raw.slice(5, 10)}-${raw.slice(10)}`;
   });
 }

@@ -44,6 +44,7 @@ describe("signup dev link", () => {
     const good = {
       NODE_ENV: "production", DATABASE_URL: "postgresql://x", NEXTAUTH_SECRET: "x".repeat(40), NEXTAUTH_URL: "https://crm.test", AUTH_TRUST_HOST: "true",
       RESEND_API_KEY: "re_1", EMAIL_FROM: "CRM <a@b.test>", CRON_SECRET: "c".repeat(20), UPSTASH_REDIS_REST_URL: "https://u.test", UPSTASH_REDIS_REST_TOKEN: "t",
+    MFA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"), PLATFORM_DATABASE_URL: "postgresql://owner",
     };
     for (const [k, v] of Object.entries(good)) vi.stubEnv(k, v);
     vi.stubEnv("SIGNUP_DEV_LINKS", "1");

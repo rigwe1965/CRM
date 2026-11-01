@@ -17,6 +17,7 @@ const { db, audit, trySendMail, sendFetch } = vi.hoisted(() => ({
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/usage-limits", () => ({ assertUnderDailyCap: vi.fn() })); // the daily cap needs the database; tests/tenant-deletion.test.ts covers it
 vi.mock("@/lib/audit", () => ({ audit }));
+vi.mock("@/lib/plan-limits", () => ({ assertWithinPlan: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ trySendMail, appUrl: () => "https://crm.test" }));
 vi.mock("@/lib/route", () => ({
   authed: (handler: (ctx: unknown) => Promise<Response>) => async (req: Request, context?: { params: Promise<unknown> }) => {

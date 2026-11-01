@@ -5,6 +5,20 @@ import { audit } from "@/lib/audit";
 import { isAutoOptOutWord, optOutByReply } from "@/lib/whatsapp-optout";
 import { trySendMail, appUrl } from "@/lib/mail";
 import { resolveLeadOwner } from "@/lib/web-lead";
+import { ApiError } from "@/lib/api";
+import { assertWithinPlan } from "@/lib/plan-limits";
+import { assertUnderDailyCap } from "@/lib/usage-limits";
+
+/** True when `check` refuses with the given limit code; any other failure still throws. */
+async function refusedWith(code: string, check: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await check();
+    return false;
+  } catch (e) {
+    if (e instanceof ApiError && e.code === code) return true;
+    throw e;
+  }
+}
 
 /** Two-way WhatsApp through Meta's WhatsApp Business Cloud API. A business has it when all four settings are saved. */
 export const whatsappConfigured = async (tenantId: string) => !!(await getIntegration(tenantId, "WHATSAPP"));
@@ -127,6 +141,12 @@ export async function recordInbound(tenantId: string, msg: InboundMessage): Prom
 
   let created = false;
   if (!contact) {
+    // A business at its contact limit gets no new contact from a stranger's number (the message is not filed; Meta is told it was handled).
+    const full = await refusedWith("PLAN_LIMIT", () => assertWithinPlan(tenantId, "contacts"));
+    if (full) {
+      console.warn(`[whatsapp] contact limit reached for ${tenantId}: message from an unknown number not filed`);
+      return "duplicate";
+    }
     const [firstName, ...rest] = (msg.name?.replace(/\s+/g, " ").trim() || msg.from).split(" ");
     contact = await db.contact.create({
       data: { tenantId, firstName, lastName: rest.join(" ") || "-", phone: msg.from, phoneE164: msg.from, type: "LEAD", leadStatus: "NEW", source: "WhatsApp", ownerId },
@@ -162,7 +182,8 @@ export async function recordInbound(tenantId: string, msg: InboundMessage): Prom
 
   if (created) {
     const owner = fallbackOwner ?? (await resolveLeadOwner(tenantId));
-    if (owner) {
+    const capped = await refusedWith("USAGE_LIMIT", () => assertUnderDailyCap(tenantId, "emails"));
+    if (owner && !capped) {
       await trySendMail({ to: owner.email, subject: `New WhatsApp lead: ${label}`.slice(0, 150), text: `${label} (${msg.from})\n\n${msg.text}\n\nOpen: ${appUrl()}/contacts/${contact.id}` });
     }
   }

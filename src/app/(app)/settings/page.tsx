@@ -261,8 +261,13 @@ function TeamCard() {
   });
   const [invite, setInvite] = useState<{ name: string; email: string; role: Role }>({ name: "", email: "", role: "SALES" });
   const create = useMutation({
-    mutationFn: (body: typeof invite) => request<{ emailed: boolean; devLink?: string }>("POST", "/api/admin/users", body),
+    mutationFn: (body: typeof invite) => request<{ emailed: boolean; devLink?: string; pending?: boolean }>("POST", "/api/admin/users", body),
     onSuccess: (res, body) => {
+      if (res.pending) {
+        toast.info("If that address can be used, an invitation will be sent to it.");
+        setInvite({ name: "", email: "", role: "SALES" });
+        return;
+      }
       if (res.devLink) {
         setDevLink({ email: body.email, url: res.devLink });
         toast.success("User created");

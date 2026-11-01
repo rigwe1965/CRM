@@ -83,7 +83,7 @@ export async function setSender(tenantId: string, input: { domain: string; local
     if (current.senderDomainId) await resend().domains.remove(current.senderDomainId).catch((e) => console.error("[sender] old domain not removed", e instanceof Error ? e.message : e));
   }
   try {
-    await platformDb.tenant.update({ where: { id: tenantId }, data: { senderDomain: domain, senderLocalPart: localPart, senderDomainId: domainId, ...(verifiedAt !== undefined && { senderVerifiedAt: verifiedAt }) } });
+    await platformDb.tenant.update({ where: { id: tenantId }, data: { senderDomain: domain, senderLocalPart: localPart, senderDomainId: domainId, ...(verifiedAt !== undefined && { senderVerifiedAt: verifiedAt, senderClaimedAt: new Date() }) } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       if (domainId && domainId !== current.senderDomainId) await resend().domains.remove(domainId).catch(() => undefined);
@@ -107,7 +107,23 @@ export async function verifySender(tenantId: string) {
 export async function removeSender(tenantId: string) {
   const t = await platformDb.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { senderDomainId: true } });
   if (t.senderDomainId && senderAvailable()) await resend().domains.remove(t.senderDomainId).catch((e) => console.error("[sender] domain not removed", e instanceof Error ? e.message : e));
-  await platformDb.tenant.update({ where: { id: tenantId }, data: { senderDomain: null, senderLocalPart: null, senderDomainId: null, senderVerifiedAt: null } });
+  await platformDb.tenant.update({ where: { id: tenantId }, data: { senderDomain: null, senderLocalPart: null, senderDomainId: null, senderVerifiedAt: null, senderClaimedAt: null } });
+}
+
+/** How long a domain can be held without proving ownership. */
+export const SENDER_CLAIM_DAYS = 7;
+
+/**
+ * Daily: lets go of domains that were claimed but never verified within a week, so a business cannot sit on someone
+ * else's domain name. Verified domains are never touched. Returns how many were released.
+ */
+export async function releaseStaleSenderClaims(now = new Date()): Promise<number> {
+  const stale = await platformDb.tenant.findMany({
+    where: { senderDomain: { not: null }, senderVerifiedAt: null, senderClaimedAt: { lt: new Date(now.getTime() - SENDER_CLAIM_DAYS * 86_400_000) } },
+    select: { id: true },
+  });
+  for (const { id } of stale) await removeSender(id).catch((e) => console.error("[sender] stale claim not released", id, e instanceof Error ? e.message : e));
+  return stale.length;
 }
 
 /**

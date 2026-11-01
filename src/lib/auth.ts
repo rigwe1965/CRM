@@ -17,7 +17,7 @@ import { signInAllowed } from "@/lib/signin-limits";
 import { getCachedUser } from "@/lib/user-cache";
 import { signInSchema } from "@/lib/validations/auth";
 import type { Role } from "@prisma/client";
-import { mfaPending } from "@/lib/rbac";
+import { adminSessionExpired, mfaPending } from "@/lib/rbac";
 import { accessOf } from "@/lib/plans";
 
 const prismaAdapter = PrismaAdapter(platformDb);
@@ -98,6 +98,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // instances may lag by up to 30 s.
     async jwt({ token, user }) {
       if (user?.role) token.role = user.role;
+      // Remember when the person actually signed in (`iat` moves every time Auth.js refreshes the cookie).
+      if (user) token.signedInAt = Math.floor(Date.now() / 1000);
       if (!token.sub) return null;
       const id = token.sub;
 
@@ -116,6 +118,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       ) {
         return null;
       }
+      // Tokens from before this existed fall back to their issue time.
+      if (adminSessionExpired(current.role, (token.signedInAt as number | undefined) ?? token.iat)) return null;
       token.role = current.role;
       token.tenantId = current.tenantId;
       // Re-read from the same 30 s cache: an expired trial turns the business read-only within half a minute.
