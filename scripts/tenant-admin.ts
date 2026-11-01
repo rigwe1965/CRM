@@ -3,12 +3,22 @@
 //   npm run tenant-admin -- suspend <tenantId>            everyone in the business is signed out and locked out
 //   npm run tenant-admin -- resume <tenantId>
 //   npm run tenant-admin -- extend-trial <tenantId> <days>   push the end of the free trial out (from today if it ended)
+//   npm run tenant-admin -- create "<business name>" <admin email> [--plan trial|starter|pro] [--admin-name "Name"] [--trial-days N]
+//       makes a business that is active at once (a pilot, say) with its first admin, and prints a 7-day set-password link
+//   npm run tenant-admin -- set-plan <tenantId> trial|starter|pro [--force]   move a business to another plan by hand
 // Run against the production DATABASE_URL (or PLATFORM_DATABASE_URL, the owner role, which is preferred).
 // Nothing is deleted here; removing a business's data is Phase 5.
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { createBusiness, isPlanChoice, PLAN_CHOICES, setPlan } from "./tenant-admin-lib";
 
-const [cmd, id, days] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const [cmd, id, days] = argv;
+/** The value after `--flag`, or undefined. */
+const flag = (name: string) => {
+  const i = argv.indexOf(`--${name}`);
+  return i === -1 ? undefined : argv[i + 1];
+};
 const db = new PrismaClient({ datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined });
 
 async function main() {
@@ -29,9 +39,31 @@ async function main() {
     );
     return;
   }
+  if (cmd === "create") {
+    const email = argv[2];
+    if (!id || !email || id.startsWith("--") || email.startsWith("--")) throw new Error('Usage: npm run tenant-admin -- create "<business name>" <admin email> [--plan trial|starter|pro] [--admin-name "Name"] [--trial-days N]');
+    const plan = flag("plan") ?? "trial";
+    if (!isPlanChoice(plan)) throw new Error(`--plan must be one of: ${PLAN_CHOICES.join(", ")}`);
+    const trialDays = flag("trial-days") === undefined ? undefined : Number(flag("trial-days"));
+    const made = await createBusiness(db, { name: id, adminEmail: email, adminName: flag("admin-name"), plan, trialDays });
+    const base = (process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "").replace(/\/$/, "");
+    console.log(`Created ${made.tenant.name} (id ${made.tenant.id}, plan ${made.tenant.plan}). Admin: ${made.email}`);
+    console.log(base ? `Send ${made.email} this link to set a password (valid 7 days, works once):
+${base}/reset-password?token=${made.token}` : `NEXTAUTH_URL is not set here, so no full link. Token (valid 7 days): ${made.token}  ->  <your domain>/reset-password?token=<token>`);
+    console.log("On first sign-in the admin is asked to accept the terms, and must turn on two-step verification before admin pages open.");
+    return;
+  }
   if (!id) throw new Error("A tenant id is required (npm run tenant-admin -- list shows them)");
   const tenant = await db.tenant.findUnique({ where: { id } });
   if (!tenant) throw new Error(`No business with id ${id}`);
+
+  if (cmd === "set-plan") {
+    const plan = argv[2];
+    if (!isPlanChoice(plan)) throw new Error(`Usage: npm run tenant-admin -- set-plan <tenantId> ${PLAN_CHOICES.join("|")} [--force]`);
+    const changed = await setPlan(db, id, plan, { force: argv.includes("--force") });
+    console.log(`${changed.name}: plan ${changed.from} -> ${changed.to}`);
+    return;
+  }
 
   if (cmd === "suspend" || cmd === "resume") {
     if (tenant.status === "PENDING") throw new Error("That signup has not confirmed its email; it is deleted automatically after a week");
@@ -45,7 +77,7 @@ async function main() {
     await db.tenant.update({ where: { id }, data: { trialEndsAt, billingStatus: tenant.billingStatus === "ACTIVE" ? "ACTIVE" : "TRIALING" } });
     console.log(`${tenant.name}: trial now ends ${trialEndsAt.toISOString().slice(0, 10)}`);
   } else {
-    throw new Error("Usage: npm run tenant-admin -- list | suspend <id> | resume <id> | extend-trial <id> <days>");
+    throw new Error('Usage: npm run tenant-admin -- list | create "<name>" <admin email> [--plan ...] | set-plan <id> <plan> | suspend <id> | resume <id> | extend-trial <id> <days>');
   }
 }
 
