@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/components/providers";
 import { ActivityItem, TaskRow } from "@/components/common/items";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common/page";
 import { ExportMenu } from "@/components/export/export-menu";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding";
 import { CONTACT_TYPES } from "@/lib/client/constants";
 import { moneyMap } from "@/lib/client/format";
 import { useDashboard } from "@/lib/client/hooks";
@@ -115,6 +116,8 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      <OnboardingChecklist />
 
       {isLoading ? (
         <DashboardSkeleton />

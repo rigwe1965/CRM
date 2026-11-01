@@ -52,6 +52,25 @@ export function useDashboard() {
   });
 }
 
+export type Onboarding = { dismissed: boolean; allDone: boolean; steps: { key: string; label: string; hint: string; href: string; done: boolean }[] };
+
+/** The first-run checklist (admins only: pass `enabled` false for everyone else). */
+export function useOnboarding(enabled: boolean) {
+  return useQuery({
+    queryKey: ["onboarding"],
+    queryFn: async () => (await request<{ data: Onboarding }>("GET", "/api/onboarding")).data,
+    enabled,
+  });
+}
+
+export function useDismissOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dismissed: boolean) => (await request<{ data: Onboarding }>("PUT", "/api/onboarding", { dismissed })).data,
+    onSuccess: (data) => qc.setQueryData(["onboarding"], data),
+  });
+}
+
 // Data is small and views overlap (a deal appears on the board, the dashboard, a contact page...),
 // so after any write we simply refetch whatever is on screen.
 const refreshAll = (qc: QueryClient) => qc.invalidateQueries();

@@ -149,6 +149,8 @@ export const LIMITS = {
   webhookIp: { max: 300, windowMs: 60_000 },
   /** Pay now on a customer order page, per visitor address. */
   customerPay: { max: 10, windowMs: 10 * 60_000 },
+  /** Customer list imports, per user: each one can create 500 contacts. */
+  contactImport: { max: 10, windowMs: 60 * 60_000 },
   /** Two-step setup/disable attempts per user. */
   mfa: { max: 10, windowMs: 15 * 60_000, failClosed: true },
   /** Every authenticated API call, per user (reads and writes counted separately). */

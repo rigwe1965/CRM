@@ -16,3 +16,12 @@ export async function assertWithinPlan(tenantId: string, what: "users" | "contac
     throw new ApiError(403, `The ${PLANS[planOf(tenant.plan)].label} plan allows up to ${limit.toLocaleString("en")} ${what}. Upgrade your plan to add more.`, "PLAN_LIMIT");
   }
 }
+
+/** How many more contacts the business may add under its plan (Infinity when unlimited). */
+export async function contactHeadroom(tenantId: string): Promise<number> {
+  const tenant = await db.tenant.findFirst({ where: { id: tenantId }, select: { status: true, plan: true, billingStatus: true, trialEndsAt: true, currentPeriodEnd: true, deletionRequestedAt: true } });
+  if (!tenant) return 0;
+  const limit = accessOf(tenant).limits.contacts;
+  if (limit === Infinity) return Infinity;
+  return Math.max(0, limit - (await db.contact.count({ where: { tenantId, deletedAt: null } })));
+}
