@@ -157,6 +157,12 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 - Set `HEALTHCHECK_PING_URL` (Healthchecks.io or similar) and the job pings it on success and at `/fail` on failure. That is the alert for a job that silently stops, which nothing inside the app can notice.
 - After deploying this, run `npm run db:deploy` (new table `JobRun`).
 
+## Error reporting and the System tab
+- Set `SENTRY_DSN` (a Sentry or compatible DSN) and unhandled server errors are reported from `onRequestError` (`src/instrumentation.ts`, `src/lib/error-report.ts`), in production only. There is **no Sentry SDK**: every release tried (10.76.2, 11.8.0, 11.9.0, 11.10.0) pulled in `glob`/`minimatch` versions that `npm audit` flags, and CI fails on that. Re-check with `npm install @sentry/nextjs` when a release clears the audit.
+- What leaves the server: error type, scrubbed message (emails, phone numbers, keys and long tokens removed), stack, method, and the route *pattern* (ids and the query string removed). Never headers, cookies, bodies or the real URL. At most 20 reports a minute per process. It was checked against the payload format, not against a live Sentry project: send a test error after setting the DSN and confirm it arrives.
+- Rejected webhooks (bad signature, unknown business, throttled) are summarised in one `[webhook] rejected in the last minute: ...` log line a minute. Alert on that line in your log tool.
+- **Settings > System** (only admins of the original business, never other businesses) lists plain verdicts for: database role respects row-level security, daily job fresh, scheduler secret, admin two-step verification, shared rate limits, proxy setting, email provider, sign-up CAPTCHA, development shortcuts off, error tracking on. It shows no values. It cannot see your provider's backups.
+
 ## Backup and restore (PostgreSQL)
 - Backup: `pg_dump "$DIRECT_URL" -Fc -f crm.dump`
 - Restore into an empty database: `pg_restore -d "<url>" --clean crm.dump`

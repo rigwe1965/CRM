@@ -79,4 +79,6 @@ Generate each with `openssl rand -base64 32`, and set them on Production only.
 - [ ] `/api/health` is green on the live domain.
 - [ ] `npm run tenant-admin -- list` shows only the businesses you expect.
 - [ ] You can sign in as the original (`internal`) business and its data is intact.
+- [ ] Settings > System shows no red lines; `HEALTHCHECK_PING_URL` and an uptime monitor on `/api/health?deep=1` are set (TECHNICIAN.md, "Is the daily job running?").
+- [ ] The weekly "Restore drill" workflow has been run once from the Actions tab and passed; branch protection on `master` requires the `security` and `verify` jobs.
 - [ ] A backup restore has been tried at least once on a copy.

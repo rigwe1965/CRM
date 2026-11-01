@@ -21,3 +21,13 @@ export async function register() {
     console.error("[security] row-level security check failed", e instanceof Error ? e.message : e);
   }
 }
+
+/**
+ * Next.js calls this for every unhandled server error (a route that threw, a page that failed to render). It sends a
+ * scrubbed report when SENTRY_DSN is set (src/lib/error-report.ts) and does nothing otherwise.
+ */
+export async function onRequestError(err: unknown, request: { path?: string; method?: string }, context: { routeType?: string }) {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { reportError } = await import("@/lib/error-report");
+  await reportError(err, { method: request?.method, path: request?.path, routeType: context?.routeType });
+}
