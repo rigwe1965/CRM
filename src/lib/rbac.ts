@@ -52,7 +52,8 @@ const PUBLIC_PAGES = new Set([
   "/pay/result",
 ]);
 // /api/webhooks/ is signed by the sender (checked in each route), not by a session.
-const PUBLIC_PREFIXES = ["/api/auth/","/api/password/", "/api/signup", "/api/health", "/api/cron/", "/api/webhooks/", "/api/public/", "/my-order/"];
+// /.well-known/ holds security.txt, which must be readable by anyone who finds a vulnerability.
+const PUBLIC_PREFIXES = ["/.well-known/", "/api/auth/","/api/password/", "/api/signup", "/api/health", "/api/cron/", "/api/webhooks/", "/api/public/", "/my-order/"];
 
 export function isPublicPath(pathname: string): boolean {
   return (

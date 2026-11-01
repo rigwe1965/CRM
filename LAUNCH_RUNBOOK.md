@@ -60,9 +60,20 @@ Generate each with `openssl rand -base64 32`, and set them on Production only.
 ## 8. Monitoring
 
 - [ ] Add error monitoring (Sentry, or Vercel log drains).
-- [ ] Add an uptime monitor on `https://<domain>/api/health` (liveness and database connectivity), with an alert to a phone or email you check.
+- [ ] Add an uptime monitor on `https://<domain>/api/health` (liveness and database connectivity), with an alert to a phone or email you check. Steps are under "Setting up the monitors" below.
+- [ ] Set `SUPPORT_EMAIL` (and `SECURITY_EMAIL` if different) and `STATUS_PAGE_URL`. They appear on the sign-in pages and in the user menu, and `/.well-known/security.txt` exists once an address is set. Open that URL to check it.
 - [ ] Alert on repeated 5xx from `/api/webhooks/billing`: a failing billing webhook leaves businesses on the wrong plan.
 - [ ] Check the daily cron ran (Vercel, Cron) after the first day. It sends task reminders and runs business erasure.
+
+### Setting up the monitors
+
+Use any hosted monitor (Better Stack, UptimeRobot, Pingdom). You need two checks and one page:
+
+1. **Public check, every 1 to 3 minutes.** `GET https://<domain>/api/health`. It must answer 200 with `{"status":"ok"}`. A 503 means the database cannot be reached. Alert by SMS or phone call, not only email.
+2. **Private check, every 15 minutes.** `GET https://<domain>/api/health?deep=1` with the header `Authorization: Bearer <CRON_SECRET>`. It answers 503 when the daily job has not worked for 26 hours (reminders, erasures and campaigns have stopped). A monitor that cannot send headers cannot do this one; pick one that can.
+3. **Status page.** Create a public status page from the public check, set `STATUS_PAGE_URL` to its address, and redeploy.
+4. **Test it.** In staging, point the public check at a wrong path or stop the app and confirm an alert reaches your phone within a few minutes. For the private check, run `GET /api/health?deep=1` with a wrong token and confirm it answers 401, then call the cron endpoint once and confirm it answers 200.
+5. **Write down** who gets the alert, and what they do first (check the host, then the database, then the latest deploy).
 
 ## 9. Repository hygiene
 

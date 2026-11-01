@@ -13,6 +13,7 @@ import {
   ChevronsUpDown,
   CircleDollarSign,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Menu,
   Settings,
@@ -82,7 +83,7 @@ const Brand = () => (
   </Link>
 );
 
-function UserMenu() {
+function UserMenu({ support }: { support: { email: string | null; statusUrl: string | null } }) {
   const user = useCurrentUser();
   return (
     <DropdownMenu>
@@ -109,6 +110,20 @@ function UserMenu() {
             <Settings /> Settings
           </Link>
         </DropdownMenuItem>
+        {support.email && (
+          <DropdownMenuItem asChild>
+            <a href={`mailto:${support.email}`}>
+              <LifeBuoy /> Contact support
+            </a>
+          </DropdownMenuItem>
+        )}
+        {support.statusUrl && (
+          <DropdownMenuItem asChild>
+            <a href={support.statusUrl} target="_blank" rel="noopener noreferrer">
+              <ActivityIcon /> System status
+            </a>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => signOut({ callbackUrl: "/sign-in" })}>
           <LogOut /> Sign out
         </DropdownMenuItem>
@@ -117,7 +132,7 @@ function UserMenu() {
   );
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, support = { email: null, statusUrl: null } }: { children: React.ReactNode; support?: { email: string | null; statusUrl: string | null } }) {
   const currentUser = useCurrentUser();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
@@ -148,7 +163,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-1">
             <AskIvy />
             <ThemeToggle />
-            <UserMenu />
+            <UserMenu support={support} />
           </div>
         </header>
         {currentUser.mfaPending && (

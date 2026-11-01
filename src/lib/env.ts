@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validEmail, validHttpsUrl } from "@/lib/support";
 
 /**
  * Production environment contract. Validated once at server start (src/instrumentation.ts) so a
@@ -22,6 +23,9 @@ const productionEnv = z
     SENTRY_ENVIRONMENT: z.string().optional(),
     HEALTHCHECK_PING_URL: z.string().refine((v) => v === "" || (URL.canParse(v) && v.startsWith("https://")), "must be an https:// URL").optional(),
     ALLOW_UNRESTRICTED_DB_ROLE: z.string().optional(),
+    SUPPORT_EMAIL: z.string().refine((v) => v === "" || validEmail(v), "must be an email address").optional(),
+    SECURITY_EMAIL: z.string().refine((v) => v === "" || validEmail(v), "must be an email address").optional(),
+    STATUS_PAGE_URL: z.string().refine((v) => v === "" || validHttpsUrl(v), "must be an https:// URL").optional(),
     MFA_ENCRYPTION_KEY: z.string().optional(),
     MFA_ENCRYPTION_KEY_PREVIOUS: z.string().optional(),
     REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),
@@ -101,5 +105,6 @@ export function productionWarnings(env: Record<string, string | undefined>): str
   if (!env.VERCEL && !env.TRUSTED_PROXY_COUNT) {
     warnings.push("TRUSTED_PROXY_COUNT is not set, so rate limits assume exactly one reverse proxy in front of the app. Set it to the real number, and keep the app unreachable except through the proxy.");
   }
+  if (!validEmail(env.SUPPORT_EMAIL)) warnings.push("SUPPORT_EMAIL is not set, so customers are shown no way to reach you and /.well-known/security.txt does not exist. Set it to an address you read every day.");
   return warnings;
 }
