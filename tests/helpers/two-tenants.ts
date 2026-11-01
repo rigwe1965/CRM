@@ -122,6 +122,10 @@ async function seedTenant(db: PrismaClient, k: string): Promise<TenantFixture> {
   await db.contactTag.create({ data: { ...t, contactId: contact.id, tagId: tag.id } });
   await db.savedFilter.create({ data: { ...t, userId: sales.id, entity: "contacts", name: "Mine", query: {} } });
   await db.emailTemplate.create({ data: { ...t, name: `Welcome ${k}`, subject: "Hi", body: "Hello {firstName}" } });
+  const waTemplate = await db.whatsappTemplate.create({ data: { ...t, name: `order_update_${k}`, language: "en", body: "Hello {{1}}", status: "APPROVED" } });
+  const campaign = await db.campaign.create({ data: { ...t, name: `Campaign ${k}`, templateId: waTemplate.id, createdById: adminUser.id } });
+  await db.campaignRecipient.create({ data: { ...t, campaignId: campaign.id, contactId: contact.id } });
+  await db.customerOrderLink.create({ data: { ...t, dealId: deal.id, tokenHash: `fixture-token-hash-${k}`, tokenSealed: "placeholder-not-real-ciphertext", expiresAt: new Date(Date.now() + 86_400_000), createdById: sales.id } });
   await db.automationSetting.create({ data: { ...t, key: `lead-form-${k}`, config: {} } });
   await db.stockAdjustment.create({ data: { ...t, product: "Bundle", quantity: 1, reason: "Found", ownerId: sales.id } });
   await db.stockThreshold.create({ data: { ...t, key: `bundle||`, product: "Bundle", threshold: 2 } });
