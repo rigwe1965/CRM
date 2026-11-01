@@ -22,6 +22,13 @@ export const adminMfaRequired = (env: Record<string, string | undefined> = proce
 export const mfaPending = (role: Role | undefined, mfaEnabled: boolean, required = adminMfaRequired()) =>
   required && role === "ADMIN" && !mfaEnabled;
 
+/** An admin can do the most harm with a stolen session, so theirs lasts a working day at most from the moment they signed in. */
+export const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
+
+/** True when a session must end: an admin whose sign-in is older than `ADMIN_SESSION_SECONDS`. `signedInAt` is epoch seconds. */
+export const adminSessionExpired = (role: Role | undefined, signedInAt: number | undefined, nowMs = Date.now()) =>
+  role === "ADMIN" && signedInAt !== undefined && nowMs / 1000 - signedInAt > ADMIN_SESSION_SECONDS;
+
 /** Path prefixes that require specific roles. Add new protected areas here. */
 const ROLE_RULES: ReadonlyArray<{ prefix: string; roles: readonly Role[] }> = [
   { prefix: "/admin", roles: ["ADMIN"] },

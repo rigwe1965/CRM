@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { base32Decode, base32Encode, decryptSecret, encryptSecret, generateRecoveryCodes, hashRecoveryCode, otpauthUrl, totp, verifyTotp } from "@/lib/mfa";
+import { base32Decode, base32Encode, decryptSecret, encryptSecret, generateRecoveryCodes, hashRecoveryCode, recoveryCodeHashes, otpauthUrl, totp, verifyTotp } from "@/lib/mfa";
 
 beforeAll(() => {
   process.env.NEXTAUTH_SECRET = "test-secret-test-secret-test-secret-123";
@@ -47,7 +47,15 @@ describe("secret storage and recovery codes", () => {
   it("generates distinct codes that hash the same however they are typed", () => {
     const codes = generateRecoveryCodes();
     expect(new Set(codes).size).toBe(8);
-    expect(codes[0]).toMatch(/^[a-z2-7]{5}-[a-z2-7]{5}$/);
+    expect(codes[0]).toMatch(/^[a-z2-7]{5}-[a-z2-7]{5}-[a-z2-7]{5}$/);
     expect(hashRecoveryCode(codes[0])).toBe(hashRecoveryCode(codes[0].toUpperCase().replace("-", " ")));
+  });
+  it("stores keyed hashes, and still recognises an old plain SHA-256 hash", () => {
+    const code = "abcde-fghij-klmno";
+    const hash = hashRecoveryCode(code);
+    expect(hash).toMatch(/^v2:[0-9a-f]{64}$/);
+    const hashes = recoveryCodeHashes(code);
+    expect(hashes[0]).toBe(hash);
+    expect(hashes.some((h) => /^[0-9a-f]{64}$/.test(h))).toBe(true);
   });
 });

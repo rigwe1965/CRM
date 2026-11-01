@@ -81,3 +81,6 @@ export const mfaDisableSchema = z.object({
 });
 
 export const mfaCheckSchema = z.object({ email, password: z.string().min(1).max(200) });
+
+/** Starting two-step setup needs the current password, so a stolen session alone cannot bind an attacker's authenticator. */
+export const mfaSetupSchema = z.object({ password: z.string().min(1, "Password is required").max(200) });

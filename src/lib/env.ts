@@ -21,6 +21,7 @@ const productionEnv = z
     SENTRY_DSN: z.string().refine((v) => v === "" || (URL.canParse(v) && v.startsWith("https://") && !!new URL(v).username), "must be a Sentry DSN: https://<key>@<host>/<project number>").optional(),
     SENTRY_ENVIRONMENT: z.string().optional(),
     HEALTHCHECK_PING_URL: z.string().refine((v) => v === "" || (URL.canParse(v) && v.startsWith("https://")), "must be an https:// URL").optional(),
+    ALLOW_UNRESTRICTED_DB_ROLE: z.string().optional(),
     MFA_ENCRYPTION_KEY: z.string().optional(),
     MFA_ENCRYPTION_KEY_PREVIOUS: z.string().optional(),
     REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),
@@ -53,7 +54,8 @@ const productionEnv = z
     for (const name of ["MFA_ENCRYPTION_KEY", "MFA_ENCRYPTION_KEY_PREVIOUS"] as const) {
       if (env[name] && Buffer.from(env[name]!, "base64").length < 32) add(name, "must be at least 32 random bytes, base64 encoded (openssl rand -base64 32)");
     }
-    if (env.MFA_ENCRYPTION_KEY_PREVIOUS && !env.MFA_ENCRYPTION_KEY) add("MFA_ENCRYPTION_KEY", "required when MFA_ENCRYPTION_KEY_PREVIOUS is set");
+    if (!env.MFA_ENCRYPTION_KEY) add("MFA_ENCRYPTION_KEY", "required: it encrypts every business's saved Stripe, WhatsApp and Anthropic keys and the two-step secrets (openssl rand -base64 32). Without it they hang on NEXTAUTH_SECRET alone");
+    if (!env.PLATFORM_DATABASE_URL && env.ALLOW_UNRESTRICTED_DB_ROLE !== "1") add("PLATFORM_DATABASE_URL", "required: DATABASE_URL must connect as the restricted role and this one as the owner (see TECHNICIAN.md, Row-level security)");
     if (!env.CRON_SECRET || env.CRON_SECRET.length < 16) {
       add("CRON_SECRET", "required, at least 16 characters (protects /api/cron/*)");
     }

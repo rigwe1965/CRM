@@ -10,7 +10,7 @@ export const authConfig = {
     error: "/sign-in",
     verifyRequest: "/verify-request",
   },
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   providers: [],
   callbacks: {
     jwt({ token, user }) {

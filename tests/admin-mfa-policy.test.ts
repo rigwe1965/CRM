@@ -37,3 +37,15 @@ describe("adminMfaRequired", () => {
     expect(adminMfaRequired()).toBe(true);
   });
 });
+
+import { adminSessionExpired } from "@/lib/rbac";
+describe("admin session length", () => {
+  const now = Date.UTC(2026, 10, 1, 12, 0, 0);
+  const secs = (h: number) => now / 1000 - h * 3600;
+  it("ends an admin session after 12 hours, others keep going", () => {
+    expect(adminSessionExpired("ADMIN", secs(13), now)).toBe(true);
+    expect(adminSessionExpired("ADMIN", secs(11), now)).toBe(false);
+    expect(adminSessionExpired("SALES", secs(100), now)).toBe(false);
+    expect(adminSessionExpired("ADMIN", undefined, now)).toBe(false);
+  });
+});

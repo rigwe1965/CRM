@@ -1,6 +1,6 @@
 import { platformDb } from "@/lib/platform-db";
 import { ApiError } from "@/lib/api";
-import { decryptSecretInfo, encryptSecret, hashRecoveryCode, verifyTotp } from "@/lib/mfa";
+import { decryptSecretInfo, encryptSecret, recoveryCodeHashes, verifyTotp } from "@/lib/mfa";
 
 type MfaUser = { id: string; mfaSecret: string | null; mfaLastStep: number | null; mfaRecoveryCodes: string[] };
 
@@ -24,8 +24,8 @@ export async function verifyMfaCode(user: MfaUser, input: string): Promise<boole
     return count === 1;
   }
 
-  const hash = hashRecoveryCode(code);
-  if (!user.mfaRecoveryCodes.includes(hash)) return false;
+  const hash = recoveryCodeHashes(code).find((h) => user.mfaRecoveryCodes.includes(h));
+  if (!hash) return false;
   const { count } = await platformDb.user.updateMany({
     where: { id: user.id, mfaRecoveryCodes: { has: hash } },
     data: { mfaRecoveryCodes: user.mfaRecoveryCodes.filter((h) => h !== hash) },

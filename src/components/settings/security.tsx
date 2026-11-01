@@ -36,9 +36,10 @@ export function MfaCard() {
   async function start() {
     setBusy(true);
     try {
-      const r = await request<{ secret: string; otpauthUrl: string }>("POST", "/api/me/mfa/setup");
+      const r = await request<{ secret: string; otpauthUrl: string }>("POST", "/api/me/mfa/setup", { password });
       setSetup({ secret: r.secret, qr: await QRCode.toDataURL(r.otpauthUrl, { margin: 1, width: 192 }) });
       setCode("");
+      setPassword("");
     } catch (e) {
       toast.error(errorMessage(e));
     } finally {
@@ -143,9 +144,15 @@ export function MfaCard() {
             </div>
           </div>
         ) : (
-          <Button type="button" disabled={busy} onClick={() => void start()}>
-            Set up
-          </Button>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Enter your password to start.</p>
+            <FormField label="Password">
+              <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </FormField>
+            <Button type="button" disabled={busy || !password} onClick={() => void start()}>
+              Set up
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>

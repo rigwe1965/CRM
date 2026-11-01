@@ -1,3 +1,5 @@
+class RlsRefusal extends Error {}
+
 export async function register() {
   // Skip during `next build` (build machines often have no runtime secrets) and on the edge runtime.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -13,11 +15,17 @@ export async function register() {
     const client = new PrismaClient();
     try {
       const warning = await rowLevelSecurityWarning(client);
-      if (warning) console.error(`[security] ${warning}: businesses are separated by application filters only. See TECHNICIAN.md.`);
+      if (warning) {
+        const message = `${warning}: businesses would be separated by application filters only. See TECHNICIAN.md.`;
+        // A wrong role breaks nothing visibly, so production refuses to start unless the owner accepts it on purpose.
+        if (process.env.ALLOW_UNRESTRICTED_DB_ROLE === "1") console.error(`[security] ${message} (ALLOW_UNRESTRICTED_DB_ROLE=1: continuing)`);
+        else throw new RlsRefusal(message);
+      }
     } finally {
       await client.$disconnect();
     }
   } catch (e) {
+    if (e instanceof RlsRefusal) throw new Error(`[security] ${e.message} Set ALLOW_UNRESTRICTED_DB_ROLE=1 only if you accept this.`);
     console.error("[security] row-level security check failed", e instanceof Error ? e.message : e);
   }
 }
