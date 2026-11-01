@@ -172,7 +172,7 @@ npm ci && npx prisma migrate deploy && npm run build && npm start
 
 Also set `AUTH_TRUST_HOST=true` and `NEXTAUTH_URL`, serve it over HTTPS (the app sends HSTS), and call `GET /api/cron/task-reminders` with `Authorization: Bearer $CRON_SECRET` from your scheduler. Without Upstash, rate limits are per process, which is fine for a single instance.
 
-Rate limits key on the client IP, read from `X-Forwarded-For` **from the right** (a client can forge the left side). Put the app behind a reverse proxy that appends the real client address (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), set `TRUSTED_PROXY_COUNT` to the number of proxies, and never expose the Node port directly to the internet. The bundled `docker-compose.yml` publishes Postgres on `127.0.0.1` only; keep it that way and change its default password on any shared machine.
+Rate limits key on the client IP, read from `X-Forwarded-For` **from the right** (a client can forge the left side). Put the app behind a reverse proxy that appends the real client address (nginx: `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`), set `TRUSTED_PROXY_COUNT` to the number of proxies, and never expose the Node port directly to the internet. The app logs a warning at start-up if `TRUSTED_PROXY_COUNT` is unset, and once at run time if a request arrives with fewer `X-Forwarded-For` entries than proxies. After deploying, check it: send a request with a forged `X-Forwarded-For: 1.2.3.4` and confirm the rate limit does not key on `1.2.3.4`. The bundled `docker-compose.yml` publishes Postgres on `127.0.0.1` only; keep it that way and change its default password on any shared machine.
 
 ## Security checklist
 

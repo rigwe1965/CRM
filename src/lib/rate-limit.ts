@@ -105,12 +105,25 @@ export async function isKnownIp(userId: string, ip: string): Promise<boolean> {
  *    (default 1, e.g. nginx or a load balancer): the entry that many places from the right is the
  *    address the outermost trusted proxy saw. The app must not be reachable directly, bypassing them.
  */
+let warnedShortChain = false;
+function warnShortChain(hops: number, proxies: number) {
+  if (warnedShortChain) return;
+  warnedShortChain = true;
+  console.warn(`[rate-limit] X-Forwarded-For has ${hops} address(es) but TRUSTED_PROXY_COUNT is ${proxies}: the app may be reachable without going through the proxy, or the count is wrong. Check the deployment.`);
+}
+
 export function clientIp(headers: Headers): string {
   const forwarded = (headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (forwarded.length) {
     if (process.env.VERCEL) return forwarded[0];
     const proxies = Math.max(1, Number.parseInt(process.env.TRUSTED_PROXY_COUNT ?? "1", 10) || 1);
-    return forwarded[Math.max(0, forwarded.length - proxies)];
+    if (forwarded.length < proxies) {
+      // Fewer hops than proxies we were told about: the request did not pass through all of them (reached directly, or
+      // the count is wrong). Everything to the left is client-controlled, so take the rightmost entry, never the leftmost.
+      warnShortChain(forwarded.length, proxies);
+      return forwarded[forwarded.length - 1];
+    }
+    return forwarded[forwarded.length - proxies];
   }
   return headers.get("x-real-ip") || "unknown";
 }
@@ -131,6 +144,8 @@ export const LIMITS = {
   /** Public website form: per visitor address, and an overall cap so a botnet can't flood the inbox. */
   webLead: { max: 5, windowMs: 10 * 60_000 },
   webLeadAll: { max: 200, windowMs: 60 * 60_000 },
+  /** Public webhooks (Stripe, Meta), per sender address and kind. Generous because providers retry in bursts; fails open so an outage here never drops a real payment or message. */
+  webhookIp: { max: 300, windowMs: 60_000 },
   /** Pay now on a customer order page, per visitor address. */
   customerPay: { max: 10, windowMs: 10 * 60_000 },
   /** Two-step setup/disable attempts per user. */
@@ -146,4 +161,14 @@ export const LIMITS = {
 export async function enforceRateLimit(key: string, opts: { max: number; windowMs: number; failClosed?: boolean }) {
   const r = await rateLimit(key, opts);
   if (!r.allowed) throw new ApiError(429, `Too many requests. Try again in ${r.retryAfter}s.`, "RATE_LIMITED");
+}
+
+/**
+ * Cheap first gate for a public webhook, run before any database read or decryption so a flood of unsigned requests
+ * costs one counter bump instead of real work. Returns the 429 to send, or null to carry on.
+ */
+export async function webhookThrottle(req: Request, kind: string): Promise<Response | null> {
+  const limit = await rateLimit(`webhook:${kind}:${clientIp(req.headers)}`, LIMITS.webhookIp);
+  if (limit.allowed) return null;
+  return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(Math.max(limit.retryAfter, 1)) } });
 }

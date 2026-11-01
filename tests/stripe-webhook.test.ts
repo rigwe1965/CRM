@@ -28,7 +28,7 @@ describe("stripe webhook", () => {
 
   it("is off until the secret is set", async () => {
     delete process.env.STRIPE_WEBHOOK_SECRET;
-    expect((await call()).status).toBe(503);
+    expect((await call()).status).toBe(400);
   });
 
   it("rejects a missing or invalid signature without touching the database", async () => {
@@ -64,9 +64,9 @@ describe("stripe webhook", () => {
     const other = () =>
       postFor(new Request("http://x.test/api/webhooks/stripe/tenant_b", { method: "POST", headers: { "stripe-signature": "t=1,v1=x" }, body: "{}" }), { params: Promise.resolve({ tenant: "tenant_b" }) });
     // tenant_b has saved nothing: the environment keys are the original business's and are never used for it.
-    expect((await other()).status).toBe(503);
+    expect((await other()).status).toBe(400);
     expect(constructEvent).not.toHaveBeenCalled();
     const original = await postFor(new Request("http://x.test", { method: "POST", headers: { "stripe-signature": "t=1,v1=x" }, body: "{}" }), { params: Promise.resolve({ tenant: "tenant_ivycandy" }) });
-    expect(original.status).not.toBe(503);
+    expect(original.status).not.toBe(400);
   });
 });

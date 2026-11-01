@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { audit } from "@/lib/audit";
+import { webhookThrottle } from "@/lib/rate-limit";
 import { applySubscriptionEvent, billingStripe } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,8 @@ export const runtime = "nodejs";
  * Not wrapped in authed().
  */
 export async function POST(req: Request) {
+  const throttled = await webhookThrottle(req, "billing");
+  if (throttled) return throttled;
   const secret = process.env.BILLING_STRIPE_WEBHOOK_SECRET;
   const signature = req.headers.get("stripe-signature");
   if (!secret || !process.env.BILLING_STRIPE_SECRET_KEY) return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });

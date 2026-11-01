@@ -12,6 +12,7 @@ const productionEnv = z
     AUTH_SECRET: z.string().optional(),
     NEXTAUTH_URL: z.string().optional(),
     VERCEL: z.string().optional(),
+    TRUSTED_PROXY_COUNT: z.string().refine((v) => v === "" || /^[1-9]\d?$/.test(v), "must be a whole number from 1 to 99 (how many reverse proxies are in front of the app)").optional(),
     AUTH_TRUST_HOST: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_SERVER: z.string().optional(),
@@ -23,6 +24,7 @@ const productionEnv = z
     UPSTASH_REDIS_REST_URL: z.string().optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
     SIGNUP_ENABLED: z.string().optional(),
+    SIGNUP_DEV_LINKS: z.string().optional(),
     TURNSTILE_SITE_KEY: z.string().optional(),
     TURNSTILE_SECRET_KEY: z.string().optional(),
     BILLING_STRIPE_SECRET_KEY: z.string().optional(),
@@ -73,13 +75,26 @@ const productionEnv = z
       for (const k of wa) if (!env[k]) add(k, "required together with the other WHATSAPP_ settings");
     }
     if (env.WHATSAPP_VERIFY_TOKEN && env.WHATSAPP_VERIFY_TOKEN.length < 16) add("WHATSAPP_VERIFY_TOKEN", "must be at least 16 characters");
+    if (env.SIGNUP_DEV_LINKS === "1") add("SIGNUP_DEV_LINKS", "must not be set in production (it would put the signup confirmation link in the response)");
     if (!env.VERCEL && !env.NEXTAUTH_URL) add("NEXTAUTH_URL", "required outside Vercel (your public https URL)");
     if (!env.VERCEL && !env.AUTH_TRUST_HOST) add("AUTH_TRUST_HOST", "set to true when self-hosting behind your own domain");
   });
 
 export function assertProductionEnv() {
   const result = productionEnv.safeParse(process.env);
-  if (result.success) return;
+  if (result.success) {
+    for (const w of productionWarnings(process.env)) console.warn(`[env] ${w}`);
+    return;
+  }
   const lines = result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`);
   throw new Error(`Invalid production environment:\n${lines.join("\n")}`);
+}
+
+/** Settings that are allowed but worth a second look. Logged at start-up; they never stop the server. */
+export function productionWarnings(env: Record<string, string | undefined>): string[] {
+  const warnings: string[] = [];
+  if (!env.VERCEL && !env.TRUSTED_PROXY_COUNT) {
+    warnings.push("TRUSTED_PROXY_COUNT is not set, so rate limits assume exactly one reverse proxy in front of the app. Set it to the real number, and keep the app unreachable except through the proxy.");
+  }
+  return warnings;
 }

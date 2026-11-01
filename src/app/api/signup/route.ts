@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { apiError, parseBody } from "@/lib/api";
 import { captchaConfigured, verifyCaptcha } from "@/lib/captcha";
 import { clientIp, LIMITS, rateLimit } from "@/lib/rate-limit";
-import { createSignup, signupEnabled } from "@/lib/signup";
+import { createSignup, devLinksEnabled, signupEnabled } from "@/lib/signup";
 import { signupSchema } from "@/lib/validations/auth";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +28,8 @@ export async function POST(req: Request) {
   }
 
   let devLink: string | undefined;
-  if (process.env.NODE_ENV !== "production") {
-    // With no email provider the link has to come back in the response; run inline so it can.
+  if (devLinksEnabled()) {
+    // Local development only (SIGNUP_DEV_LINKS=1 and no mail provider): the link has to come back in the response, so run inline.
     devLink = (await createSignup(input).catch((e) => (console.error("signup failed", e), undefined)))?.devLink;
   } else {
     after(async () => {

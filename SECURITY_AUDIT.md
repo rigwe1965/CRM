@@ -292,6 +292,18 @@ Noted, no code change: the website form's overall hourly limit (200) can be used
 
 ---
 
+## Review of the multi-business features (2026-11-01): findings 18 to 20
+
+Read-only review of the public and unauthenticated surface added with multi-tenancy, billing, WhatsApp and campaigns. No Critical or High findings; no cross-business access found. Three Low/Info items, fixed after the owner approved a plan (branch `security-fixes-18-20`).
+
+- **18. Public webhooks did database work before the signature check, with no rate limit (Low).** `src/lib/stripe-webhook.ts`, `src/lib/whatsapp-webhook.ts`. Each unsigned request read and decrypted the business's settings, and an unconfigured business answered 503 while a configured one answered 400/401, which showed which business ids use Stripe or WhatsApp. **Fix status: fixed.** `webhookThrottle` (`LIMITS.webhookIp`, 300 per minute per address and webhook kind, fails open) runs before any lookup on the Stripe, WhatsApp and billing webhooks. An unconfigured business now answers exactly like a bad signature (400 Stripe, 401 WhatsApp POST, 403 for Meta's check). Tests: `tests/webhook-throttle.test.ts`.
+- **19. Client IP depends on proxy settings (Low).** `src/lib/rate-limit.ts` (`clientIp`). With a wrong or unset `TRUSTED_PROXY_COUNT`, or an app reachable without its proxy, `X-Forwarded-For` can be forged to dodge every address-based limit; a chain shorter than the proxy count silently used the leftmost (client-controlled) entry. **Fix status: fixed.** A short chain now uses the rightmost entry and logs once; `TRUSTED_PROXY_COUNT` must be a whole number from 1 to 99 or production start-up fails; start-up warns (does not stop) when it is unset off Vercel. Deployment check added to the README. The setting itself still has to be right for the host. Tests: `tests/client-ip.test.ts`.
+- **20. Signup confirmation link in the response gated only by `NODE_ENV` (Info).** `src/app/api/signup/route.ts`, `src/lib/signup.ts`. Not exploitable as deployed (production ran the signup after the response and dropped the result), but one misconfigured environment would have let anyone confirm a signup for an email they do not own. **Fix status: fixed.** The link is returned only with `SIGNUP_DEV_LINKS=1` and console-only mail; production start-up refuses to boot with the flag set. Tests: `tests/signup-dev-link.test.ts`.
+
+Not changed: the admin invite route also returns a development link, but only to a signed-in admin.
+
+---
+
 ## Data export feature (added 2026-10-20)
 
 New feature, reviewed as it was built. Nothing here was a finding in the original audit; this records the design and the risks it was built against.

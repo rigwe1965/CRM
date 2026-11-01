@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // The CAPTCHA on the public sign-up route. Cloudflare is never called: fetch is replaced.
 
 const { createSignup } = vi.hoisted(() => ({ createSignup: vi.fn(async () => ({})) }));
-vi.mock("@/lib/signup", () => ({ signupEnabled: () => true, createSignup }));
+vi.mock("@/lib/signup", () => ({ signupEnabled: () => true, devLinksEnabled: () => true, createSignup }));
 vi.mock("@/lib/rate-limit", () => ({ clientIp: () => "203.0.113.9", LIMITS: { signup: {}, signupEmail: {}, signupAll: {} }, rateLimit: async () => ({ allowed: true, retryAfter: 0 }) }));
 
 import { POST } from "@/app/api/signup/route";

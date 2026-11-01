@@ -10,6 +10,13 @@ import { consumeSignupToken, createSignupToken } from "@/lib/tokens";
 /** Self-service signup is off unless the owner switches it on, so a deployment opens to the public on purpose. */
 export const signupEnabled = () => process.env.SIGNUP_ENABLED === "1" || process.env.SIGNUP_ENABLED === "true";
 
+/**
+ * Whether the signup response may carry the confirmation link (local development with no mail provider). It needs the
+ * explicit SIGNUP_DEV_LINKS=1 on top of console-only mail, so a stray NODE_ENV can never hand the link to the visitor,
+ * which would let anyone confirm a signup for an email address they do not own.
+ */
+export const devLinksEnabled = () => process.env.SIGNUP_DEV_LINKS === "1" && mailIsConsoleOnly();
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** How long an unconfirmed signup is kept before it is deleted. */
 export const PENDING_SIGNUP_DAYS = 7;
@@ -52,7 +59,7 @@ export async function createSignup(input: SignupInput): Promise<{ devLink?: stri
   await audit({ email: input.email, tenantId: tenant.id }, { action: "signup.created", entity: "tenant", entityId: tenant.id, summary: input.businessName });
   const link = `${appUrl()}/verify-email?token=${await createSignupToken(input.email)}`;
   await trySendMail({ to: input.email, ...verifySignupEmail(input.name, input.businessName, link) });
-  return { devLink: mailIsConsoleOnly() ? link : undefined };
+  return { devLink: devLinksEnabled() ? link : undefined };
 }
 
 /** Confirms a signup from its emailed token: the business becomes ACTIVE. False when the link is invalid or used. */

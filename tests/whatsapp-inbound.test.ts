@@ -80,7 +80,7 @@ describe("webhook set-up check and signature", () => {
 
   it("is off until all four settings exist", async () => {
     delete process.env.WHATSAPP_APP_SECRET;
-    expect((await hook(payload())).status).toBe(503);
+    expect((await hook(payload())).status).toBe(401);
   });
 });
 
