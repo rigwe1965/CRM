@@ -144,6 +144,8 @@ export const LIMITS = {
   /** Public website form: per visitor address, and an overall cap so a botnet can't flood the inbox. */
   webLead: { max: 5, windowMs: 10 * 60_000 },
   webLeadAll: { max: 200, windowMs: 60 * 60_000 },
+  /** Public webhooks (Stripe, Meta), per sender address and kind. Generous because providers retry in bursts; fails open so an outage here never drops a real payment or message. */
+  webhookIp: { max: 300, windowMs: 60_000 },
   /** Pay now on a customer order page, per visitor address. */
   customerPay: { max: 10, windowMs: 10 * 60_000 },
   /** Two-step setup/disable attempts per user. */
@@ -159,4 +161,14 @@ export const LIMITS = {
 export async function enforceRateLimit(key: string, opts: { max: number; windowMs: number; failClosed?: boolean }) {
   const r = await rateLimit(key, opts);
   if (!r.allowed) throw new ApiError(429, `Too many requests. Try again in ${r.retryAfter}s.`, "RATE_LIMITED");
+}
+
+/**
+ * Cheap first gate for a public webhook, run before any database read or decryption so a flood of unsigned requests
+ * costs one counter bump instead of real work. Returns the 429 to send, or null to carry on.
+ */
+export async function webhookThrottle(req: Request, kind: string): Promise<Response | null> {
+  const limit = await rateLimit(`webhook:${kind}:${clientIp(req.headers)}`, LIMITS.webhookIp);
+  if (limit.allowed) return null;
+  return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(Math.max(limit.retryAfter, 1)) } });
 }

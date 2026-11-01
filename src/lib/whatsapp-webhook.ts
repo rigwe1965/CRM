@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { after, NextResponse } from "next/server";
 import { getIntegration } from "@/lib/integrations";
 import { enqueueTriage, processTriage } from "@/lib/ai/triage/run";
+import { webhookThrottle } from "@/lib/rate-limit";
 import { withTenant } from "@/lib/tenant-context";
 import { parseInbound, parseStatuses, recordDeliveryStatus, recordInbound, validSignature } from "@/lib/whatsapp";
 
@@ -9,9 +10,12 @@ const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(
 
 /** Meta's one-time check when a business saves its webhook URL. Echoes the challenge if that business's verify token matches. */
 export async function verifyWhatsappWebhook(req: Request, tenantId: string): Promise<Response> {
+  const throttled = await webhookThrottle(req, "whatsapp-verify");
+  if (throttled) return throttled;
   const p = new URL(req.url).searchParams;
   const found = await getIntegration(tenantId, "WHATSAPP");
-  if (!found) return new NextResponse("Not configured", { status: 503 });
+  // Not configured answers like a wrong token, so the check can't be used to find which businesses use WhatsApp.
+  if (!found) return new NextResponse("Forbidden", { status: 403 });
   if (p.get("hub.mode") === "subscribe" && same(p.get("hub.verify_token") ?? "", found.settings.verifyToken)) {
     return new NextResponse(p.get("hub.challenge") ?? "", { status: 200, headers: { "Content-Type": "text/plain" } });
   }
@@ -25,10 +29,12 @@ export async function verifyWhatsappWebhook(req: Request, tenantId: string): Pro
  * whose secret signed it. A 5xx makes Meta retry, which is safe: each message id is recorded once.
  */
 export async function receiveWhatsappWebhook(req: Request, tenantId: string): Promise<Response> {
+  const throttled = await webhookThrottle(req, "whatsapp");
+  if (throttled) return throttled;
   const found = await getIntegration(tenantId, "WHATSAPP");
-  if (!found) return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
   const raw = await req.text();
-  if (!validSignature(raw, req.headers.get("x-hub-signature-256"), found.settings.appSecret)) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  // An unknown or unconfigured business answers exactly like a bad signature.
+  if (!found || !validSignature(raw, req.headers.get("x-hub-signature-256"), found.settings.appSecret)) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
 
   let payload: unknown;
   try {

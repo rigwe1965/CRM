@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getIntegration } from "@/lib/integrations";
 import { auditOnline, recordOnlinePayment } from "@/lib/payment-links";
+import { webhookThrottle } from "@/lib/rate-limit";
 import { stripe } from "@/lib/stripe";
 
 const HANDLED = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded"]);
@@ -14,11 +15,13 @@ const HANDLED = new Set(["checkout.session.completed", "checkout.session.async_p
  * belongs to a different business.
  */
 export async function handleStripeWebhook(req: Request, tenantId: string): Promise<Response> {
+  const throttled = await webhookThrottle(req, "stripe");
+  if (throttled) return throttled;
   const found = await getIntegration(tenantId, "STRIPE");
   const signature = req.headers.get("stripe-signature");
-  // An unknown business and one without payments set up look the same.
-  if (!found) return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
-  if (!signature) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
+  // An unknown business, one without payments set up, and an unsigned request all look the same, so the answer
+  // never reveals which businesses have Stripe connected.
+  if (!found || !signature) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   let event: Stripe.Event;
   try {

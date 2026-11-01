@@ -176,8 +176,8 @@ run("per-business integrations", () => {
 
     it("answers a business that has no Stripe settings the same as an unknown one", async () => {
       await call(integrationKind.DELETE as Handler, b, { method: "DELETE", params: { kind: "stripe" } });
-      expect((await send(t.b.tenantId, event("plink_of_a"), B_STRIPE.webhookSecret)).status).toBe(503);
-      expect((await send("no_such_business", event("plink_of_a"), B_STRIPE.webhookSecret)).status).toBe(503);
+      expect((await send(t.b.tenantId, event("plink_of_a"), B_STRIPE.webhookSecret)).status).toBe(400);
+      expect((await send("no_such_business", event("plink_of_a"), B_STRIPE.webhookSecret)).status).toBe(400);
     });
   });
 
@@ -194,7 +194,7 @@ run("per-business integrations", () => {
     it("files a message under the business whose webhook and secret received it, and only that one", async () => {
       expect((await put(a, "whatsapp", A_WA)).status).toBe(200);
 
-      expect((await post(t.b.tenantId, A_WA.appSecret)).status).toBe(503); // B has no WhatsApp settings
+      expect((await post(t.b.tenantId, A_WA.appSecret)).status).toBe(401); // B has no WhatsApp settings
       expect(await t.db.activity.count({ where: { externalId: "wamid.cross" } })).toBe(0);
 
       await put(b, "whatsapp", { ...A_WA, phoneNumberId: "222222222", appSecret: "b-app-secret-123456", verifyToken: "b-verify-token-123456" });
