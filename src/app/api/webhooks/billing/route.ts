@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { audit } from "@/lib/audit";
 import { webhookThrottle } from "@/lib/rate-limit";
+import { noteWebhookRejected } from "@/lib/webhook-stats";
 import { applySubscriptionEvent, billingStripe } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   try {
     event = billingStripe().webhooks.constructEvent(await req.text(), signature, secret);
   } catch {
+    noteWebhookRejected("billing", "bad_signature");
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
   try {
