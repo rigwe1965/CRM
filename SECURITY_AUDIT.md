@@ -333,6 +333,28 @@ New feature, reviewed as it was built. Nothing here was a finding in the origina
 - Free-text notes (activities, tasks, payment references, invoice `billTo`) are exported as written and can contain contact details.
 - PDF layout was checked by building a production bundle and generating sample files, not by viewing them in a PDF reader.
 
+---
+
+## Full re-audit (2026-11-01): findings 21 to 33
+
+A full read of the code before the project went to an outside reviewer found no Critical or High vulnerability. These were fixed after the owner approved a plan (branch `security-fixes-21-33`). Finding 21 is about how the project is handed over, not code.
+
+- **21. Local secret files travel with a copied folder (operational).** `.env`, `.env.local`, `.env.eval` and `.claude/.env.eval` are git-ignored but sit in the project folder. Hand over a `git archive` or a fresh clone, never the folder, and rotate anything that already left the machine.
+- **22. CAPTCHA could be skipped on the website form (Medium).** The check only ran when the request carried a token. **Fixed:** with a CAPTCHA configured, a missing token is refused. Forms pasted before the CAPTCHA existed must be re-pasted.
+- **23. Row-level security could be silently off (Medium).** A start-up check only logged. **Fixed:** production now refuses to start when the database role bypasses row-level security, and requires `PLATFORM_DATABASE_URL`; `ALLOW_UNRESTRICTED_DB_ROLE=1` overrides on purpose and logs a warning.
+- **24. One secret protected every business's stored credentials (Medium).** `MFA_ENCRYPTION_KEY` was optional. **Fixed:** required in production. Existing values still decrypt and move to the new key at the next successful use.
+- **25. The shared sender could be used as a relay by throwaway trials (Medium).** **Fixed:** a trial business with no verified sending domain cannot send free-text contact emails (`TRIAL_EMAIL_RESTRICTED`), and there is a platform-wide daily ceiling (`PLATFORM_DAILY_EMAIL_CAP`, default 5000).
+- **26. Anyone who owned a deal could delete its payments (Medium).** **Fixed:** deleting a payment is admin-only, and a payment confirmed by Stripe cannot be deleted (refund it in Stripe). The delete button is hidden for others.
+- **27. Two-step setup needed no password (Low).** **Fixed:** `POST /api/me/mfa/setup` asks for the current password (rate limited). Other sessions are not ended when it is turned on, because a hijacked session can no longer start the setup.
+- **28. Recovery codes were plain SHA-256 of 50 bits (Low).** **Fixed:** new codes have 75 bits and are stored as a keyed HMAC (`v2:`); codes saved earlier still work until used, including across a key rotation.
+- **29. The website form and unknown WhatsApp numbers ignored plan limits and the email allowance (Low).** **Fixed:** both stop creating contacts at the plan limit (the visitor still sees "thanks"; a WhatsApp message from an unknown number is then not filed) and their owner alerts count against the daily email allowance.
+- **30. An invite could reveal that an address is registered with another business (Low).** **Fixed:** a clash inside the same business is still reported; a clash with another business gets a neutral "if that address can be used, an invitation will be sent". Emails remain unique across the platform (accepted).
+- **31. A business could squat any domain name (Low).** **Fixed:** new column `Tenant.senderClaimedAt` (migration `20261123000000_sender_claim_expiry`); an unverified claim is released after 7 days by the daily job.
+- **32. Sessions lasted 30 days (Low).** **Fixed:** 7 days, and an admin's session ends 12 hours after they signed in.
+- **33. CI and seed hygiene (Low/Info).** **Fixed:** workflows have `permissions: contents: read` and actions are pinned to commit SHAs; the seed and README warn about the public seed password. `next-auth` stays on its v5 beta and is tracked.
+
+Not changed: cross-business email uniqueness remains (accepted); the full database test suite shows 4 failures (WhatsappTemplate fixture rows, sign-up mail) that also fail on `master` and are unrelated to these changes.
+
 ## Verified as sound (no action)
 
 - **Authentication:** bcrypt cost 12; dummy hash for unknown users (no timing oracle); generic failures; reset tokens are random 256-bit, stored hashed, single use, 1 h TTL; password reset and change set `passwordChangedAt`, which the `jwt` callback uses to kill older sessions; deactivated users rejected on every request; magic link blocked for MFA accounts.
