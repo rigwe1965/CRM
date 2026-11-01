@@ -64,18 +64,29 @@ export async function logActivity(user: SessionUser, body: z.infer<typeof create
   });
 }
 
-/** Moves a deal through the pipeline. Closing sets closedAt (and probability 100/0); reopening clears closedAt and lostReason. */
+/**
+ * Moves a deal through the pipeline. Closing sets closedAt (and probability 100/0); reopening clears closedAt and lostReason.
+ * Posting the stage the deal is already in is not a move: closedAt, probability and lostReason are never reset, only a
+ * probability or (for a lost deal) a lostReason the caller sent is applied, and no notification or automation runs.
+ */
 export async function changeDealStage(user: SessionUser, id: string, body: z.infer<typeof dealStageSchema>) {
   const existing = await db.deal.findFirst({
     where: { id, deletedAt: null, ...ownerScope(user) },
     select: { stage: true },
   });
   if (!existing) throw notFound("Deal");
-  const deal = await db.deal.update({
-    where: { id, ...tenantScope(user) },
-    data: stageTransition(body.stage, { probability: body.probability, lostReason: body.lostReason }),
-    include: dealInclude,
-  });
+  const moving = body.stage !== existing.stage;
+  const data = moving
+    ? stageTransition(body.stage, { probability: body.probability, lostReason: body.lostReason })
+    : {
+        ...(body.probability !== undefined && { probability: body.probability }),
+        ...(body.stage === "CLOSED_LOST" && body.lostReason !== undefined && { lostReason: body.lostReason }),
+      };
+  const deal =
+    Object.keys(data).length === 0
+      ? await db.deal.findFirstOrThrow({ where: { id, ...tenantScope(user) }, include: dealInclude })
+      : await db.deal.update({ where: { id, ...tenantScope(user) }, data, include: dealInclude });
+  if (!moving) return dealDto(deal);
   await notifyDealStageChange({
     deal,
     from: existing.stage,
