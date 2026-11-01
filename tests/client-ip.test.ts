@@ -56,6 +56,7 @@ describe("production proxy settings", () => {
     apply();
     vi.stubEnv("TRUSTED_PROXY_COUNT", "");
     vi.stubEnv("SUPPORT_EMAIL", "help@shop.test"); // set, so the only warning left is the proxy one
+    vi.stubEnv("LEGAL_REVIEWED", "1");
     expect(productionWarnings(process.env)).toHaveLength(1);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     expect(() => assertProductionEnv()).not.toThrow();
@@ -65,7 +66,7 @@ describe("production proxy settings", () => {
 
   it("does not warn when it is set, or on Vercel", async () => {
     const { productionWarnings } = await import("@/lib/env");
-    const ok = { SUPPORT_EMAIL: "help@shop.test" };
+    const ok = { SUPPORT_EMAIL: "help@shop.test", LEGAL_REVIEWED: "1" };
     expect(productionWarnings({ ...ok, TRUSTED_PROXY_COUNT: "2" })).toEqual([]);
     expect(productionWarnings({ ...ok, VERCEL: "1" })).toEqual([]);
   });

@@ -52,6 +52,25 @@ export function useDashboard() {
   });
 }
 
+export type LegalState = { version: string; accepted: boolean; acceptedVersion: string | null; acceptedAt: string | null };
+
+/** Whether the business has accepted the current terms (admins only: pass `enabled` false for everyone else). */
+export function useLegal(enabled: boolean) {
+  return useQuery({
+    queryKey: ["legal"],
+    queryFn: async () => (await request<{ data: LegalState }>("GET", "/api/admin/legal")).data,
+    enabled,
+  });
+}
+
+export function useAcceptLegal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await request<{ data: LegalState }>("POST", "/api/admin/legal")).data,
+    onSuccess: (data) => qc.setQueryData(["legal"], data),
+  });
+}
+
 export type Onboarding = { dismissed: boolean; allDone: boolean; steps: { key: string; label: string; hint: string; href: string; done: boolean }[] };
 
 /** The first-run checklist (admins only: pass `enabled` false for everyone else). */

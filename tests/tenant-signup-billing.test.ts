@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { LEGAL_VERSION } from "@/lib/legal";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTenantDb } from "@/lib/tenant-db";
 import { createTwoTenants, testDatabaseUrl, type TwoTenants } from "./helpers/two-tenants";
@@ -110,7 +111,7 @@ run("sign-up, trial and billing", () => {
 
   // ── Signing up ──────────────────────────────────────────────────────────────────────────────────────────────
   describe("sign-up", () => {
-    const body = { businessName: "Fresh Hair Co", name: "Nia Okoro", email: "nia@fresh.test", password: "Sup3r-secret-pw" };
+    const body = { businessName: "Fresh Hair Co", name: "Nia Okoro", email: "nia@fresh.test", password: "Sup3r-secret-pw", acceptTerms: true };
     const post = async (b2: unknown = body) => {
       const res = await call(signup.POST as Handler, null, { method: "POST", body: b2 });
       await Promise.all(afterWork.splice(0));
@@ -142,6 +143,19 @@ run("sign-up, trial and billing", () => {
       expect((await t.db.user.findUniqueOrThrow({ where: { email: body.email } })).emailVerified).toBeTruthy();
       expect((await call(verify.POST as Handler, null, { method: "POST", body: { token } })).status).toBe(400);
       expect((await t.db.auditLog.findMany({ where: { tenantId: user.tenantId } })).map((r) => r.action).sort()).toEqual(["signup.created", "signup.verified"]);
+    });
+
+    it("refuses a sign-up that has not accepted the terms, and records the accepted version for one that has", async () => {
+      const before = await t.db.tenant.count();
+      expect((await post({ ...body, email: "terms@fresh.test", acceptTerms: undefined })).status).toBe(422);
+      expect((await post({ ...body, email: "terms@fresh.test", acceptTerms: false })).status).toBe(422);
+      expect(await t.db.tenant.count()).toBe(before);
+      expect((await post({ ...body, email: "terms@fresh.test" })).status).toBe(200);
+      const user = await t.db.user.findUniqueOrThrow({ where: { email: "terms@fresh.test" } });
+      const setting = await t.db.automationSetting.findUniqueOrThrow({ where: { tenantId_key: { tenantId: user.tenantId, key: "legal" } } });
+      expect(setting.config).toMatchObject({ version: LEGAL_VERSION });
+      const created = await t.db.auditLog.findFirstOrThrow({ where: { tenantId: user.tenantId, action: "signup.created" } });
+      expect(created.data).toMatchObject({ termsAccepted: LEGAL_VERSION });
     });
 
     it("answers the same for an email that already has an account, creates nothing and warns the owner of the address", async () => {

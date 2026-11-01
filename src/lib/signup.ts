@@ -4,6 +4,7 @@ import { signupExistsEmail, verifySignupEmail, welcomeEmail } from "@/lib/email-
 import { appUrl, mailIsConsoleOnly, trySendMail } from "@/lib/mail";
 import { hashPassword } from "@/lib/password";
 import { TRIAL_DAYS } from "@/lib/plans";
+import { acceptanceConfig, LEGAL_VERSION } from "@/lib/legal";
 import { platformDb } from "@/lib/platform-db";
 import { consumeSignupToken, createSignupToken } from "@/lib/tokens";
 
@@ -53,10 +54,12 @@ export async function createSignup(input: SignupInput): Promise<{ devLink?: stri
       trialEndsAt: new Date(Date.now() + TRIAL_DAYS * DAY_MS),
       brandName: input.businessName,
       users: { create: { email: input.email, name: input.name, role: "ADMIN", passwordHash } },
+      // Signing up is accepting the terms: recorded here, as the platform, so the in-app banner does not ask again.
+      automationSettings: { create: { key: "legal", config: acceptanceConfig(null) } },
     },
     select: { id: true },
   });
-  await audit({ email: input.email, tenantId: tenant.id }, { action: "signup.created", entity: "tenant", entityId: tenant.id, summary: input.businessName });
+  await audit({ email: input.email, tenantId: tenant.id }, { action: "signup.created", entity: "tenant", entityId: tenant.id, summary: input.businessName, data: { termsAccepted: LEGAL_VERSION } });
   const link = `${appUrl()}/verify-email?token=${await createSignupToken(input.email)}`;
   await trySendMail({ to: input.email, ...verifySignupEmail(input.name, input.businessName, link) });
   return { devLink: devLinksEnabled() ? link : undefined };

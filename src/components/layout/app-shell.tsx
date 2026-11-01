@@ -12,6 +12,7 @@ import {
   CheckSquare,
   ChevronsUpDown,
   CircleDollarSign,
+  FileText,
   LayoutDashboard,
   LifeBuoy,
   LogOut,
@@ -33,6 +34,7 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useCurrentUser } from "@/components/providers";
 import { AskIvy } from "@/components/assistant/ivy-panel";
+import { LegalBanner } from "@/components/layout/legal-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { initials } from "@/lib/client/format";
 import { cn } from "@/lib/utils";
@@ -110,6 +112,11 @@ function UserMenu({ support }: { support: { email: string | null; statusUrl: str
             <Settings /> Settings
           </Link>
         </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/terms" target="_blank">
+            <FileText /> Terms and privacy
+          </Link>
+        </DropdownMenuItem>
         {support.email && (
           <DropdownMenuItem asChild>
             <a href={`mailto:${support.email}`}>
@@ -166,6 +173,7 @@ export function AppShell({ children, support = { email: null, statusUrl: null } 
             <UserMenu support={support} />
           </div>
         </header>
+        <LegalBanner />
         {currentUser.mfaPending && (
           <div role="status" className="border-b bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100 sm:px-6 print:hidden">
             Admin access is on hold until you turn on two-step verification.{" "}

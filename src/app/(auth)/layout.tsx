@@ -1,4 +1,5 @@
 import { ThemeToggle } from "@/components/theme-toggle";
+import Link from "next/link";
 import { supportInfo } from "@/lib/support";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </p>
         )}
       </div>
+        <p className="absolute bottom-4 text-center text-xs text-muted-foreground">
+          <Link href="/terms" className="underline">Terms</Link> · <Link href="/privacy" className="underline">Privacy</Link>
+        </p>
     </main>
   );
 }

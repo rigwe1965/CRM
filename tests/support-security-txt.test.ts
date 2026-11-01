@@ -22,6 +22,8 @@ describe("support settings", () => {
   it("warns at start-up when there is no support address", () => {
     expect(productionWarnings({ VERCEL: "1" }).join(" ")).toMatch(/SUPPORT_EMAIL/);
     expect(productionWarnings({ VERCEL: "1", SUPPORT_EMAIL: "help@shop.test" }).join(" ")).not.toMatch(/SUPPORT_EMAIL/);
+    expect(productionWarnings({ VERCEL: "1" }).join(" ")).toMatch(/LEGAL_REVIEWED/);
+    expect(productionWarnings({ VERCEL: "1", LEGAL_REVIEWED: "1" }).join(" ")).not.toMatch(/LEGAL_REVIEWED/);
   });
 });
 

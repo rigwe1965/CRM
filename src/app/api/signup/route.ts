@@ -16,7 +16,9 @@ export async function POST(req: Request) {
   if (!signupEnabled()) return apiError("Not found", 404);
   const body = await parseBody(req, signupSchema);
   if ("response" in body) return body.response;
-  const { captchaToken, ...input } = body.data;
+  // The ticked box is required by the schema; sign-up records the accepted version itself (createSignup).
+  const { captchaToken } = body.data;
+  const input = { businessName: body.data.businessName, name: body.data.name, email: body.data.email, password: body.data.password };
 
   const limits = await Promise.all([rateLimit(`signup:${clientIp(req.headers)}`, LIMITS.signup), rateLimit(`signup-email:${input.email}`, LIMITS.signupEmail), rateLimit("signup:all", LIMITS.signupAll)]);
   const blocked = limits.find((l) => !l.allowed);

@@ -10,7 +10,7 @@ import { POST } from "@/app/api/signup/route";
 import { captchaConfigured, verifyCaptcha } from "@/lib/captcha";
 import { buildCsp } from "@/lib/csp";
 
-const body = { businessName: "Fresh Hair Co", name: "Nia Okoro", email: "nia@fresh.test", password: "Sup3r-secret-pw" };
+const body = { businessName: "Fresh Hair Co", name: "Nia Okoro", email: "nia@fresh.test", password: "Sup3r-secret-pw", acceptTerms: true };
 const post = (extra: object = {}) => POST(new Request("http://x.test/api/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, ...extra }) }));
 
 const real = globalThis.fetch;
@@ -66,7 +66,7 @@ describe("sign-up CAPTCHA", () => {
     cloudflare((t) => t === "good-token");
     expect((await post({ captchaToken: "good-token" })).status).toBe(200);
     expect(sent).toEqual([{ secret: "secret-key", response: "good-token", remoteip: "203.0.113.9" }]);
-    expect(createSignup).toHaveBeenCalledWith(body);
+    expect(createSignup).toHaveBeenCalledWith({ businessName: body.businessName, name: body.name, email: body.email, password: body.password });
   });
 
   it("is allowed to draw its box by the page's security policy, and nothing else new", () => {

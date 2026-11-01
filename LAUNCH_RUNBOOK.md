@@ -75,6 +75,14 @@ Use any hosted monitor (Better Stack, UptimeRobot, Pingdom). You need two checks
 4. **Test it.** In staging, point the public check at a wrong path or stop the app and confirm an alert reaches your phone within a few minutes. For the private check, run `GET /api/health?deep=1` with a wrong token and confirm it answers 401, then call the cron endpoint once and confirm it answers 200.
 5. **Write down** who gets the alert, and what they do first (check the host, then the database, then the latest deploy).
 
+### Legal documents
+
+- [ ] Set `LEGAL_ENTITY_NAME`, `LEGAL_ADDRESS` and `LEGAL_GOVERNING_LAW`. Open `/terms`, `/privacy` and `/dpa` and send them to a lawyer. Every `[...]` in the text (the database host and region, the transfer mechanism) must be filled in or removed by the reviewer; edit `src/lib/legal-content.ts` and the pages.
+- [ ] Check the provider list in `src/lib/legal-content.ts` matches what you really use. Add any new provider there the day you start using it.
+- [ ] Only after sign-off, set `LEGAL_REVIEWED=1`. This removes the draft notice from the pages.
+- [ ] If the wording changes in a way customers must agree to, change `LEGAL_VERSION` in `src/lib/legal.ts`: every business's admin is then asked to accept again.
+- [ ] For a pilot business you create yourself, its admin sees a banner on first sign-in and accepts there. Check the audit log shows `legal.accepted` before you load real customer data.
+
 ## 9. Repository hygiene
 
 - [ ] GitHub: Settings, Code security, turn on secret scanning, push protection and Dependabot alerts.
