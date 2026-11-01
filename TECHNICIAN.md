@@ -151,6 +151,12 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 | Data suddenly gone | Someone ran `db:seed` or `db:reset`. Restore from backup |
 | Cannot sign in after deploy | Check `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `AUTH_TRUST_HOST` |
 
+## Is the daily job running?
+- The daily cron (`/api/cron/task-reminders`) writes a `JobRun` row each time (start, finish, ok or not; kept 90 days). It is platform data: no tenantId, and the app role has no access to it.
+- `GET /api/health` stays public and minimal. `GET /api/health?deep=1` with `Authorization: Bearer $CRON_SECRET` also returns the daily job's last success and answers **503** if it has not worked for 26 hours, so point an uptime monitor at it.
+- Set `HEALTHCHECK_PING_URL` (Healthchecks.io or similar) and the job pings it on success and at `/fail` on failure. That is the alert for a job that silently stops, which nothing inside the app can notice.
+- After deploying this, run `npm run db:deploy` (new table `JobRun`).
+
 ## Backup and restore (PostgreSQL)
 - Backup: `pg_dump "$DIRECT_URL" -Fc -f crm.dump`
 - Restore into an empty database: `pg_restore -d "<url>" --clean crm.dump`

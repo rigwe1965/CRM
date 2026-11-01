@@ -191,6 +191,19 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+/// One run of a platform job (the daily cron). Belongs to no business; only the platform client reads or writes it.
+model JobRun {
+  id         String    @id @default(cuid())
+  job        String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  /// null while running, true when every step worked, false when the job threw or a step reported failure
+  ok         Boolean?
+  summary    Json?
+
+  @@index([job, startedAt])
+}
+
 // ─── Tenants ────────────────────────────────────────────
 
 // One business using this CRM. Phase 0 of MULTI_TENANCY_PLAN.md: every business table carries a tenantId.

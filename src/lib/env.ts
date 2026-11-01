@@ -18,6 +18,7 @@ const productionEnv = z
     EMAIL_SERVER: z.string().optional(),
     EMAIL_FROM: z.string().optional(),
     CRON_SECRET: z.string().optional(),
+    HEALTHCHECK_PING_URL: z.string().refine((v) => v === "" || (URL.canParse(v) && v.startsWith("https://")), "must be an https:// URL").optional(),
     MFA_ENCRYPTION_KEY: z.string().optional(),
     MFA_ENCRYPTION_KEY_PREVIOUS: z.string().optional(),
     REQUIRE_ADMIN_MFA: z.enum(["0", "1", "true", "false", ""]).optional(),

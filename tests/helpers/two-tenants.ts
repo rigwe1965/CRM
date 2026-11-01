@@ -20,7 +20,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
  */
 
 /** Tables that deliberately have no tenantId: they belong to a user (who carries it), or are the tenant itself. */
-export const TENANTLESS_MODELS = ["Tenant", "Account", "Session", "VerificationToken"] as const;
+export const TENANTLESS_MODELS = ["Tenant", "Account", "Session", "VerificationToken", "JobRun"] as const;
 
 /** Business models, in the order the generated Prisma client knows them. */
 export const businessModels = () =>
