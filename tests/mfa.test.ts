@@ -40,7 +40,9 @@ describe("secret storage and recovery codes", () => {
     expect(enc).not.toContain("JBSWY3DP");
     expect(decryptSecret(enc)).toBe("JBSWY3DPEHPK3PXP");
     const [iv, tag, ct] = enc.split(".");
-    expect(() => decryptSecret(`${iv}.${tag}.${ct.slice(0, -2)}AA`)).toThrow();
+    // Always change the first character (never the last two: if those already read "AA", nothing would change).
+    const flipped = (ct[0] === "A" ? "B" : "A") + ct.slice(1);
+    expect(() => decryptSecret(`${iv}.${tag}.${flipped}`)).toThrow();
   });
   it("generates distinct codes that hash the same however they are typed", () => {
     const codes = generateRecoveryCodes();
