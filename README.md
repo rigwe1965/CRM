@@ -113,7 +113,7 @@ Set these in Vercel → Project → Settings → Environment Variables (`.env.ex
 | Variable | Production value |
 | --- | --- |
 | `DATABASE_URL` | Pooled connection string |
-| `DIRECT_URL` | Direct connection string (used by `prisma migrate deploy`) |
+| `DIRECT_URL` | Direct connection string (used by `prisma migrate deploy`). With the Neon integration you may omit it on Vercel: `npm run vercel-build` falls back to `DATABASE_URL_UNPOOLED`. |
 | `NEXTAUTH_SECRET` | `npx auth secret` or `openssl rand -base64 32` (32+ characters) |
 | `NEXTAUTH_URL` | Your public URL, e.g. `https://crm.example.com`. Used in email links; on Vercel it falls back to the deployment URL if omitted, but set it so links use your real domain. |
 | `RESEND_API_KEY` | `re_…` |
