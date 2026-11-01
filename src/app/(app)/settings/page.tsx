@@ -23,6 +23,8 @@ import { errorMessage } from "@/lib/client/hooks";
 import type { Role, TeamUser } from "@/lib/client/types";
 import { useRouter } from "next/navigation";
 import { AuditLogCard } from "@/components/settings/audit-log";
+import { SystemCheckCard } from "@/components/settings/system-check";
+import { DEFAULT_TENANT_ID } from "@/lib/tenant";
 import { AssistantCard } from "@/components/settings/assistant";
 import { KnowledgeCard } from "@/components/settings/knowledge";
 import { AutomationsCard } from "@/components/settings/automations";
@@ -398,6 +400,7 @@ export default function SettingsPage() {
           {user.role === "ADMIN" && <TabsTrigger value="leadform">Lead form</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="export">Data export</TabsTrigger>}
+          {user.role === "ADMIN" && user.tenantId === DEFAULT_TENANT_ID && <TabsTrigger value="system">System</TabsTrigger>}
         </TabsList>
         <TabsContent value="profile">
           <ProfileCard />
@@ -473,6 +476,11 @@ export default function SettingsPage() {
         {user.role === "ADMIN" && (
           <TabsContent value="export">
             <DataExportCard />
+          </TabsContent>
+        )}
+        {user.role === "ADMIN" && user.tenantId === DEFAULT_TENANT_ID && (
+          <TabsContent value="system">
+            <SystemCheckCard />
           </TabsContent>
         )}
       </Tabs>

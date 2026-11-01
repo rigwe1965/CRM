@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import { noteWebhookRejected } from "@/lib/webhook-stats";
 
 /**
  * Fixed-window rate limiter.
@@ -170,5 +171,6 @@ export async function enforceRateLimit(key: string, opts: { max: number; windowM
 export async function webhookThrottle(req: Request, kind: string): Promise<Response | null> {
   const limit = await rateLimit(`webhook:${kind}:${clientIp(req.headers)}`, LIMITS.webhookIp);
   if (limit.allowed) return null;
+  noteWebhookRejected(kind, "throttled");
   return new Response(JSON.stringify({ error: "Too many requests" }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(Math.max(limit.retryAfter, 1)) } });
 }

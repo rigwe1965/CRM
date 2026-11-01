@@ -4,6 +4,7 @@ import { getIntegration } from "@/lib/integrations";
 import { enqueueTriage, processTriage } from "@/lib/ai/triage/run";
 import { webhookThrottle } from "@/lib/rate-limit";
 import { withTenant } from "@/lib/tenant-context";
+import { noteWebhookRejected } from "@/lib/webhook-stats";
 import { parseInbound, parseStatuses, recordDeliveryStatus, recordInbound, validSignature } from "@/lib/whatsapp";
 
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -34,7 +35,10 @@ export async function receiveWhatsappWebhook(req: Request, tenantId: string): Pr
   const found = await getIntegration(tenantId, "WHATSAPP");
   const raw = await req.text();
   // An unknown or unconfigured business answers exactly like a bad signature.
-  if (!found || !validSignature(raw, req.headers.get("x-hub-signature-256"), found.settings.appSecret)) return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  if (!found || !validSignature(raw, req.headers.get("x-hub-signature-256"), found.settings.appSecret)) {
+    noteWebhookRejected("whatsapp", found ? "bad_signature" : "not_configured");
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
 
   let payload: unknown;
   try {

@@ -151,6 +151,18 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 | Data suddenly gone | Someone ran `db:seed` or `db:reset`. Restore from backup |
 | Cannot sign in after deploy | Check `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `AUTH_TRUST_HOST` |
 
+## Is the daily job running?
+- The daily cron (`/api/cron/task-reminders`) writes a `JobRun` row each time (start, finish, ok or not; kept 90 days). It is platform data: no tenantId, and the app role has no access to it.
+- `GET /api/health` stays public and minimal. `GET /api/health?deep=1` with `Authorization: Bearer $CRON_SECRET` also returns the daily job's last success and answers **503** if it has not worked for 26 hours, so point an uptime monitor at it.
+- Set `HEALTHCHECK_PING_URL` (Healthchecks.io or similar) and the job pings it on success and at `/fail` on failure. That is the alert for a job that silently stops, which nothing inside the app can notice.
+- After deploying this, run `npm run db:deploy` (new table `JobRun`).
+
+## Error reporting and the System tab
+- Set `SENTRY_DSN` (a Sentry or compatible DSN) and unhandled server errors are reported from `onRequestError` (`src/instrumentation.ts`, `src/lib/error-report.ts`), in production only. There is **no Sentry SDK**: every release tried (10.76.2, 11.8.0, 11.9.0, 11.10.0) pulled in `glob`/`minimatch` versions that `npm audit` flags, and CI fails on that. Re-check with `npm install @sentry/nextjs` when a release clears the audit.
+- What leaves the server: error type, scrubbed message (emails, phone numbers, keys and long tokens removed), stack, method, and the route *pattern* (ids and the query string removed). Never headers, cookies, bodies or the real URL. At most 20 reports a minute per process. It was checked against the payload format, not against a live Sentry project: send a test error after setting the DSN and confirm it arrives.
+- Rejected webhooks (bad signature, unknown business, throttled) are summarised in one `[webhook] rejected in the last minute: ...` log line a minute. Alert on that line in your log tool.
+- **Settings > System** (only admins of the original business, never other businesses) lists plain verdicts for: database role respects row-level security, daily job fresh, scheduler secret, admin two-step verification, shared rate limits, proxy setting, email provider, sign-up CAPTCHA, development shortcuts off, error tracking on. It shows no values. It cannot see your provider's backups.
+
 ## Backup and restore (PostgreSQL)
 - Backup: `pg_dump "$DIRECT_URL" -Fc -f crm.dump`
 - Restore into an empty database: `pg_restore -d "<url>" --clean crm.dump`
@@ -158,6 +170,8 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 - Shortcut: `bash scripts/backup.sh` runs the same `pg_dump` into `backups/crm-<timestamp>.dump` (git-ignored; it holds real customer data, so keep it somewhere private).
 
 ### Restore drill (do this once before launch, then every quarter)
+**Automatic part:** `.github/workflows/restore-drill.yml` runs weekly (and on demand from the Actions tab). It dumps a freshly migrated and seeded database, restores it into an empty one, then runs `db:verify` and `npm run db:smoke -- "<restored url>"`, which also checks that every migration finished, row-level security is on for every business table, and the audit log still refuses updates. It proves backups of this schema restore; it does **not** test your database provider's own backups, so the manual drill below is still needed.
+
 A backup nobody has restored is a hope, not a backup.
 1. Take a backup: `bash scripts/backup.sh`.
 2. Create an empty scratch database (a Neon branch, or `createdb crm_restore_test` locally). Never restore over the live one.
