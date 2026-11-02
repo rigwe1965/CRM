@@ -83,6 +83,28 @@ run("row-level security", () => {
     expect(await t.db.tag.count({ where: { name: "planted" } })).toBe(0);
   });
 
+  it("the deal-invoice link table (no tenantId) only shows and accepts links inside the caller's business", async (ctx) => {
+    needsRls(ctx);
+    type Link = { A: string; B: string };
+    // Each fixture invoice is already linked to its own deal; the owner connection sees both.
+    expect(await t.db.$queryRaw<Link[]>`SELECT "A", "B" FROM "_DealToInvoice" ORDER BY "A"`).toHaveLength(2);
+    expect(await asA(() => db.$queryRaw<Link[]>`SELECT "A", "B" FROM "_DealToInvoice"`)).toEqual([{ A: t.a.deal, B: t.a.invoice }]);
+    expect(await asB(() => db.$queryRaw<Link[]>`SELECT "A", "B" FROM "_DealToInvoice"`)).toEqual([{ A: t.b.deal, B: t.b.invoice }]);
+    // With no business set the table shows nothing.
+    const [none] = await t.appDb.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "_DealToInvoice"`;
+    expect(Number(none.n)).toBe(0);
+    // A link from A's deal to B's invoice (or the reverse) is refused, and nothing is written.
+    await expect(asA(() => db.$executeRaw`INSERT INTO "_DealToInvoice" ("A", "B") VALUES (${t.a.deal}, ${t.b.invoice})`)).rejects.toThrow();
+    await expect(asA(() => db.$executeRaw`INSERT INTO "_DealToInvoice" ("A", "B") VALUES (${t.b.deal}, ${t.a.invoice})`)).rejects.toThrow();
+    expect(await t.db.$queryRaw<Link[]>`SELECT "A", "B" FROM "_DealToInvoice"`).toHaveLength(2);
+    // An unfiltered delete removes only the caller's own link.
+    expect(await asA(() => db.$executeRaw`DELETE FROM "_DealToInvoice"`)).toBe(1);
+    expect(await t.db.$queryRaw<Link[]>`SELECT "A", "B" FROM "_DealToInvoice"`).toEqual([{ A: t.b.deal, B: t.b.invoice }]);
+    // Linking inside its own business still works (the path Prisma takes for `deals: { connect }`).
+    await asA(() => db.invoice.update({ where: { id: t.a.invoice }, data: { deals: { connect: { id: t.a.deal } } } }));
+    expect(await asA(() => db.$queryRaw<Link[]>`SELECT "A", "B" FROM "_DealToInvoice"`)).toEqual([{ A: t.a.deal, B: t.a.invoice }]);
+  });
+
   it("holds inside interactive transactions, batches and raw queries", async (ctx) => {
     needsRls(ctx);
     const inTx = await asA(() => db.$transaction(async (tx) => tx.deal.findMany()));
