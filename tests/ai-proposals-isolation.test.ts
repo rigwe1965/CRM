@@ -102,8 +102,10 @@ run("Ivy's proposals across two businesses", () => {
 
   it("the database itself hides one business's proposals from the other", async () => {
     if (!t.rls) return;
-    const seenByB = await inTenant(t.b, () => (holder.db as { aiProposal: { findMany: () => Promise<unknown[]> } }).aiProposal.findMany());
-    expect(seenByB).toEqual([]);
+    // The fixture gives every business a proposal of its own, so B sees those, but never one that belongs to A.
+    const seenByB = await inTenant(t.b, () => (holder.db as { aiProposal: { findMany: () => Promise<{ tenantId: string }[]> } }).aiProposal.findMany());
+    expect(seenByB.length).toBeGreaterThan(0);
+    expect(seenByB.filter((p) => p.tenantId !== t.b.tenantId)).toEqual([]);
   });
 
   // ── Wave B: payments, contacts and deals ────────────────────────────────────────────────────────────────────

@@ -32,6 +32,8 @@ import { isPublicPath } from "@/lib/rbac";
 const LINK = { linkId: "L1", tenantId: "t1", dealId: "d1" };
 const day = (s: string) => new Date(`${s}T00:00:00Z`);
 const future = new Date(Date.now() + 30 * 86_400_000);
+// Due dates relative to today, so a test never goes stale (a fixed date turns overdue the day after it).
+const inDays = (n: number) => new Date(Date.now() + n * 86_400_000);
 
 function order({ amount = 1000, paid = 0, currency = "USD", schedule = [] as { id: string; position: number; dueDate: Date; amount: number }[] } = {}) {
   db.tenant.findFirst.mockResolvedValue({ name: "Ivycandy Hair LLC", brandName: "Ivycandy Hair" });
@@ -65,7 +67,7 @@ describe("what the customer sees", () => {
   });
 
   it("asks for the next instalment's unpaid part, not the whole balance", async () => {
-    order({ paid: 100, schedule: [{ id: "i1", position: 1, dueDate: day("2026-11-01"), amount: 300 }, { id: "i2", position: 2, dueDate: day("2026-12-01"), amount: 700 }] });
+    order({ paid: 100, schedule: [{ id: "i1", position: 1, dueDate: inDays(30), amount: 300 }, { id: "i2", position: 2, dueDate: inDays(60), amount: 700 }] });
     const v = (await customerOrderView("t1", "d1"))!;
     expect(v.payAmount).toBe(200);
     expect(v.instalments.map((i) => i.state)).toEqual(["PART_PAID", "UPCOMING"]);
