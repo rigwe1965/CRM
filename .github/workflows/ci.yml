@@ -12,6 +12,7 @@ concurrency:
 # Nothing here needs to write to the repository, so the token may only read it.
 permissions:
   contents: read
+  pull-requests: read # gitleaks lists the pull request's commits
 
 jobs:
   security:
