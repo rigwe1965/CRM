@@ -18,7 +18,7 @@ const ICON: Record<CheckStatus, { Icon: typeof CheckCircle2; cls: string; label:
 export function SystemCheckCard() {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["system-check"],
-    queryFn: () => request<{ checks: Check[] }>("GET", "/api/admin/system-check"),
+    queryFn: async () => (await request<{ data: { checks: Check[] } }>("GET", "/api/admin/system-check")).data,
   });
 
   return (
