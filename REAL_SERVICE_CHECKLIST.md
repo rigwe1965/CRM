@@ -1,6 +1,6 @@
 # Phase 4.1: proving the integrations against the real services
 
-Status: **in progress.** Goal: run each integration once against the real provider in **test mode**, and write down what
+Status: **in progress** (A1 and B2 done; the rest need the owner). Goal: run each integration once against the real provider in **test mode**, and write down what
 happened. Everything here was built and tested with fakes; this is the first run against the real services.
 Rule: test mode, a test phone number, test cards. No real customer is messaged and no real card is charged.
 
@@ -14,7 +14,7 @@ Results go in the "Result" column; fix what fails, then re-run it.
 
 | # | Check | How | Who | Result |
 |---|---|---|---|---|
-| A1 | Webhook rejects a bad signature | `stripe listen --forward-to localhost:3001/api/webhooks/stripe`, then POST to it without a valid signature: expect 400 | Claude | |
+| A1 | Webhook rejects a bad signature | `stripe listen --forward-to localhost:3001/api/webhooks/stripe`, then POST to it without a valid signature: expect 400 | Claude | **PASS 2026-11-03.** No signature: 400. Wrong signature: 400 `Invalid signature`. Dev server on :3001, no data touched. |
 | A2 | Create a payment link on a sample USD deal | Deal → Payments → create link (test mode) | You (signed in) | |
 | A3 | Pay it with `4242 4242 4242 4242` | Open the link, any future date and CVC | You | |
 | A4 | The payment appears once | Deal shows the payment; audit log has `payment.recorded_online`; a repeat event does not add a second payment (idempotent on `providerRef`) | Claude + You | |
@@ -33,7 +33,7 @@ Needs in `.env`: `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_
 | # | Check | How | Who | Result |
 |---|---|---|---|---|
 | B1 | Meta verifies the webhook | Save the webhook in Meta with the verify token; the app answers the one-time challenge | You | |
-| B2 | A bad signature is refused | POST to the webhook with a wrong `X-Hub-Signature-256`: expect rejection | Claude | |
+| B2 | A bad signature is refused | POST to the webhook with a wrong `X-Hub-Signature-256`: expect rejection | Claude | **PASS 2026-11-03.** Wrong `X-Hub-Signature-256`: 401 `Invalid signature` (no `WHATSAPP_APP_SECRET` is set locally, still refused). No data touched. |
 | B3 | Template sync | Settings → Templates → "Refresh from Meta": templates and statuses appear; only APPROVED and supported ones switch on | You | |
 | B4 | Send a template to your own test number | Contact (opt-in ticked, WhatsApp-ready number) → Send template; arrives on the phone | You | |
 | B5 | Delivery status comes back | Delivered / read states show against the message | You | |
