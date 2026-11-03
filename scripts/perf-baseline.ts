@@ -91,6 +91,7 @@ async function main() {
       console.log(`\n--- ${label}\n${r.map((x) => x["QUERY PLAN"]).join("\n")}`);
     };
     await plan("sorted by name", `SELECT * FROM "Contact" WHERE "tenantId"='${tenantId}' AND "deletedAt" IS NULL ORDER BY "lastName","firstName",id LIMIT 25`);
+    await plan("newest first", `SELECT * FROM "Contact" WHERE "tenantId"='${tenantId}' AND "deletedAt" IS NULL ORDER BY "createdAt" DESC, id LIMIT 25`);
     await plan("search", `SELECT * FROM "Contact" WHERE "tenantId"='${tenantId}' AND "deletedAt" IS NULL AND ("lastName" ILIKE '%okafor1%' OR "email" ILIKE '%okafor1%') ORDER BY "lastName",id LIMIT 25`);
     await db.$disconnect();
   } finally {

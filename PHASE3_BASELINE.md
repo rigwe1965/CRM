@@ -33,3 +33,23 @@ security is not in these numbers). Local Postgres on a developer laptop, 200,000
 3. Optional later: keyset pagination for deep pages; a cheaper or cached count.
 
 Re-run the script after each change; success = every row above under 20 ms at 40,000 contacts in one business.
+
+## After the tenant-led indexes (PR #14, measured 2026-11-03, 5 businesses x 40,000)
+
+| Query                              | Before |  After |
+| ---------------------------------- | -----: | -----: |
+| list by name, page 1               | 2.1 ms | 1.9 ms |
+| list by createdAt desc, page 1     |  82 ms | 1.8 ms |
+| list by name, offset 10,000        |  83 ms |  36 ms |
+| count of live contacts             |  18 ms |  22 ms |
+| owner-scoped list                  |  89 ms | 1.8 ms |
+| search "okafor1"                   | 371 ms | 197 ms |
+| search by phone fragment           |  29 ms |  30 ms |
+
+- `(tenantId, deletedAt, createdAt)` did not help the newest-first list: Postgres cannot use an index order across an
+  `IS NULL` test. `(tenantId, createdAt)` did.
+- **Not measured:** the trigram indexes. The local Postgres blocks `pg_trgm.dll` (Windows Application Control), so search
+  numbers above are without them. CI applied the migration and production's deploy accepted it (so the extension is
+  allowed there), but the speed-up still needs a run on a database that loads `pg_trgm`.
+- **Still over the 20 ms target:** deep pages (36 ms) and the count (22 ms). Both need API changes (keyset pagination,
+  a cheaper or cached count), which need their own plan.
