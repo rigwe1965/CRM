@@ -8,7 +8,15 @@
 
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE INDEX IF NOT EXISTS "Contact_lastName_trgm_idx" ON "Contact" USING GIN ("lastName" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "Contact_firstName_trgm_idx" ON "Contact" USING GIN ("firstName" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "Contact_email_trgm_idx" ON "Contact" USING GIN ("email" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "Contact_phone_trgm_idx" ON "Contact" USING GIN ("phone" gin_trgm_ops);
+-- The operator class lives in whatever schema the extension was installed in (public on most databases, "extensions" on
+-- some providers), and it may not be on the search_path (the test suite migrates into throwaway schemas), so it is
+-- looked up and written with its schema.
+DO $$
+DECLARE ext text := (SELECT quote_ident(n.nspname) FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pg_trgm');
+BEGIN
+  EXECUTE 'CREATE INDEX IF NOT EXISTS "Contact_lastName_trgm_idx" ON "Contact" USING GIN ("lastName" ' || ext || '.gin_trgm_ops)';
+  EXECUTE 'CREATE INDEX IF NOT EXISTS "Contact_firstName_trgm_idx" ON "Contact" USING GIN ("firstName" ' || ext || '.gin_trgm_ops)';
+  EXECUTE 'CREATE INDEX IF NOT EXISTS "Contact_email_trgm_idx" ON "Contact" USING GIN ("email" ' || ext || '.gin_trgm_ops)';
+  EXECUTE 'CREATE INDEX IF NOT EXISTS "Contact_phone_trgm_idx" ON "Contact" USING GIN ("phone" ' || ext || '.gin_trgm_ops)';
+END
+$$;
