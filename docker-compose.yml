@@ -10,5 +10,7 @@ services:
       - "127.0.0.1:5432:5432" # localhost only: never publish the database to the network
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Creates the restricted crm_app role on first start (see .env.example and TECHNICIAN.md, "Local development").
+      - ./docker/init-roles.sql:/docker-entrypoint-initdb.d/10-init-roles.sql:ro
 volumes:
   pgdata:

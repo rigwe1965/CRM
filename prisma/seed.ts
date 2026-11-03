@@ -8,7 +8,8 @@ import { assertSafeTarget } from "../scripts/safe-target";
 // The seed WIPES every table. Refuse unless the database is local (or --force and CONFIRM_WIPE are given on purpose).
 assertSafeTarget();
 
-const prisma = new PrismaClient();
+// The seed creates businesses and wipes tables, which the restricted app role may not do: use the owner connection.
+const prisma = new PrismaClient({ datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined });
 
 // Every row below belongs to the original business.
 const tenantId = DEFAULT_TENANT_ID;
