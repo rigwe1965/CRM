@@ -67,5 +67,8 @@ jobs:
           --shadow-database-url "$DATABASE_URL" --exit-code
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      - name: Tests (none may be skipped; a skipped database test proved nothing)
+        run: |
+          npx vitest run --reporter=default --reporter=json --outputFile=vitest-report.json
+          node -e "const r=require('./vitest-report.json'); const n=r.numPendingTests+r.numTodoTests; if(n){console.error('Skipped or todo tests: '+n); process.exit(1)}"
       - run: npm run build
