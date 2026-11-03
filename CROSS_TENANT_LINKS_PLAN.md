@@ -1,6 +1,6 @@
-# Plan: the database refuses links between businesses (proposal, not implemented)
+# Plan: the database refuses links between businesses
 
-Status: **awaiting the owner's approval.** No code or schema has been changed for this.
+Status: **implemented** (triggers, option chosen by the owner; soft links left out). Migration `20261125000000_same_tenant_links`, `tests/same-tenant-links.test.ts`, `scripts/audit-cross-tenant-links.ts`. The production audit (step 3) has not been run.
 
 ## The gap
 
