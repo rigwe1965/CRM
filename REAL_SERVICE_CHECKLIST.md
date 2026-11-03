@@ -14,7 +14,7 @@ Results go in the "Result" column; fix what fails, then re-run it.
 
 | # | Check | How | Who | Result |
 |---|---|---|---|---|
-| A1 | Webhook rejects a bad signature | `stripe listen --forward-to localhost:3001/api/webhooks/stripe`, then POST to it without a valid signature: expect 400 | Claude | **PASS 2026-11-03.** No signature: 400. Wrong signature: 400 `Invalid signature`. Dev server on :3001, no data touched. |
+| A1 | Webhook rejects a bad signature | POST to `/api/webhooks/stripe` without a valid signature: expect 400 (needs only the dev server, not `stripe listen`) | Claude | **PASS 2026-11-03.** No signature: 400. Wrong signature: 400 `Invalid signature`. Dev server on :3001, no data touched. |
 | A2 | Create a payment link on a sample USD deal | Deal → Payments → create link (test mode) | You (signed in) | |
 | A3 | Pay it with `4242 4242 4242 4242` | Open the link, any future date and CVC | You | |
 | A4 | The payment appears once | Deal shows the payment; audit log has `payment.recorded_online`; a repeat event does not add a second payment (idempotent on `providerRef`) | Claude + You | |
