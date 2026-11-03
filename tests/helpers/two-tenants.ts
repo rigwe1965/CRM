@@ -30,6 +30,24 @@ export const delegateName = (model: string) => model.charAt(0).toLowerCase() + m
 
 export const testDatabaseUrl = () => process.env.TEST_DATABASE_URL || undefined;
 
+/**
+ * The trigram migration (20261127000000) uses the pg_trgm extension. If it is not installed yet, CREATE EXTENSION puts it
+ * in the schema being migrated, and dropping that throwaway schema afterwards would drop it from under the other test
+ * files ("referenced operator class was concurrently dropped"). So it is installed once, in public, before any schema is
+ * migrated; the advisory lock stops parallel test files racing to install it. Never fails the run: if the database does
+ * not allow it, the migration reports that itself.
+ */
+export async function ensureTrigramExtension(client: PrismaClient) {
+  try {
+    await client.$transaction([
+      client.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(7305001)`),
+      client.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public`),
+    ]);
+  } catch {
+    /* see above */
+  }
+}
+
 const withSchema = (url: string, schema: string) => {
   const u = new URL(url);
   u.searchParams.set("schema", schema);
@@ -47,10 +65,11 @@ export async function createTwoTenants(): Promise<TwoTenants> {
   const url = withSchema(base, schema);
 
   const admin = new PrismaClient({ datasourceUrl: base });
+  await ensureTrigramExtension(admin);
   await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   await admin.$disconnect();
 
-  execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url }, stdio: "pipe" });
+  execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url, PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1" /* each run migrates its own throwaway schema; the lock is database-wide and only makes parallel test files queue */ }, stdio: "pipe" });
 
   const db = new PrismaClient({ datasourceUrl: url });
   const a = await seedTenant(db, "a");

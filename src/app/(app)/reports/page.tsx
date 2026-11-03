@@ -11,6 +11,7 @@ import { money, moneyMap } from "@/lib/client/format";
 import { useCurrentUser } from "@/components/providers";
 import { useReconcile, useReports } from "@/lib/client/hooks";
 import type { Reports } from "@/lib/client/types";
+import { MoneyOwed, SalespeopleReport, StockSellThrough, UpcomingInstalments } from "@/components/reports/money-reports";
 
 const RANGES = [
   { value: "6", label: "Last 6 months" },
@@ -152,6 +153,10 @@ export default function ReportsPage() {
       ) : (
         <div className="space-y-6">
           {isAdmin && <MoneyChecks />}
+          <MoneyOwed />
+          <UpcomingInstalments />
+          <StockSellThrough />
+          {isAdmin && <SalespeopleReport months={Number(months)} />}
           <Card>
             <CardHeader>
               <CardTitle>Money received by month</CardTitle>

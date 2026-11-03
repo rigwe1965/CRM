@@ -34,11 +34,13 @@ const p95 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.min(xs.length -
 
 async function main() {
   const admin = new PrismaClient({ datasourceUrl: base });
+  // pg_trgm belongs in public (see ensureTrigramExtension in tests/helpers/two-tenants.ts); one installed in the throwaway schema would be dropped with it.
+  await admin.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public`).catch(() => undefined);
   await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   await admin.$disconnect();
   const url = withSchema(schema);
   try {
-    execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url }, stdio: "pipe" });
+    execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url, PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1" /* each run migrates its own throwaway schema; the lock is database-wide and only makes parallel test files queue */ }, stdio: "pipe" });
     const db = new PrismaClient({ datasourceUrl: url });
 
     console.log(`Filling ${TENANTS} businesses x ${CONTACTS} contacts = ${TENANTS * CONTACTS} contacts...`);
