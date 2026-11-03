@@ -374,6 +374,15 @@ model Contact {
   @@index([deletedAt])
   @@index([phoneE164])
   @@index([tenantId])
+  // Lists are always one business, newest or A-Z first (Phase 3, PHASE3_BASELINE.md).
+  @@index([tenantId, createdAt])
+  @@index([tenantId, lastName, firstName])
+  @@index([tenantId, ownerId, createdAt])
+  // Search is ILIKE '%text%': trigram indexes (pg_trgm) let the database use an index for it.
+  @@index([lastName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_lastName_trgm_idx")
+  @@index([firstName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_firstName_trgm_idx")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_email_trgm_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_phone_trgm_idx")
 }
 
 model Deal {
