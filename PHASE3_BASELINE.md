@@ -33,3 +33,10 @@ security is not in these numbers). Local Postgres on a developer laptop, 200,000
 3. Optional later: keyset pagination for deep pages; a cheaper or cached count.
 
 Re-run the script after each change; success = every row above under 20 ms at 40,000 contacts in one business.
+
+## After the count index (`20261128000000_contact_count_index`, measured 2026-11-03)
+
+Count of live contacts at 40,000 contacts in one business: **22 ms to 3.8 ms** (median; p95 10 ms). An index-only scan needs
+the table's visibility map, which autovacuum keeps current in production; the script now runs `VACUUM ANALYZE "Contact"`
+after filling so it measures what production sees (without it the count stayed at 22 ms). Deep pages stay at about 30-36 ms
+(accepted, PHASE3_COUNT_PLAN.md). Search is still unmeasured with trigram indexes on this machine.

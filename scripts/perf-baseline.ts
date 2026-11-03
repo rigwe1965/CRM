@@ -58,7 +58,7 @@ async function main() {
               CASE WHEN c % 50 = 0 THEN now() END, now() - (c || ' minutes')::interval, now()
        FROM generate_series(1,${TENANTS}) t, generate_series(1,${CONTACTS}) c`,
     );
-    await db.$executeRawUnsafe(`ANALYZE`);
+    await db.$executeRawUnsafe(`VACUUM ANALYZE "Contact"`); // as autovacuum would: index-only scans need the visibility map
     console.log(`Filled in ${((Date.now() - t0) / 1000).toFixed(1)}s\n`);
 
     const tenantId = "perf_t1";
