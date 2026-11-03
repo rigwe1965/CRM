@@ -51,5 +51,11 @@ Re-run the script after each change; success = every row above under 20 ms at 40
 - **Not measured:** the trigram indexes. The local Postgres blocks `pg_trgm.dll` (Windows Application Control), so search
   numbers above are without them. CI applied the migration and production's deploy accepted it (so the extension is
   allowed there), but the speed-up still needs a run on a database that loads `pg_trgm`.
-- **Still over the 20 ms target:** deep pages (36 ms) and the count (22 ms). Both need API changes (keyset pagination,
-  a cheaper or cached count), which need their own plan.
+- **Still over the 20 ms target (when measured):** deep pages (36 ms) and the count (22 ms); see the next section for the count.
+
+## After the count index (`20261128000000_contact_count_index`, measured 2026-11-03)
+
+Count of live contacts at 40,000 contacts in one business: **22 ms to 3.8 ms** (median; p95 10 ms). An index-only scan needs
+the table's visibility map, which autovacuum keeps current in production; the script now runs `VACUUM ANALYZE "Contact"`
+after filling so it measures what production sees (without it the count stayed at 22 ms). Deep pages stay at about 30-36 ms
+(accepted, PHASE3_COUNT_PLAN.md). Search is still unmeasured with trigram indexes on this machine.

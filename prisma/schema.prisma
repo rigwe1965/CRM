@@ -375,6 +375,7 @@ model Contact {
   @@index([phoneE164])
   @@index([tenantId])
   // Lists are always one business, newest or A-Z first (Phase 3, PHASE3_BASELINE.md).
+  @@index([tenantId, deletedAt])
   @@index([tenantId, createdAt])
   @@index([tenantId, lastName, firstName])
   @@index([tenantId, ownerId, createdAt])
