@@ -32,7 +32,8 @@ const mfaReset = resetMfa
   ? { mfaSecret: null, mfaEnabledAt: null, mfaLastStep: null, mfaRecoveryCodes: [], passwordChangedAt: new Date(Math.floor(Date.now() / 1000) * 1000 + 1000) }
   : {};
 
-const db = new PrismaClient();
+// The owner connection when there is one: the restricted app role (DATABASE_URL) cannot see users outside a business.
+const db = new PrismaClient({ datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined });
 const run = name
   ? db.user.upsert({
       where: { email },

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TENANT_ID } from "@/lib/tenant";
@@ -61,8 +61,17 @@ describe("tenant columns", () => {
 });
 
 describe("row-level security (Phase 2)", () => {
-  // The migration that switched it on, plus the later ones that add a table with its own policy.
-  const sql = () => ["20261031000000_row_level_security", "20261101000000_tenant_integrations", "20261105000000_stock_thresholds", "20261108000000_ai_assistant", "20261110000000_ai_proposals", "20261113000000_ai_inbox", "20261114000000_ai_triage", "20261115000000_ai_knowledge", "20261116000000_whatsapp_templates", "20261118000000_customer_order_links", "20261120000000_broadcast_campaigns"].map((d) => readFileSync(`prisma/migrations/${d}/migration.sql`, "utf8")).join("\n");
+  // Every migration, so a new table's policy is found wherever it is added; no list to forget to extend.
+  const sql = () => readdirSync("prisma/migrations", { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => readFileSync(`prisma/migrations/${d.name}/migration.sql`, "utf8")).join("\n");
+
+  it("every implicit many-to-many table between business tables has its own policy (it has no model, so the check above misses it)", () => {
+    const migration = sql();
+    const joins = Prisma.dmmf.datamodel.models.filter((m) => businessModels().includes(m.name)).flatMap((m) => m.fields.filter((f) => f.relationName && f.isList && models.get(f.type)?.fields.some((g) => g.relationName === f.relationName && g.isList)).map((f) => f.relationName));
+    expect(joins.length).toBeGreaterThan(0);
+    for (const rel of new Set(joins)) {
+      expect(migration, `_${rel} RLS`).toContain(`ALTER TABLE "_${rel}" ENABLE ROW LEVEL SECURITY;`);
+    }
+  });
 
   it("every business table has RLS switched on and a policy that names its tenantId", () => {
     const migration = sql();
@@ -80,6 +89,19 @@ describe("row-level security (Phase 2)", () => {
     expect(migration).toContain('REVOKE INSERT, UPDATE, DELETE ON "Tenant" FROM crm_app');
     expect(migration).toContain('REVOKE UPDATE, DELETE ON "AuditLog" FROM crm_app');
     expect(migration).toContain('REVOKE ALL ON "Account", "Session", "VerificationToken" FROM crm_app');
+  });
+
+  it("every business table is granted to the app role: by the first RLS migration's blanket grant, or by its own migration", () => {
+    const dirs = readdirSync("prisma/migrations", { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort();
+    const first = "20261031000000_row_level_security";
+    const text = (d: string) => readFileSync(`prisma/migrations/${d}/migration.sql`, "utf8");
+    const before = dirs.filter((d) => d < first).map(text).join("\n"); // tables the blanket GRANT ... ON ALL TABLES covered
+    const all = sql();
+    for (const name of businessModels()) {
+      const covered = before.includes(`CREATE TABLE "${name}"`);
+      const own = new RegExp(String.raw`GRANT[^;]*?ON\s+(?:"\w+",\s*)*"${name}"(?:,\s*"\w+")*\s+TO crm_app`).test(all);
+      expect(covered || own, `${name} needs a GRANT ... ON "${name}" TO crm_app in its migration, or the app role cannot use it`).toBe(true);
+    }
   });
 
   it("the policy is not forced on the table owner, so the platform client keeps working", () => {
