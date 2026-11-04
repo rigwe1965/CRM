@@ -4,6 +4,7 @@ The steps the owner does outside the code before real customers use the CRM, in 
 
 ## 1. Production database
 
+- [ ] Production database host: Neon, AWS Europe (Frankfurt, `eu-central-1`). `vercel.json` pins the app's functions to `fra1` (Frankfurt) so they run next to it; if you ever move the database, change `regions` there too.
 - [ ] Create a separate Production database (not the one Preview uses). Note that `prisma migrate deploy` runs on every Vercel build, so a Preview build pointed at Production would migrate it.
 - [ ] In Vercel, scope these to **Production** only: `DATABASE_URL` (the pooled URL, connecting as the restricted role `crm_app`), `DIRECT_URL` and `PLATFORM_DATABASE_URL` (the owner role). Give **Preview** its own throwaway database and its own values.
 - [ ] Create `crm_app` with a login (`ALTER ROLE crm_app LOGIN PASSWORD '…'`, or `CREATE ROLE` if the owner role can't) **before the first `migrate deploy`**, so every migration's grants to it apply. If it was created afterwards, run the grants listed in `TECHNICIAN.md` (Row-level security).
