@@ -5,11 +5,19 @@ The steps the owner does outside the code before real customers use the CRM, in 
 ## 1. Production database
 
 - [ ] Production database host: Neon, AWS Europe (Frankfurt, `eu-central-1`). `vercel.json` pins the app's functions to `fra1` (Frankfurt) so they run next to it; if you ever move the database, change `regions` there too.
-- [ ] Create a separate Production database (not the one Preview uses). Note that `prisma migrate deploy` runs on every Vercel build, so a Preview build pointed at Production would migrate it.
+- [ ] Create a separate Production database (not the one Preview uses). `prisma migrate deploy` now runs only on **production** Vercel builds (`vercel-build` checks `VERCEL_ENV`), so a Preview build can never migrate Production; Preview still must not be given Production credentials.
 - [ ] In Vercel, scope these to **Production** only: `DATABASE_URL` (the pooled URL, connecting as the restricted role `crm_app`), `DIRECT_URL` and `PLATFORM_DATABASE_URL` (the owner role). Give **Preview** its own throwaway database and its own values.
 - [ ] Create `crm_app` with a login (`ALTER ROLE crm_app LOGIN PASSWORD '…'`, or `CREATE ROLE` if the owner role can't) **before the first `migrate deploy`**, so every migration's grants to it apply. If it was created afterwards, run the grants listed in `TECHNICIAN.md` (Row-level security).
 - [ ] Turn on automatic backups and point-in-time recovery at the database provider. Choose a retention period. 30 days matches the deletion grace period, and the privacy policy should say that backups keep older copies until they expire.
 - [ ] Check that row-level security is in place on the Production database (`TECHNICIAN.md`, Phase 2) before the first customer signs up.
+
+### Preview database (set up 2026-11-04)
+
+- [x] Preview uses its own empty Neon project, **`ivycandy-preview`** (`billowing-moon-77217891`, Frankfurt, personal Neon org), with no customer data. The migrations are applied, `crm_app` has its own login and password (different from Production), and row-level security is in place.
+- [x] In Vercel the Preview target has its own `DATABASE_URL` (as `crm_app`), `DIRECT_URL`, `PLATFORM_DATABASE_URL`, `NEXTAUTH_SECRET`, `MFA_ENCRYPTION_KEY` and `CRON_SECRET`, none copied from Production. The Neon integration's credential variables (`DATABASE_URL_UNPOOLED`, `POSTGRES_*`, `PG*`) were removed from Preview with `vercel env rm <name> preview`.
+- [ ] Still needed for a Preview that starts: its own `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (a second Upstash database, not Production's) and `RESEND_API_KEY` or `EMAIL_SERVER` with `EMAIL_FROM`. Builds pass without them; the app will not boot.
+- [ ] After a schema change, apply it to the preview database by hand, as the owner role: set `DATABASE_URL` and `DIRECT_URL` to the preview owner connection string (Neon console, `ivycandy-preview`, branch `main`, role `neondb_owner`), then run `npx prisma migrate deploy`. Check the host in the URL first: it must not be the Production one.
+- [ ] Re-check now and then with `vercel env ls preview` that the Neon integration has not put its Production credentials back on Preview. If it did, remove them again (the old credentials stay valid: rotate the Neon owner password if one might have leaked).
 
 ## 2. Secrets
 
