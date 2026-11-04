@@ -25,7 +25,7 @@ const { holder, lazy } = vi.hoisted(() => {
 vi.mock("@/lib/db", () => ({ db: lazy(() => holder.db) }));
 
 import { createEntry, entryHistory, importDefaultPolicy, listEntries, updateEntry } from "@/lib/ai/knowledge/service";
-import { DEFAULT_POLICY } from "@/lib/ai/knowledge/ivycandy-policy";
+import { DEFAULT_KNOWLEDGE } from "@/lib/ai/knowledge/service";
 import { searchKnowledge } from "@/lib/ai/knowledge/search";
 
 const run = testDatabaseUrl() ? describe : describe.skip;
@@ -46,9 +46,9 @@ run("knowledge base across two businesses", () => {
 
   it("imports the shipped policy once, and again changes nothing", async () => {
     const first = await inTenant(t.a, () => importDefaultPolicy(admin(t.a)));
-    expect(first.created).toBe(DEFAULT_POLICY.length);
+    expect(first.created).toBe(DEFAULT_KNOWLEDGE.length);
     const again = await inTenant(t.a, () => importDefaultPolicy(admin(t.a)));
-    expect(again).toMatchObject({ created: 0, updated: 0, unchanged: DEFAULT_POLICY.length });
+    expect(again).toMatchObject({ created: 0, updated: 0, unchanged: DEFAULT_KNOWLEDGE.length });
   });
 
   it("never overwrites an entry an admin has edited, and keeps every version", async () => {

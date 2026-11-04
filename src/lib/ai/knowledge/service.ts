@@ -5,6 +5,7 @@ import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { tenantScope } from "@/lib/access";
 import { DEFAULT_POLICY } from "@/lib/ai/knowledge/ivycandy-policy";
+import { DEFAULT_FAQ } from "@/lib/ai/knowledge/ivycandy-faq";
 import { knowledgeInput, knowledgePatch, type KnowledgeInput } from "@/lib/ai/knowledge/types";
 
 /** Adding, editing, archiving and importing knowledge entries. Every change keeps a version row. Admin routes call these inside the business's context. */
@@ -52,11 +53,14 @@ export async function updateEntry(user: SessionUser, id: string, raw: z.input<ty
   return db.knowledgeEntry.update({ where: { id: current.id, ...tenantScope(user) }, data });
 }
 
+/** Everything shipped for Ivycandy Hair: the returns policy and the product, care, shipping and wholesale FAQ. */
+export const DEFAULT_KNOWLEDGE: readonly KnowledgeInput[] = [...DEFAULT_POLICY, ...DEFAULT_FAQ];
+
 /**
- * Copies the shipped policy in. New keys are created; entries still as shipped are refreshed if the shipped text changed;
+ * Copies the shipped policy and FAQ in. New keys are created; entries still as shipped are refreshed if the shipped text changed;
  * entries an admin has edited are never touched. Safe to run again.
  */
-export async function importDefaultPolicy(user: SessionUser, policy: readonly KnowledgeInput[] = DEFAULT_POLICY) {
+export async function importDefaultPolicy(user: SessionUser, policy: readonly KnowledgeInput[] = DEFAULT_KNOWLEDGE) {
   const result = { created: 0, updated: 0, unchanged: 0, skippedEdited: 0 };
   for (const raw of policy) {
     const input = knowledgeInput.parse(raw);
