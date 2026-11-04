@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { db, settings, proposals, integ, usage, record, pay, clientFor } = vi.hoisted(() => ({
   db: {
-    aiTriage: { create: vi.fn(), updateMany: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    aiTriage: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     activity: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     contact: { findFirst: vi.fn() },
     user: { findFirst: vi.fn() },
@@ -47,6 +47,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   text = "Hello, I have sent the 300 USD today";
   settings.mockResolvedValue(on);
+  db.aiTriage.findFirst.mockResolvedValue(null);
   db.aiTriage.updateMany.mockResolvedValue({ count: 1 });
   db.aiTriage.count.mockResolvedValue(0);
   db.activity.findFirst.mockImplementation(async () => ({ body: text, contactId: "c1", occurredAt: NOW }));
@@ -84,6 +85,14 @@ describe("enqueueTriage", () => {
     expect(await enqueueTriage(T, ["m1", "m2"])).toEqual(["a1"]);
     expect(db.aiTriage.create.mock.calls[0][0].data).toEqual({ tenantId: T, activityId: "a1", contactId: "c1" });
     expect(db.activity.findFirst.mock.calls[0][0].where).toEqual({ tenantId: T, externalId: "m1", type: "WHATSAPP", direction: "IN" });
+  });
+
+  it("looks before inserting, so a message already queued is skipped without a failed insert", async () => {
+    db.activity.findFirst.mockResolvedValueOnce({ id: "a1", contactId: "c1" });
+    db.aiTriage.findFirst.mockResolvedValueOnce({ id: "q1" });
+    expect(await enqueueTriage(T, ["m1"])).toEqual([]);
+    expect(db.aiTriage.findFirst.mock.calls[0][0].where).toEqual({ tenantId: T, activityId: "a1" });
+    expect(db.aiTriage.create).not.toHaveBeenCalled();
   });
 });
 

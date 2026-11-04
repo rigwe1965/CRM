@@ -155,6 +155,9 @@ export async function createBackgroundProposal(
   input: { kind: AiProposalKind; raw: unknown; source: AiProposalSource; dedupeKey: string; reason: string; subject?: { type: string; id: string }; extraWarning?: string; /** Plain-text lines added to the card after the checked ones (for example what the customer wrote). */ extraLines?: { label: string; value: string }[]; now?: Date },
 ): Promise<{ id: string; preview: Preview } | null> {
   const now = input.now ?? new Date();
+  // Look first: the usual case is a repeat, and a failed insert is logged by Prisma as an error. The catch below covers a race.
+  const existing = await db.aiProposal.findFirst({ where: { tenantId: user.tenantId, userId: user.id, dedupeKey: input.dedupeKey }, select: { id: true } });
+  if (existing) return null;
   const prepared: Prepared = await KINDS[input.kind].prepare(user, input.raw as never);
   const preview: Preview = {
     ...prepared.preview,

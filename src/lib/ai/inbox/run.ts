@@ -43,11 +43,15 @@ export async function runToday(user: { id: string; tenantId: string }, now = new
 /** Claims today's run. Returns false when it is already done, or running and not dead. */
 async function claim(user: { id: string; tenantId: string }, now: Date): Promise<boolean> {
   const d = day(now);
-  try {
-    await db.aiInboxRun.create({ data: { tenantId: user.tenantId, userId: user.id, day: d } });
-    return true;
-  } catch (e) {
-    if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+  // Look first so the usual repeat does not log a failed insert; the catch covers a race.
+  const exists = await db.aiInboxRun.findFirst({ where: { tenantId: user.tenantId, userId: user.id, day: d }, select: { id: true } });
+  if (!exists) {
+    try {
+      await db.aiInboxRun.create({ data: { tenantId: user.tenantId, userId: user.id, day: d } });
+      return true;
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+    }
   }
   // It exists: only a failed run, or one that died, is started again.
   const taken = await db.aiInboxRun.updateMany({

@@ -57,6 +57,8 @@ export async function enqueueTriage(tenantId: string, messageIds: string[]): Pro
   for (const externalId of messageIds) {
     const activity = await db.activity.findFirst({ where: { tenantId, externalId, type: "WHATSAPP", direction: "IN" }, select: { id: true, contactId: true } });
     if (!activity?.contactId) continue;
+    // Look first so a repeat does not log a failed insert; the catch covers a race.
+    if (await db.aiTriage.findFirst({ where: { tenantId, activityId: activity.id }, select: { id: true } })) continue; // already queued
     try {
       await db.aiTriage.create({ data: { tenantId, activityId: activity.id, contactId: activity.contactId } });
       out.push(activity.id);

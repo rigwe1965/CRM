@@ -151,6 +151,13 @@ describe("createBackgroundProposal", () => {
     expect(await createBackgroundProposal(user, input)).toBeNull();
   });
 
+  it("looks for the dedupe key first, and writes nothing (no failed insert) when it exists", async () => {
+    db.aiProposal.findFirst.mockResolvedValueOnce({ id: "old" });
+    expect(await createBackgroundProposal(user, input)).toBeNull();
+    expect(db.aiProposal.findFirst.mock.calls.at(-1)![0].where).toEqual({ tenantId: "t1", userId: "u1", dedupeKey: "inst:d1:2026-W44:task" });
+    expect(db.aiProposal.create).not.toHaveBeenCalled();
+  });
+
   it("lets other database errors through, and what the kind refuses (an invisible record)", async () => {
     db.aiProposal.create.mockRejectedValue(new Error("connection lost"));
     await expect(createBackgroundProposal(user, input)).rejects.toThrow("connection lost");
