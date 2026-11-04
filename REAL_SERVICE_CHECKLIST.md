@@ -1,6 +1,6 @@
 # Phase 4.1: proving the integrations against the real services
 
-Status: **in progress** (A1 and B2 done; the rest need the owner). Goal: run each integration once against the real provider in **test mode**, and write down what
+Status: **in progress** (A1, B2 and A6's subscribe step done; the rest need the owner). Goal: run each integration once against the real provider in **test mode**, and write down what
 happened. Everything here was built and tested with fakes; this is the first run against the real services.
 Rule: test mode, a test phone number, test cards. No real customer is messaged and no real card is charged.
 
@@ -19,7 +19,7 @@ Results go in the "Result" column; fix what fails, then re-run it.
 | A3 | Pay it with `4242 4242 4242 4242` | Open the link, any future date and CVC | You | |
 | A4 | The payment appears once | Deal shows the payment; audit log has `payment.recorded_online`; a repeat event does not add a second payment (idempotent on `providerRef`) | Claude + You | |
 | A5 | A payment that cannot be recorded is not lost | Cancel the link or drop the balance, then pay: expect link `REFUND_NEEDED` and an URGENT task | You | |
-| A6 | Subscription billing | Sign-up checkout with a billing test price, then cancel; business plan and status follow (`BILLING_STRIPE_*` keys, `/api/webhooks/billing`) | You | |
+| A6 | Subscription billing | Sign-up checkout with a billing test price, then cancel; business plan and status follow (`BILLING_STRIPE_*` keys, `/api/webhooks/billing`) | You | **PASS (subscribe step) 2026-11-04**, on production (`ivycandy-crm.vercel.app`) in Stripe test mode. Choose Starter opened Stripe Checkout; paid with `4242 4242 4242 4242` (US$29/month price, 12 trial days carried over). Stripe sent `customer.subscription.created`, `invoice.paid` and `checkout.session.completed` to `/api/webhooks/billing`, each accepted (`pending_webhooks` 0); Settings → Billing then showed Starter, Active, and the Manage subscription portal opened. **Not yet run:** the cancel step. Prices are placeholders; live mode needs a separate Stripe account, new products and a new webhook secret. |
 
 Data warning: A2 to A5 create real rows in the **local dev database** (a payment on a sample deal). Use a deal named
 "Sample …" and delete or note it afterwards (CLAUDE.md: seed data stays as the newcomer sample unless asked).
