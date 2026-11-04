@@ -39,7 +39,7 @@ export async function monthToDateMicros(tenantId: string, now = new Date()): Pro
 
 export type CeilingLevel = "unset" | "ok" | "warn" | "reached";
 
-/** From 80% of the ceiling the admin is warned; at 100% Ivy stops until the month turns or the ceiling is raised. */
+/** From 80% of the ceiling the admin is warned; at 100% AI stops until the month turns or the ceiling is raised. */
 export const WARN_AT = 0.8;
 
 export function ceilingState(ceilingUsd: number | null, spentMicros: number) {

@@ -7,7 +7,7 @@ import { TOOL_DEFINITIONS, ToolError, toolByName, type ToolContext } from "@/lib
 import { recordUsage } from "@/lib/ai/usage";
 
 /**
- * One answer from Ivy (AI_ASSISTANT_PLAN.md, Phase 1). A hand-written loop rather than the SDK's tool runner, so every
+ * One answer from AI (AI_ASSISTANT_PLAN.md, Phase 1). A hand-written loop rather than the SDK's tool runner, so every
  * model call is metered and checked against the business's spending ceiling before it is made. It never throws: every
  * outcome ends in `emit` events and a returned summary.
  */
@@ -16,7 +16,7 @@ import { recordUsage } from "@/lib/ai/usage";
 export const IVY_EFFORT = "low" as const;
 /** Includes the model's thinking as well as the answer, which both count towards this. */
 export const MAX_TOKENS = 8000;
-/** Tool rounds in one answer. After this Ivy says what it has so far instead of calling more. */
+/** Tool rounds in one answer. After this AI says what it has so far instead of calling more. */
 export const MAX_ROUNDS = 6;
 /** Wall-clock budget for one answer, kept inside the host's function time limit (the chat route sets maxDuration to 60s). */
 export const DEADLINE_MS = 50_000;
@@ -65,7 +65,7 @@ export async function runIvy(opts: {
     emit({ type: "text", delta });
   };
   const finish = (stopped: IvyRun["stopped"]) => ((run.stopped = stopped), run);
-  /** Says something final in Ivy's own voice and saves it, so the saved chat ends in a complete turn. */
+  /** Says something final in AI's own voice and saves it, so the saved chat ends in a complete turn. */
   const sayAndStop = async (text: string, stopped: IvyRun["stopped"]) => {
     say(text.trim());
     await persist([{ role: "ASSISTANT", content: [{ type: "text", text: text.trim() }] }]);
@@ -109,17 +109,17 @@ export async function runIvy(opts: {
       run.costMicros += await recordUsage({ tenantId: ctx.user.tenantId, userId: ctx.user.id, conversationId, model: message.model, usage: tokenUsage(message.usage) });
 
       if (message.stop_reason === "refusal") {
-        emit({ type: "error", code: "AI_REFUSED", message: "Ivy cannot help with that request. Try asking about your contacts, deals, payments or stock." });
+        emit({ type: "error", code: "AI_REFUSED", message: "AI cannot help with that request. Try asking about your contacts, deals, payments or stock." });
         return finish("refused");
       }
       const uses = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
       if (message.stop_reason === "max_tokens" && uses.length > 0) {
         // A cut-off tool call can still look valid, so none of it runs.
-        emit({ type: "error", code: "AI_TOO_LONG", message: "That question needs more than Ivy can answer at once. Try a narrower question." });
+        emit({ type: "error", code: "AI_TOO_LONG", message: "That question needs more than AI can answer at once. Try a narrower question." });
         return finish("truncated");
       }
       if (message.stop_reason === "pause_turn" || (message.stop_reason !== "end_turn" && message.stop_reason !== "tool_use" && message.stop_reason !== "max_tokens")) {
-        emit({ type: "error", code: "AI_FAILED", message: "Ivy could not finish that answer. Please try again." });
+        emit({ type: "error", code: "AI_FAILED", message: "AI could not finish that answer. Please try again." });
         return finish("error");
       }
 
@@ -171,12 +171,12 @@ async function runTool(ctx: ToolContext, use: Anthropic.Beta.BetaToolUseBlock, e
 export function explain(e: unknown): { code: string; message: string } {
   if (e instanceof ApiError) return { code: e.code ?? "AI_ERROR", message: e.message };
   if (e instanceof Anthropic.AuthenticationError) return { code: "AI_KEY_REJECTED", message: "Anthropic no longer accepts this business's key. An admin should replace it in Settings." };
-  if (e instanceof Anthropic.PermissionDeniedError) return { code: "AI_KEY_REJECTED", message: "This business's Anthropic key is not allowed to use Ivy's model. An admin should check it in Settings." };
+  if (e instanceof Anthropic.PermissionDeniedError) return { code: "AI_KEY_REJECTED", message: "This business's Anthropic key is not allowed to use AI's model. An admin should check it in Settings." };
   if (e instanceof Anthropic.RateLimitError) return { code: "AI_PROVIDER_BUSY", message: "Anthropic is limiting this business's key right now. Try again in a minute." };
   if (e instanceof Anthropic.BadRequestError && /credit balance/i.test(e.message)) {
     return { code: "AI_NO_CREDIT", message: "The Anthropic account behind this key has no credit left. An admin needs to add credit in the Anthropic console." };
   }
   if (e instanceof Anthropic.APIConnectionError) return { code: "AI_UNREACHABLE", message: "Could not reach Anthropic. Try again in a moment." };
   console.error("[ivy] failed", e instanceof Anthropic.APIError ? `${e.status} ${e.message}` : e instanceof Error ? e.message : e);
-  return { code: "AI_FAILED", message: "Ivy could not answer that. Please try again." };
+  return { code: "AI_FAILED", message: "AI could not answer that. Please try again." };
 }

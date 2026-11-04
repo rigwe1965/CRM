@@ -8,7 +8,7 @@ import { IVY_PROMPT_VERSION, TOOL_CHIPS } from "@/lib/ai/prompt";
 import type { StoredMessage } from "@/lib/ai/ivy";
 
 /**
- * Saving and showing Ivy's chats. A chat belongs to one user and nobody else can open it, admins included: every
+ * Saving and showing AI's chats. A chat belongs to one user and nobody else can open it, admins included: every
  * lookup names the business and the user. Messages are stored exactly as the model sent and received them.
  */
 
@@ -44,7 +44,7 @@ export async function appendMessages(tenantId: string, conversationId: string, m
       db.aiConversation.updateMany({ where: { id: conversationId, tenantId }, data: { updatedAt: new Date() } }),
     ]);
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ApiError(409, "Ivy is still answering your last question. Wait for it to finish.", "AI_BUSY");
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ApiError(409, "AI is still answering your last question. Wait for it to finish.", "AI_BUSY");
     throw e;
   }
 }
@@ -76,7 +76,7 @@ type StoredBlock = { type?: string; text?: string; name?: string };
 const blocksOf = (content: unknown): StoredBlock[] => (Array.isArray(content) ? (content as StoredBlock[]) : typeof content === "string" ? [{ type: "text", text: content }] : []);
 
 /**
- * What the panel shows for a saved chat: the person's own words, and each of Ivy's answers as one bubble (its text
+ * What the panel shows for a saved chat: the person's own words, and each of AI's answers as one bubble (its text
  * across all tool rounds, plus a chip per lookup). Context blocks, thinking and raw tool results are never sent to the browser.
  */
 export function renderMessages(rows: Row[]): RenderedMessage[] {

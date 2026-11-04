@@ -146,7 +146,7 @@ export type Reports = {
   topProducts: { product: string; pieces: number; revenue: MoneyMap }[];
   leadsBySource: { source: string; contacts: number; customers: number; conversion: number }[];
 };
-/** GET /api/admin/assistant: Ivy's state for the admin screen. Never contains the key. */
+/** GET /api/admin/assistant: AI's state for the admin screen. Never contains the key. */
 export type AssistantStatus = {
   model: string;
   keyConfigured: boolean;

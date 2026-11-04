@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TRIAGE_PROMPT, TRIAGE_PROMPT_VERSION, TRIAGE_TOOL, triageFingerprint, triageResultInput } from "@/lib/ai/triage/prompt";
 
 /**
- * WhatsApp triage's instructions are pinned, like Ivy's chat prompt: an edit has to be deliberate. (A background call has
+ * WhatsApp triage's instructions are pinned, like AI's chat prompt: an edit has to be deliberate. (A background call has
  * no thinking blocks to protect, so the version is for the record; the fingerprint is what stops an accidental change.)
  */
 const PINNED = { version: "3", fingerprint: "a95cf21269a32d79" };

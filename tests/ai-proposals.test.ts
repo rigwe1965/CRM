@@ -322,7 +322,7 @@ describe("takeOutcomes", () => {
     expect(db.aiProposal.findMany.mock.calls[0][0].where).toEqual({ tenantId: "t1", userId: "u1", conversationId: "c1", reportedAt: null, status: { not: "PENDING" } });
   });
 
-  it("tells Ivy how each ended, marks them told, and says the note is from the CRM", async () => {
+  it("tells AI how each ended, marks them told, and says the note is from the CRM", async () => {
     db.aiProposal.findMany.mockResolvedValue([
       row({ id: "a", status: "APPLIED" }),
       row({ id: "b", status: "DECLINED" }),

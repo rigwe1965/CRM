@@ -20,7 +20,7 @@ export type ProposalCard = {
   approvable: boolean;
   /** A WhatsApp draft: the customer it goes to. The card offers Send while the 24-hour window is open. */
   whatsappContactId?: string | null;
-  /** Why Ivy suggested it, built from data; only for suggestions she made on her own. */
+  /** Why AI suggested it, built from data; only for suggestions it made on its own. */
   reason?: string | null;
   editable: Record<string, string | null>;
   result: { href: string; entity: string } | null;
@@ -213,11 +213,11 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
   );
 }
 
-/** The actions Ivy has proposed in this chat, as cards the person approves, edits or declines. Everything shown comes from the server's saved copy. */
+/** The actions AI has proposed in this chat, as cards the person approves, edits or declines. Everything shown comes from the server's saved copy. */
 export function ProposalCards({ conversationId, onNavigate }: { conversationId: string | undefined; onNavigate: () => void }) {
   return (
     <ProposalList
-      heading="Ivy suggests"
+      heading="AI suggests"
       queryKey={["ivy-proposals", conversationId]}
       enabled={!!conversationId}
       load={async () => (await request<{ data: ProposalCard[] }>("GET", `/api/assistant/proposals?conversationId=${encodeURIComponent(conversationId ?? "")}`)).data}
@@ -261,7 +261,7 @@ export function ProposalList({ heading, queryKey: key, load, items, enabled = tr
   const waiting = data.filter((p) => p.status === "PENDING" && p.approvable && !p.preview.warning && !p.preview.confirm);
 
   return (
-    <section aria-label="Actions Ivy suggested" className="space-y-2">
+    <section aria-label="Actions AI suggested" className="space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{heading}</h3>
         {waiting.length > 1 && (

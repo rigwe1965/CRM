@@ -5,7 +5,7 @@ import { assistantStatus } from "@/lib/ai/status";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/assistant/status: can this business use Ivy right now, and if not, why (a code the panel turns into words).
+ * GET /api/assistant/status: can this business use AI right now, and if not, why (a code the panel turns into words).
  * For every signed-in user, so it holds no spending figures and no settings: those are admin-only (/api/admin/assistant).
  */
 export const GET = authed(async ({ user }) => {

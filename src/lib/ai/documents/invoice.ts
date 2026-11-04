@@ -15,7 +15,7 @@ import { INVOICE_PROMPT, INVOICE_TOOL, MAX_DOCUMENT_LINES, readInvoiceInput, typ
 
 /**
  * Reading a supplier invoice from a PDF or photo (AI_ASSISTANT_PLAN.md, Phase 4a). The model copies what is printed;
- * this file does everything that must not be left to it: the gates (Ivy on, "Read documents" on, key, ceiling, daily
+ * this file does everything that must not be left to it: the gates (AI on, "Read documents" on, key, ceiling, daily
  * number), recomputing every line total, comparing the lines with the printed total, flagging a duplicate invoice number,
  * and shaping the result for the New invoice form. Nothing is saved and the file is not kept: the person reads the form
  * and saves it through the ordinary invoice route.
@@ -132,9 +132,9 @@ async function readToday(tenantId: string, now: Date) {
 
 /** Everything that decides whether this person may have a document read right now. Throws a plain-words ApiError. */
 export async function assertCanReadDocument(user: Pick<SessionUser, "id" | "tenantId">, now = new Date()) {
-  await assertCanAsk(user, now); // Ivy on, key, ceiling, and the same rate limit as a question
+  await assertCanAsk(user, now); // AI on, key, ceiling, and the same rate limit as a question
   const settings = await loadAssistantSettings(user.tenantId);
-  if (settings.documentsEnabled !== true) throw new ApiError(403, "Reading documents is switched off for this business. An admin can allow it in Settings, under Ivy. You can still import a spreadsheet or type the invoice in.", "AI_DOCUMENTS_OFF");
+  if (settings.documentsEnabled !== true) throw new ApiError(403, "Reading documents is switched off for this business. An admin can allow it in Settings, under AI assistant. You can still import a spreadsheet or type the invoice in.", "AI_DOCUMENTS_OFF");
   const cap = settings.documentsDailyCap ?? DEFAULT_DOCUMENTS_DAILY_CAP;
   if ((await readToday(user.tenantId, now)) >= cap) throw new ApiError(429, `Today's limit of ${cap} documents has been reached. Try again tomorrow, or type the invoice in.`, "AI_DOCUMENTS_CAP");
 }
@@ -171,7 +171,7 @@ export async function readInvoiceFile(user: SessionUser, file: DocumentFile, opt
   } catch (e) {
     console.error("[ivy-documents] read failed", e instanceof Error ? e.message : e);
     await release();
-    throw new ApiError(502, "Ivy could not read that document just now. Try again in a moment, or import a spreadsheet or type the invoice in.", "AI_DOCUMENT_FAILED");
+    throw new ApiError(502, "AI could not read that document just now. Try again in a moment, or import a spreadsheet or type the invoice in.", "AI_DOCUMENT_FAILED");
   }
   try {
     await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
@@ -182,14 +182,14 @@ export async function readInvoiceFile(user: SessionUser, file: DocumentFile, opt
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === INVOICE_TOOL.name);
   const parsed = use ? readInvoiceInput.safeParse(use.input) : null;
   if (message.stop_reason === "max_tokens") {
-    throw new ApiError(422, "That invoice is too long for Ivy to read in one go. Send it a few pages at a time, import a spreadsheet, or type it in.", "AI_DOCUMENT_TOO_LONG");
+    throw new ApiError(422, "That invoice is too long for AI to read in one go. Send it a few pages at a time, import a spreadsheet, or type it in.", "AI_DOCUMENT_TOO_LONG");
   }
   if (!parsed?.success) {
-    throw new ApiError(422, "Ivy could not make sense of that document. Try a clearer photo or a PDF, or type the invoice in.", "AI_DOCUMENT_UNREADABLE");
+    throw new ApiError(422, "AI could not make sense of that document. Try a clearer photo or a PDF, or type the invoice in.", "AI_DOCUMENT_UNREADABLE");
   }
   if (!parsed.data.readable) {
     // The model's reason is shown as text, clipped; it came from a stranger's document, so it is data, not an instruction.
-    throw new ApiError(422, `That does not look like a supplier invoice Ivy can read${parsed.data.problem ? ` (${parsed.data.problem.slice(0, 200)})` : ""}. Try a clearer photo or a PDF.`, "AI_DOCUMENT_UNREADABLE");
+    throw new ApiError(422, `That does not look like a supplier invoice AI can read${parsed.data.problem ? ` (${parsed.data.problem.slice(0, 200)})` : ""}. Try a clearer photo or a PDF.`, "AI_DOCUMENT_UNREADABLE");
   }
 
   const duplicate = parsed.data.number ? !!(await db.invoice.findFirst({ where: { ...tenantScope(user), number: parsed.data.number }, select: { id: true } })) : false;

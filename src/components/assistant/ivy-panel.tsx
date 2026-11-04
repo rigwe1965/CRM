@@ -23,18 +23,18 @@ type Bubble = IvyMessage & { activity?: Activity[] };
 type Problem = { code: string; message: string };
 type InboxData = { available: "ok" | "disabled" | "muted" | "read_only"; ranToday: boolean; running: boolean; pending: number; items: ProposalCard[] };
 
-/** The reasons Ivy cannot be used yet, in words, and whether an admin can fix them from Settings. */
+/** The reasons AI cannot be used yet, in words, and whether an admin can fix them from Settings. */
 function notReady(reason: NonNullable<IvyStatus["reason"]>, resetsOn: string | null, isAdmin: boolean) {
-  const who = isAdmin ? "You can fix this in Settings → Ivy." : "Ask an admin to fix this in Settings → Ivy.";
+  const who = isAdmin ? "You can fix this in Settings → AI assistant." : "Ask an admin to fix this in Settings → AI assistant.";
   switch (reason) {
-    case "AI_DISABLED": return `Ivy is switched off for your business. ${who}`;
-    case "AI_NOT_CONFIGURED": return `Ivy needs an Anthropic key before it can answer. ${who}`;
-    case "AI_CEILING_UNSET": return `Ivy needs a monthly spending limit before it can answer. ${who}`;
-    case "AI_CEILING_REACHED": return `This month's spending limit for Ivy has been reached. Ivy resumes on ${resetsOn ?? "the 1st"}, or sooner if the limit is raised. ${who}`;
+    case "AI_DISABLED": return `AI is switched off for your business. ${who}`;
+    case "AI_NOT_CONFIGURED": return `AI needs an Anthropic key before it can answer. ${who}`;
+    case "AI_CEILING_UNSET": return `AI needs a monthly spending limit before it can answer. ${who}`;
+    case "AI_CEILING_REACHED": return `This month's spending limit for AI has been reached. AI resumes on ${resetsOn ?? "the 1st"}, or sooner if the limit is raised. ${who}`;
   }
 }
 
-/** Ivy's reply as safe text: bold, lists and in-app links only (see parseBlocks). */
+/** AI's reply as safe text: bold, lists and in-app links only (see parseBlocks). */
 function IvyText({ text, onNavigate }: { text: string; onNavigate: () => void }) {
   const inline = (parts: Inline[]) =>
     parts.map((p, i) =>
@@ -63,7 +63,7 @@ function IvyText({ text, onNavigate }: { text: string; onNavigate: () => void })
   );
 }
 
-/** The "Ask Ivy" button for the header and the chat panel it opens (also on Ctrl/⌘+K). */
+/** The "Ask AI" button for the header and the chat panel it opens (also on Ctrl/⌘+K). */
 export function AskIvy() {
   const user = useCurrentUser();
   const isAdmin = user.role === "ADMIN";
@@ -75,7 +75,7 @@ export function AskIvy() {
   const [streaming, setStreaming] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [deleting, setDeleting] = useState<IvyChatSummary | null>(null);
-  // An order Ivy read but could not match to one customer: the person picks, and the draft goes back with the choice.
+  // An order AI read but could not match to one customer: the person picks, and the draft goes back with the choice.
   const [pick, setPick] = useState<(Pick<OrderReading, "conversationId" | "candidates" | "draft"> & { of: "customer" | "deal" }) | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const attachKind = useRef<"order" | "payment">("order");
@@ -125,7 +125,7 @@ export function AskIvy() {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  // Ctrl/⌘+K opens Ivy from anywhere.
+  // Ctrl/⌘+K opens AI from anywhere.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -137,7 +137,7 @@ export function AskIvy() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Keep the newest text in view as Ivy writes.
+  // Keep the newest text in view as AI writes.
   useEffect(() => {
     const el = log.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -210,7 +210,7 @@ export function AskIvy() {
     void qc.invalidateQueries({ queryKey: ["ivy-proposals"] });
   };
 
-  /** A screenshot of a customer's order or a payment receipt: Ivy reads it and, if it can, puts a card in this chat for the person to approve. */
+  /** A screenshot of a customer's order or a payment receipt: AI reads it and, if it can, puts a card in this chat for the person to approve. */
   const attach = async (file: File, what: "order" | "payment") => {
     if (streaming) return;
     setProblem(null);
@@ -262,9 +262,9 @@ export function AskIvy() {
 
   return (
     <>
-      <Button ref={trigger} variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)} aria-label="Ask Ivy">
+      <Button ref={trigger} variant="outline" size="sm" className="gap-2" onClick={() => setOpen(true)} aria-label="Ask AI">
         <Sparkles className="size-4" />
-        <span className="hidden sm:inline">Ask Ivy</span>
+        <span className="hidden sm:inline">Ask AI</span>
         {(inbox.data?.pending ?? 0) > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] font-medium text-primary-foreground" aria-label={`${inbox.data?.pending} suggestions waiting`}>{inbox.data?.pending}</span>}
         <kbd className="hidden rounded border bg-muted px-1.5 text-[10px] font-normal text-muted-foreground lg:inline">Ctrl K</kbd>
       </Button>
@@ -273,7 +273,7 @@ export function AskIvy() {
         <SheetContent side="right" className="w-full max-w-full gap-0 px-0 pt-0 sm:w-[28rem]" onCloseAutoFocus={(e) => (e.preventDefault(), trigger.current?.focus())}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div>
-              <SheetTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4" /> Ivy</SheetTitle>
+              <SheetTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4" /> AI assistant</SheetTitle>
               <SheetDescription className="text-xs">Ask about your contacts, deals, payments and stock.</SheetDescription>
             </div>
             <div className="mr-8 flex gap-1">
@@ -305,10 +305,10 @@ export function AskIvy() {
                     queryKey={["ivy-inbox"]}
                     items={inbox.data?.items ?? []}
                     onNavigate={closePanel}
-                    empty={inbox.data?.running ? undefined : "Nothing needs your attention right now. Ivy looks again each day."}
+                    empty={inbox.data?.running ? undefined : "Nothing needs your attention right now. AI looks again each day."}
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    Ivy suggests these from your own records; nothing happens until you approve it.{" "}
+                    AI suggests these from your own records; nothing happens until you approve it.{" "}
                     <button type="button" className="underline" disabled={mute.isPending} onClick={() => mute.mutate(true)}>Turn off daily suggestions</button>
                   </p>
                 </>
@@ -332,7 +332,7 @@ export function AskIvy() {
             </div>
           ) : (
             <>
-              <div ref={log} role="log" aria-live="polite" aria-label="Conversation with Ivy" className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+              <div ref={log} role="log" aria-live="polite" aria-label="Conversation with AI" className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                 {chat.messages.length === 0 && (
                   <div className="space-y-3">
                     {blocked ? (
@@ -355,7 +355,7 @@ export function AskIvy() {
                   ) : (
                     <div key={i} className="mr-4 space-y-2">
                       {!!m.activity?.length && (
-                        <ul className="flex flex-wrap gap-1.5" aria-label="What Ivy looked at">
+                        <ul className="flex flex-wrap gap-1.5" aria-label="What AI looked at">
                           {m.activity.map((a) => (
                             <li key={a.id} className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground", a.status === "error" && "border-destructive/50 text-destructive")}>
                               {a.status === "start" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
@@ -388,7 +388,7 @@ export function AskIvy() {
                     )}
                   </div>
                 )}
-                {locked && <p className="rounded-md border bg-muted/50 p-3 text-sm">{chat.stale ? "This chat was started with an older version of Ivy, so you can read it but not continue it." : "This chat has reached its length limit."} <button type="button" className="font-medium underline" onClick={reset}>Start a new chat</button></p>}
+                {locked && <p className="rounded-md border bg-muted/50 p-3 text-sm">{chat.stale ? "This chat was started with an older version of AI, so you can read it but not continue it." : "This chat has reached its length limit."} <button type="button" className="font-medium underline" onClick={reset}>Start a new chat</button></p>}
               </div>
 
               <form
@@ -432,8 +432,8 @@ export function AskIvy() {
                     rows={2}
                     maxLength={4000}
                     disabled={!ready || locked}
-                    placeholder={ready ? "Ask Ivy…" : "Ivy is not available yet"}
-                    aria-label="Your question for Ivy"
+                    placeholder={ready ? "Ask AI…" : "AI is not available yet"}
+                    aria-label="Your question for AI"
                     className="min-h-[2.5rem] flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                   />
                   {streaming ? (
@@ -442,7 +442,7 @@ export function AskIvy() {
                     <Button type="submit" size="icon" aria-label="Send" disabled={!ready || locked || !input.trim()}><ArrowUp className="size-4" /></Button>
                   )}
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">Ivy can make mistakes. Amounts come from your records.{status.data?.orders || status.data?.payments ? " A picture you attach is sent to Anthropic to be read and is not kept." : ""}</p>
+                <p className="mt-2 text-[11px] text-muted-foreground">AI can make mistakes. Amounts come from your records.{status.data?.orders || status.data?.payments ? " A picture you attach is sent to Anthropic to be read and is not kept." : ""}</p>
               </form>
             </>
           )}
@@ -453,7 +453,7 @@ export function AskIvy() {
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
         title="Delete this conversation?"
-        description="It is removed for good. Ivy keeps nothing from it."
+        description="It is removed for good. AI keeps nothing from it."
         pending={remove.isPending}
         onConfirm={() => deleting && remove.mutate(deleting.id)}
       />

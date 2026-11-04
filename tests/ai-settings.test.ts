@@ -11,7 +11,7 @@ describe("assistantSettingsSchema", () => {
     expect(assistantSettingsSchema.parse({ enabled: true, monthlyCeilingUsd: 20 })).toEqual({ enabled: true, monthlyCeilingUsd: 20 });
   });
 
-  it("will not switch Ivy on without a ceiling: there is no default amount", () => {
+  it("will not switch AI on without a ceiling: there is no default amount", () => {
     const r = assistantSettingsSchema.safeParse({ enabled: true, monthlyCeilingUsd: null });
     expect(r.success).toBe(false);
     expect(r.error?.issues[0].path).toEqual(["monthlyCeilingUsd"]);

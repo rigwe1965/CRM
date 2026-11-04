@@ -216,10 +216,10 @@ describe("limits", () => {
   });
 
   it("does not call the model at all when the spending ceiling is already reached", async () => {
-    assertUnderCeiling.mockRejectedValue(new ApiError(429, "This month's spending limit for Ivy has been reached.", "AI_CEILING_REACHED"));
+    assertUnderCeiling.mockRejectedValue(new ApiError(429, "This month's spending limit for AI has been reached.", "AI_CEILING_REACHED"));
     const { calls, events, result } = await ask([say("x")]);
     expect(calls).toHaveLength(0);
-    expect(events).toEqual([{ type: "error", code: "AI_CEILING_REACHED", message: "This month's spending limit for Ivy has been reached." }]);
+    expect(events).toEqual([{ type: "error", code: "AI_CEILING_REACHED", message: "This month's spending limit for AI has been reached." }]);
     expect(result.stopped).toBe("error");
   });
 
@@ -299,12 +299,12 @@ describe("stopping and failing", () => {
   });
 
   it("reports a clash from saving (two answers at once) as the error it is", async () => {
-    const { events } = await ask([say("x")], { persist: async () => Promise.reject(new ApiError(409, "Ivy is still answering your last question.", "AI_BUSY")) });
-    expect(events).toEqual([{ type: "error", code: "AI_BUSY", message: "Ivy is still answering your last question." }]);
+    const { events } = await ask([say("x")], { persist: async () => Promise.reject(new ApiError(409, "AI is still answering your last question.", "AI_BUSY")) });
+    expect(events).toEqual([{ type: "error", code: "AI_BUSY", message: "AI is still answering your last question." }]);
   });
 
   it("explain() passes our own errors through with their code", () => {
-    expect(explain(new ApiError(403, "Ivy is switched off", "AI_DISABLED"))).toEqual({ code: "AI_DISABLED", message: "Ivy is switched off" });
+    expect(explain(new ApiError(403, "AI is switched off", "AI_DISABLED"))).toEqual({ code: "AI_DISABLED", message: "AI is switched off" });
   });
 });
 

@@ -86,7 +86,7 @@ export async function assertCanReadPayment(user: Pick<SessionUser, "id" | "tenan
   await assertCanReadDocument(user, now);
   const settings = await loadAssistantSettings(user.tenantId);
   if (settings.proposalsEnabled !== true || settings.paymentProposalsEnabled !== true) {
-    throw new ApiError(403, "Turning a receipt into a payment needs Ivy's payment proposals, which are switched off for this business. An admin can allow them in Settings, under Ivy. You can still record the payment yourself on the deal's page.", "AI_PAYMENTS_OFF");
+    throw new ApiError(403, "Turning a receipt into a payment needs AI's payment proposals, which are switched off for this business. An admin can allow them in Settings, under AI assistant. You can still record the payment yourself on the deal's page.", "AI_PAYMENTS_OFF");
   }
   if (user.tenantWritable === false) throw new ApiError(403, "This workspace is read-only until its subscription is renewed, so no payment can be recorded.", "TENANT_READ_ONLY");
 }
@@ -143,7 +143,7 @@ export async function readPaymentFile(user: SessionUser, file: DocumentFile, opt
   } catch (e) {
     console.error("[ivy-documents] payment read failed", e instanceof Error ? e.message : e);
     await release();
-    throw new ApiError(502, "Ivy could not read that picture just now. Try again in a moment, or record the payment yourself on the deal's page.", "AI_DOCUMENT_FAILED");
+    throw new ApiError(502, "AI could not read that picture just now. Try again in a moment, or record the payment yourself on the deal's page.", "AI_DOCUMENT_FAILED");
   }
   try {
     await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
@@ -153,9 +153,9 @@ export async function readPaymentFile(user: SessionUser, file: DocumentFile, opt
 
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === PAYMENT_TOOL.name);
   const parsed = use ? readPaymentInput.safeParse(use.input) : null;
-  if (message.stop_reason === "max_tokens" || !parsed?.success) throw new ApiError(422, "Ivy could not make sense of that picture. Try a clearer screenshot, or record the payment yourself on the deal's page.", "AI_DOCUMENT_UNREADABLE");
+  if (message.stop_reason === "max_tokens" || !parsed?.success) throw new ApiError(422, "AI could not make sense of that picture. Try a clearer screenshot, or record the payment yourself on the deal's page.", "AI_DOCUMENT_UNREADABLE");
   if (!parsed.data.readable) {
-    throw new ApiError(422, `That does not look like a payment receipt Ivy can read${parsed.data.problem ? ` (${parsed.data.problem.slice(0, 200)})` : ""}. Try a clearer screenshot.`, "AI_DOCUMENT_UNREADABLE");
+    throw new ApiError(422, `That does not look like a payment receipt AI can read${parsed.data.problem ? ` (${parsed.data.problem.slice(0, 200)})` : ""}. Try a clearer screenshot.`, "AI_DOCUMENT_UNREADABLE");
   }
 
   const finish = async (outcome: PaymentResult["outcome"], text: string, candidates: PaymentCandidate[] = [], d: PaymentDraft | null = null): Promise<PaymentResult> => {

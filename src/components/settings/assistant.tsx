@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 const dollars = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: n < 100 ? 2 : 0 }).format(n);
 
-/** Admin: Ivy, the AI assistant. The business's own Anthropic key (write-only), a monthly spending limit, and an on/off switch. */
+/** Admin: AI, the AI assistant. The business's own Anthropic key (write-only), a monthly spending limit, and an on/off switch. */
 export function AssistantCard() {
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
@@ -60,16 +60,16 @@ export function AssistantCard() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Ivy, your AI assistant</CardTitle>
+          <CardTitle>AI assistant</CardTitle>
           <CardDescription>
-            Ivy answers questions about your contacts, deals, payments and stock. It uses your own Anthropic account, so the cost goes on your Anthropic bill, and it only ever sees what the person asking
+            AI answers questions about your contacts, deals, payments and stock. It uses your own Anthropic account, so the cost goes on your Anthropic bill, and it only ever sees what the person asking
             can see.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-wrap items-center gap-3">
             <Badge variant={data.keyConfigured ? "default" : "secondary"}>{data.keyConfigured ? "Key saved" : "No key yet"}</Badge>
-            <Badge variant={data.enabled ? "default" : "secondary"}>{data.enabled ? "Ivy is on" : "Ivy is off"}</Badge>
+            <Badge variant={data.enabled ? "default" : "secondary"}>{data.enabled ? "AI is on" : "AI is off"}</Badge>
             {data.keySource === "env" && <span className="text-xs text-muted-foreground">key comes from the server settings (.env)</span>}
           </div>
 
@@ -105,7 +105,7 @@ export function AssistantCard() {
           >
             <FormField
               label="Monthly spending limit (US dollars)"
-              hint="Ivy stops for the month when its estimated spend reaches this, and starts again on the 1st (UTC). It is an estimate from token counts; your Anthropic invoice is the record."
+              hint="AI stops for the month when its estimated spend reaches this, and starts again on the 1st (UTC). It is an estimate from token counts; your Anthropic invoice is the record."
             >
               <Input type="number" inputMode="decimal" min="0.01" step="0.01" value={ceilingText} onChange={(e) => setCeiling(e.target.value)} placeholder="For example 20" />
             </FormField>
@@ -123,7 +123,7 @@ export function AssistantCard() {
               disabled={saveSettings.isPending || (!data.enabled && !canSwitchOn)}
               onClick={() => saveSettings.mutate({ enabled: !data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd })}
             >
-              {data.enabled ? "Switch Ivy off" : "Switch Ivy on"}
+              {data.enabled ? "Switch AI off" : "Switch AI on"}
             </Button>
             {!data.enabled && !canSwitchOn && <p className="text-sm text-muted-foreground">Save your key and a monthly limit first.</p>}
           </div>
@@ -134,8 +134,8 @@ export function AssistantCard() {
               <Badge variant={data.proposalsEnabled ? "default" : "secondary"}>{data.proposalsEnabled ? "Allowed" : "Off"}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              When allowed, Ivy can suggest creating or changing a task, logging a note, moving a deal to another stage, or drafting a message. Each suggestion appears as a card, and nothing happens until the person asking presses Approve.
-              Ivy never sends anything to a customer.
+              When allowed, AI can suggest creating or changing a task, logging a note, moving a deal to another stage, or drafting a message. Each suggestion appears as a card, and nothing happens until the person asking presses Approve.
+              AI never sends anything to a customer.
             </p>
             <Button
               type="button"
@@ -153,8 +153,8 @@ export function AssistantCard() {
               <Badge variant={data.paymentProposalsEnabled ? "default" : "secondary"}>{data.paymentProposalsEnabled ? "Allowed" : "Off"}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              When allowed, Ivy can suggest recording a payment you tell her you received. It appears as a card showing the customer, the deal, the amount and the balance before and after, and nothing is recorded until the person presses
-              Record and confirms. Ivy can also suggest creating contacts and deals once proposed actions are allowed.
+              When allowed, AI can suggest recording a payment you tell it you received. It appears as a card showing the customer, the deal, the amount and the balance before and after, and nothing is recorded until the person presses
+              Record and confirms. AI can also suggest creating contacts and deals once proposed actions are allowed.
             </p>
             <Button
               type="button"
@@ -173,7 +173,7 @@ export function AssistantCard() {
               <Badge variant={data.inboxEnabled ? "default" : "secondary"}>{data.inboxEnabled ? "Allowed" : "Off"}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              When allowed, the first time each person uses the app in a day, Ivy looks through their own records for things that need attention (an overdue instalment nobody has followed up, a deal gone quiet, a won deal with no payment plan) and
+              When allowed, the first time each person uses the app in a day, AI looks through their own records for things that need attention (an overdue instalment nobody has followed up, a deal gone quiet, a won deal with no payment plan) and
               puts suggestions in their Suggested list, each with a reason. They approve, edit or decline them like any other suggestion; nothing is sent to a customer. It costs a few cents per person per day, counted in your monthly limit, and each person can
               turn it off for themselves.
             </p>
@@ -194,8 +194,8 @@ export function AssistantCard() {
               <Badge variant={data.triageEnabled ? "default" : "secondary"}>{data.triageEnabled ? "Allowed" : "Off"}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              When allowed, each time a known customer writes to you on WhatsApp, Ivy reads that conversation&apos;s last few messages and prepares, for the customer&apos;s owner, a short summary, a draft reply and, if useful, a task or note. The owner
-              reads, edits and sends the reply themselves; Ivy never sends anything and never records a payment. If a customer asks to stop, the owner is offered to mark them as not agreeing to WhatsApp messages. New numbers you have not replied to yet are
+              When allowed, each time a known customer writes to you on WhatsApp, AI reads that conversation&apos;s last few messages and prepares, for the customer&apos;s owner, a short summary, a draft reply and, if useful, a task or note. The owner
+              reads, edits and sends the reply themselves; AI never sends anything and never records a payment. If a customer asks to stop, the owner is offered to mark them as not agreeing to WhatsApp messages. New numbers you have not replied to yet are
               not sent to Anthropic. It costs roughly one to two cents a message, counted in your monthly limit.
             </p>
             <form
@@ -229,7 +229,7 @@ export function AssistantCard() {
               <Badge variant={data.documentsEnabled ? "default" : "secondary"}>{data.documentsEnabled ? "Allowed" : "Off"}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              When allowed, the Invoices page gains &quot;Read a PDF or photo&quot;: Ivy reads a supplier invoice and fills the New invoice form for the person to check and save. It can misread numbers, so it warns when the lines do not add up to the printed total, and
+              When allowed, the Invoices page gains &quot;Read a PDF or photo&quot;: AI reads a supplier invoice and fills the New invoice form for the person to check and save. It can misread numbers, so it warns when the lines do not add up to the printed total, and
               nothing is saved until the person presses Create. The file is read once and not kept. It costs roughly 2 to 6 cents a document, counted in your monthly limit.
             </p>
             <form
@@ -287,7 +287,7 @@ export function AssistantCard() {
                 {data.spentByPurposeUsd.documents > 0 ? <> · Documents {dollars(data.spentByPurposeUsd.documents)}</> : null}
               </p>
               {data.level === "warn" && <p className="text-sm text-amber-600">You have used over 80% of this month&apos;s limit.</p>}
-              {data.level === "reached" && <p className="text-sm text-destructive">The limit is reached, so Ivy is paused until {data.resetsOn}. Raise the limit above to resume sooner.</p>}
+              {data.level === "reached" && <p className="text-sm text-destructive">The limit is reached, so AI is paused until {data.resetsOn}. Raise the limit above to resume sooner.</p>}
             </>
           )}
         </CardContent>
@@ -295,16 +295,16 @@ export function AssistantCard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>What Ivy shares and keeps</CardTitle>
+          <CardTitle>What AI shares and keeps</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>The questions people ask Ivy, and the records Ivy looks up to answer them (customer names, deals, payments), are sent to Anthropic using your key.</p>
+          <p>The questions people ask AI, and the records AI looks up to answer them (customer names, deals, payments), are sent to Anthropic using your key.</p>
           <p>Conversations are kept for {data.retentionDays} days and then deleted. People can delete their own conversations sooner.</p>
-          <p>When proposed actions are allowed, what Ivy suggests (the task, note or message text, and the names it refers to) is saved with the conversation and deleted with it. Approved actions are kept as ordinary records and in the audit log.</p>
+          <p>When proposed actions are allowed, what AI suggests (the task, note or message text, and the names it refers to) is saved with the conversation and deleted with it. Approved actions are kept as ordinary records and in the audit log.</p>
           <p>Daily suggestions use only each person&apos;s own records and send the names, deals and amounts they involve to Anthropic under your key, in one short request a day per person.</p>
           <p>WhatsApp message help sends the customer&apos;s latest few messages in that one conversation, their first name, and their deals, balances and open tasks to Anthropic under your key, once per incoming message, so the customer&apos;s own words leave your system. Only turn it on if your customers expect that. The suggestions it makes quote up to 300 characters of the message, and a short summary of each message is kept; both are deleted after {data.retentionDays} days.</p>
           <p>Reading documents sends the whole file (a PDF or photo, such as a supplier invoice or a screenshot of a customer&apos;s order), including any names, phone numbers or bank details printed on it, to Anthropic under your key, once for each document someone chooses to have read. The CRM does not keep the file or a copy of what was read, other than what the person then saves as an invoice.</p>
-          <p>Ivy works as the person asking: sales and support users get answers from their own records only, admins from the whole business.</p>
+          <p>AI works as the person asking: sales and support users get answers from their own records only, admins from the whole business.</p>
         </CardContent>
       </Card>
     </div>

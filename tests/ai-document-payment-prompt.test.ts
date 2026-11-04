@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PAYMENT_PROMPT, PAYMENT_PROMPT_VERSION, PAYMENT_TOOL, paymentDraft, paymentFingerprint, readPaymentInput } from "@/lib/ai/documents/payment-prompt";
 
-/** The receipt-reading instructions are pinned like Ivy's other prompts: an edit has to be deliberate. */
+/** The receipt-reading instructions are pinned like AI's other prompts: an edit has to be deliberate. */
 const PINNED = { version: "2", fingerprint: "befd83751dd52e8c" };
 
 describe("the payment receipt reading prompt", () => {

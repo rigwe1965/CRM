@@ -1,6 +1,6 @@
 /**
- * A draft Ivy writes for a person to send (a reminder, a reply) is checked, not trusted: text that came from a customer's
- * message or a record can try to make her put a link, an email address or an account number into it. This finds those
+ * A draft AI writes for a person to send (a reminder, a reply) is checked, not trusted: text that came from a customer's
+ * message or a record can try to make it put a link, an email address or an account number into it. This finds those
  * things and says so on the card, unless they are already in what the CRM holds for that contact (`allowed`). It only
  * warns: the person reads the draft and decides.
  */

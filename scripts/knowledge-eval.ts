@@ -1,4 +1,4 @@
-// Quality check for Ivy's policy answers (knowledge base). A salesperson pastes what a customer wrote and asks Ivy what to
+// Quality check for AI's policy answers (knowledge base). A salesperson pastes what a customer wrote and asks AI what to
 // say; each case is scored by rules: the right policy entries were looked up, the answer says what the policy says, it
 // does not promise a refund or claim anything is done, it keeps statutory rights apart from store conditions, it asks
 // for what is missing and not what was already given, and it hands hard cases to a person.

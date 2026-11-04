@@ -89,9 +89,9 @@ beforeEach(() => {
 });
 
 describe("assertCanReadDocument (the gates)", () => {
-  it("lets a person through when Ivy is ready, reading is allowed and the day's number is not used up", async () => {
+  it("lets a person through when AI is ready, reading is allowed and the day's number is not used up", async () => {
     await expect(assertCanReadDocument(user, NOW)).resolves.toBeUndefined();
-    expect(status.assertCanAsk).toHaveBeenCalledTimes(1); // Ivy on, key, ceiling, rate limit
+    expect(status.assertCanAsk).toHaveBeenCalledTimes(1); // AI on, key, ceiling, rate limit
   });
 
   it("refuses with a plain reason when reading documents is off, and offers the other ways", async () => {
@@ -107,8 +107,8 @@ describe("assertCanReadDocument (the gates)", () => {
     await expect(assertCanReadDocument(user, NOW)).resolves.toBeUndefined();
   });
 
-  it("passes on Ivy's own refusals (off, no key, ceiling reached, too fast)", async () => {
-    status.assertCanAsk.mockRejectedValue(Object.assign(new Error("Ivy is switched off"), { status: 403 }));
+  it("passes on AI's own refusals (off, no key, ceiling reached, too fast)", async () => {
+    status.assertCanAsk.mockRejectedValue(Object.assign(new Error("AI is switched off"), { status: 403 }));
     await expect(assertCanReadDocument(user, NOW)).rejects.toThrow(/switched off/);
   });
 });

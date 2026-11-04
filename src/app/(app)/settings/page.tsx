@@ -401,7 +401,7 @@ export default function SettingsPage() {
           {user.role === "ADMIN" && <TabsTrigger value="templates">Templates</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="campaigns">Campaigns</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="automations">Automations</TabsTrigger>}
-          {user.role === "ADMIN" && <TabsTrigger value="ivy">Ivy</TabsTrigger>}
+          {user.role === "ADMIN" && <TabsTrigger value="ivy">AI assistant</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="leadform">Lead form</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="audit">Audit log</TabsTrigger>}
           {user.role === "ADMIN" && <TabsTrigger value="export">Data export</TabsTrigger>}

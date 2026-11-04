@@ -10,7 +10,7 @@ import { sweepCampaigns } from "@/lib/campaign-sender";
 
 export { runStageAutomations } from "@/lib/automations/stage-tasks";
 
-/** Deletes Ivy conversations past the retention period, one business at a time. A failing business never stops the others. */
+/** Deletes AI conversations past the retention period, one business at a time. A failing business never stops the others. */
 export async function runDailyAiRetention(now = new Date()) {
   const tenants = await platformDb.tenant.findMany({ where: { status: "ACTIVE" }, select: { id: true } });
   let deleted = 0;
@@ -24,7 +24,7 @@ export async function runDailyAiRetention(now = new Date()) {
     }
     // Finish WhatsApp messages that were queued for triage but never processed (a crash, a failed call).
     try {
-      // Loaded here, not at the top: triage pulls in Ivy's prompt and tools, which reach back into the CRM's actions (and so into this file).
+      // Loaded here, not at the top: triage pulls in AI's prompt and tools, which reach back into the CRM's actions (and so into this file).
       const { retryPendingTriage } = await import("@/lib/ai/triage/run");
       await withTenant(id, () => retryPendingTriage(id, now));
     } catch (e) {

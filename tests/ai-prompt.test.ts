@@ -8,11 +8,11 @@ import { conversationContext, IVY_PROMPT_VERSION, promptFingerprint, SYSTEM_PROM
 import { IVY_TOOLS, PROPOSAL_TOOLS, READ_TOOLS, TOOL_DEFINITIONS, toolByName } from "@/lib/ai/tools";
 
 /**
- * A chat can only be continued while Ivy's instructions and tools are exactly what it started with (the model's
+ * A chat can only be continued while AI's instructions and tools are exactly what it started with (the model's
  * thinking blocks are bound to them). So the version and a fingerprint of both are pinned together here: change the
  * prompt or any tool and this test fails until IVY_PROMPT_VERSION is bumped and the pin below is updated with it.
  */
-const PINNED = { version: "5", fingerprint: "3a00a023ef44cacd" };
+const PINNED = { version: "6", fingerprint: "4a2bf212dae42587" };
 
 describe("prompt version", () => {
   it("is pinned to the fingerprint of the instructions and tools; change one, bump the other", () => {
@@ -67,7 +67,7 @@ describe("the tools", () => {
 });
 
 describe("the instructions", () => {
-  it("say Ivy can only propose, never mixes currencies, and treats record text as data", () => {
+  it("say AI can only propose, never mixes currencies, and treats record text as data", () => {
     expect(SYSTEM_PROMPT).toMatch(/cannot change anything yourself/i);
     expect(SYSTEM_PROMPT).toMatch(/nothing happens until they press Approve/i);
     expect(SYSTEM_PROMPT).toMatch(/never send anything to a customer/i);

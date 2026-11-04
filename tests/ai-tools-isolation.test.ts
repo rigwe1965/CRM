@@ -3,7 +3,7 @@ import { createTenantDb } from "@/lib/tenant-db";
 import { withTenant } from "@/lib/tenant-context";
 import { createTwoTenants, testDatabaseUrl, type TenantFixture, type TwoTenants } from "./helpers/two-tenants";
 
-// The check that matters for Ivy: run every tool as business A against a real database that also holds business B,
+// The check that matters for AI: run every tool as business A against a real database that also holds business B,
 // and prove nothing of B's ever comes back, not even by guessing B's ids. Real tools, real queries; only the session
 // is faked. Needs TEST_DATABASE_URL, like the other two-business tests.
 
@@ -29,7 +29,7 @@ import { IVY_TOOLS, toolByName, type ToolContext } from "@/lib/ai/tools";
 const run = testDatabaseUrl() ? describe : describe.skip;
 const DAY = 86_400_000;
 
-run("Ivy's tools across two businesses", () => {
+run("AI's tools across two businesses", () => {
   let t: TwoTenants;
 
   const ctx = (f: TenantFixture, role: "ADMIN" | "SALES", userId = role === "ADMIN" ? f.admin : f.sales): ToolContext => {

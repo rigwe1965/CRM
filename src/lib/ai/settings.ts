@@ -3,8 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 
 /**
- * A business's Ivy settings, kept in AutomationSetting under the `assistant` key. Off by default, and there is no
- * default spending ceiling: an admin has to choose one before Ivy will run (AI_ASSISTANT_PLAN.md).
+ * A business's AI settings, kept in AutomationSetting under the `assistant` key. Off by default, and there is no
+ * default spending ceiling: an admin has to choose one before AI will run (AI_ASSISTANT_PLAN.md).
  */
 const KEY = "assistant";
 
@@ -18,22 +18,22 @@ export const assistantSettingsSchema = z
       .max(10_000, "Must be $10,000 or less")
       .transform((n) => Math.round(n * 100) / 100)
       .nullable(),
-    /** Whether Ivy may put proposed actions in front of people for approval (Phase 2). Off until an admin allows it; left out means "keep what is stored". */
+    /** Whether AI may put proposed actions in front of people for approval (Phase 2). Off until an admin allows it; left out means "keep what is stored". */
     proposalsEnabled: z.boolean().optional(),
-    /** Whether Ivy may also propose recording payments (Wave B). A separate switch, off until an admin allows it; left out means "keep what is stored". */
+    /** Whether AI may also propose recording payments (Wave B). A separate switch, off until an admin allows it; left out means "keep what is stored". */
     paymentProposalsEnabled: z.boolean().optional(),
-    /** Whether Ivy makes a daily "Suggested actions" list for each person (Phase 3b). Off until an admin allows it; left out means "keep what is stored". */
+    /** Whether AI makes a daily "Suggested actions" list for each person (Phase 3b). Off until an admin allows it; left out means "keep what is stored". */
     inboxEnabled: z.boolean().optional(),
-    /** Whether Ivy triages incoming WhatsApp messages (Phase 3c). Sends the customer's message text to Anthropic, so it is its own switch, off until an admin allows it; left out means "keep what is stored". */
+    /** Whether AI triages incoming WhatsApp messages (Phase 3c). Sends the customer's message text to Anthropic, so it is its own switch, off until an admin allows it; left out means "keep what is stored". */
     triageEnabled: z.boolean().optional(),
     /** The most messages a day the model is called for (Phase 3c); left out means "keep what is stored", and nothing stored means DEFAULT_TRIAGE_DAILY_CAP. */
     triageDailyCap: z.number("Enter a whole number").int("Enter a whole number").min(1, "Must be at least 1").max(1000, "Must be 1,000 or fewer").optional(),
-    /** Whether people may have Ivy read a supplier invoice from a PDF or photo (Phase 4a). The whole document goes to Anthropic, so it is its own switch, off until an admin allows it; left out means "keep what is stored". */
+    /** Whether people may have AI read a supplier invoice from a PDF or photo (Phase 4a). The whole document goes to Anthropic, so it is its own switch, off until an admin allows it; left out means "keep what is stored". */
     documentsEnabled: z.boolean().optional(),
     /** The most documents a day (Phase 4); left out means "keep what is stored", and nothing stored means DEFAULT_DOCUMENTS_DAILY_CAP. */
     documentsDailyCap: z.number("Enter a whole number").int("Enter a whole number").min(1, "Must be at least 1").max(500, "Must be 500 or fewer").optional(),
   })
-  .refine((v) => !v.enabled || v.monthlyCeilingUsd !== null, { path: ["monthlyCeilingUsd"], message: "Set a monthly ceiling before turning Ivy on" });
+  .refine((v) => !v.enabled || v.monthlyCeilingUsd !== null, { path: ["monthlyCeilingUsd"], message: "Set a monthly ceiling before turning AI on" });
 
 export type AssistantSettings = z.infer<typeof assistantSettingsSchema>;
 

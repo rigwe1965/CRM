@@ -29,7 +29,7 @@ Done when: a failed deploy, failed cron or failed backup alerts someone, and the
 
 Measure first; change only what the numbers justify.
 
-1. **Baseline**: seed a large synthetic dataset (many businesses, 100k+ contacts, many deals and payments) in a throwaway schema and time the main screens and API routes (dashboard, contact lists, reports, export, Ivy assistant tools).
+1. **Baseline**: seed a large synthetic dataset (many businesses, 100k+ contacts, many deals and payments) in a throwaway schema and time the main screens and API routes (dashboard, contact lists, reports, export, AI assistant tools).
 2. **Queries**: review the slowest with `EXPLAIN`; add indexes via hand-written migrations. Check that RLS policies and `withTenant` do not defeat index use.
 3. **Pagination and limits**: confirm every list endpoint is paginated; cap export sizes or stream them.
 4. **Connections**: confirm pooling settings (`DATABASE_URL` pooled, `DIRECT_URL` for migrations) under concurrent load.
@@ -46,7 +46,7 @@ Not planned in detail yet because they depend on what shops need most. Candidate
 - Automations: payment reminders, follow-up tasks, low-stock alerts.
 - Customer-facing links: invoice view and pay, instalment schedule.
 - WhatsApp and email templates wired into deal events.
-- Ivy assistant improvements (see `AI_ASSISTANT_PLAN.md`).
+- AI assistant improvements (see `AI_ASSISTANT_PLAN.md`).
 
 Each feature follows the existing conventions: `ownerScope`/`tenantScope`, `authed()`, soft deletes, hand-written migrations.
 

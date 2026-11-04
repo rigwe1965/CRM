@@ -1,8 +1,8 @@
 import type { KnowledgeInput } from "@/lib/ai/knowledge/types";
 
 /**
- * Ivycandy Hair's Customer Returns, Exchanges & Refunds Policy, split into entries Ivy can look up one at a time.
- * This file is the reviewed, shipped copy; "Import default policy" in Settings > Ivy copies it into a business's
+ * Ivycandy Hair's Customer Returns, Exchanges & Refunds Policy, split into entries AI can look up one at a time.
+ * This file is the reviewed, shipped copy; "Import default policy" in Settings > AI assistant copies it into a business's
  * knowledge base, where an admin can then edit it. The wording follows the policy document; nothing here adds a rule.
  * The website URL in the document was still a placeholder, so it is left out.
  */

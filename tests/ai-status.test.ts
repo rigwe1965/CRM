@@ -63,12 +63,12 @@ describe("assistantStatus", () => {
 });
 
 describe("assertCanAsk", () => {
-  it("lets a question through when Ivy is on, has a key, is under its ceiling, and the user is not rate limited", async () => {
+  it("lets a question through when AI is on, has a key, is under its ceiling, and the user is not rate limited", async () => {
     await expect(assertCanAsk(user, NOW)).resolves.toMatchObject({ level: "ok" });
     expect(rate).toHaveBeenCalledWith("ai:ask:u1", expect.objectContaining({ max: 20 }));
   });
 
-  it("refuses while Ivy is switched off", async () => {
+  it("refuses while AI is switched off", async () => {
     settings.mockResolvedValue({ enabled: false, monthlyCeilingUsd: 10 });
     await expect(assertCanAsk(user, NOW)).rejects.toMatchObject({ status: 403, code: "AI_DISABLED" });
   });

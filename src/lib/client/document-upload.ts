@@ -1,4 +1,4 @@
-// Gets a PDF or photo ready for Ivy to read, and sends it. Runs in the browser. The server checks the file again, so these
+// Gets a PDF or photo ready for AI to read, and sends it. Runs in the browser. The server checks the file again, so these
 // checks are only to save the person a wait. Nothing is kept: the file is read once and the answer fills a form.
 import { ApiClientError } from "@/lib/client/api";
 
@@ -35,7 +35,7 @@ export type OrderReading = {
   draft: unknown;
 };
 
-/** The heading over the list Ivy shows when it could not place a picture for certain. */
+/** The heading over the list AI shows when it could not place a picture for certain. */
 export const pickHeading = (of: "customer" | "deal") => (of === "deal" ? "Choose the deal" : "Choose the customer");
 
 /** Checks the file and, for a photo, shrinks it. Throws what the server would, sooner. */
@@ -54,12 +54,12 @@ export const readOrderDocument = async (file: File, conversationId?: string) => 
 /** Sends a bank transfer receipt; the answer says whether a Record a payment card is waiting, the deal must be chosen, or no card can be made. */
 export const readPaymentDocument = async (file: File, conversationId?: string) => (await send(await prepare(file, "receipt"), file, { kind: "payment", ...(conversationId ? { conversationId } : {}) })) as OrderReading;
 
-/** Chooses the deal for a receipt Ivy read but could not place for certain; makes the payment card. */
+/** Chooses the deal for a receipt AI read but could not place for certain; makes the payment card. */
 export async function choosePaymentDeal(body: { conversationId: string; dealId: string; draft: unknown }): Promise<OrderReading> {
   return post("/api/assistant/documents/payment", body);
 }
 
-/** Chooses the customer for an order Ivy read but could not match for certain; makes the deal card. */
+/** Chooses the customer for an order AI read but could not match for certain; makes the deal card. */
 export async function chooseOrderCustomer(body: { conversationId: string; contactId: string; draft: unknown }): Promise<OrderReading> {
   return post("/api/assistant/documents/order", body);
 }

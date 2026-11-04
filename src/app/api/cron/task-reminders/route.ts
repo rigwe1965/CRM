@@ -43,7 +43,7 @@ export async function GET(req: Request) {
     const senderClaims = await releaseStaleSenderClaims().catch((e) => (console.error("[sender] release failed", e), null));
     // Read-only money check; a failure here must never stop the reminders above from having gone out.
     const reconciliation = await runDailyReconciliation().catch((e) => (console.error("[reconcile] run failed", e), null));
-    // Ivy conversations are kept for AI_RETENTION_DAYS; a failure here must not affect the rest.
+    // AI conversations are kept for AI_RETENTION_DAYS; a failure here must not affect the rest.
     const aiRetention = await runDailyAiRetention().catch((e) => (console.error("[ai] retention run failed", e), null));
     // Broadcast campaigns left unfinished (an admin closed the page) carry on here.
     const campaigns = await runDailyCampaigns().catch((e) => (console.error("[campaign] run failed", e), null));

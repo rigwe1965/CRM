@@ -106,7 +106,7 @@ describe("registry", () => {
     expect(EXPORTS.contacts).toMatchObject({ adminOnly: true, stepUp: false });
     expect(EXPORTS["audit-log"]).toMatchObject({ adminOnly: true, stepUp: true });
   });
-  it("makes Ivy's spend records and chat metadata admin-only, with no chat text or titles in them", () => {
+  it("makes AI's spend records and chat metadata admin-only, with no chat text or titles in them", () => {
     for (const key of ["ai-usage", "ai-conversations", "ai-proposals"]) expect(EXPORTS[key], key).toMatchObject({ adminOnly: true, stepUp: false });
     const code = read("lib", "export", "admin-entities.ts");
     const ai = code.slice(code.indexOf("const aiUsage")).replace(/\/\*[\s\S]*?\*\//g, "");

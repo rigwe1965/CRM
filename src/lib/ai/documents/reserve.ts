@@ -41,7 +41,7 @@ export async function reserveDocument(user: { id: string; tenantId: string; role
     const share = userShare(cap, user.role === "ADMIN");
     if (mineToday > share) throw new ApiError(429, `You have used your share of today's documents (${share}). Ask an admin, or try again tomorrow.`, "AI_DOCUMENTS_CAP");
     const level = ceilingState(settings.monthlyCeilingUsd, spent).level;
-    if (level === "reached" || level === "unset") throw new ApiError(429, "This month's spending limit for Ivy has been reached.", "AI_CEILING_REACHED");
+    if (level === "reached" || level === "unset") throw new ApiError(429, "This month's spending limit for AI has been reached.", "AI_CEILING_REACHED");
   } catch (e) {
     await release();
     throw e;

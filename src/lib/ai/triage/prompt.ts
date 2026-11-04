@@ -3,7 +3,7 @@ import { z } from "zod";
 
 /**
  * The instructions for WhatsApp triage (AI_ASSISTANT_PLAN.md, Phase 3c). The customer's message is the one piece of text
- * in the whole assistant that a stranger writes, so this is the most restricted Ivy there is: one call, one tool that
+ * in the whole assistant that a stranger writes, so this is the most restricted AI there is: one call, one tool that
  * returns fixed-list labels and short text, no tool that reads or changes anything. What it returns is turned into cards
  * by the server, checked again, and decided by a person. It has its own version and a fingerprint test, so an accidental
  * edit is noticed.

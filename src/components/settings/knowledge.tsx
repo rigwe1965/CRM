@@ -32,7 +32,7 @@ const EMPTY: Draft = { key: "", category: "FAQ", title: "", body: "", basis: "IN
 const nice = (s: string) => s.toLowerCase().replaceAll("_", " ");
 const selectClass = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm";
 
-/** Admin: the written policy and FAQs Ivy answers from. Edits take effect at once; every change keeps the earlier text in a version history. */
+/** Admin: the written policy and FAQs AI answers from. Edits take effect at once; every change keeps the earlier text in a version history. */
 export function KnowledgeCard() {
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useQuery({
@@ -87,7 +87,7 @@ export function KnowledgeCard() {
       <CardHeader>
         <CardTitle>Policy and FAQs</CardTitle>
         <CardDescription>
-          What Ivy answers customer questions from: returns, refunds, exchanges, delivery and anything else you add. Ivy uses the latest active text, and says a person must decide when nothing here covers a question.
+          What AI answers customer questions from: returns, refunds, exchanges, delivery and anything else you add. AI uses the latest active text, and says a person must decide when nothing here covers a question.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -162,7 +162,7 @@ export function KnowledgeCard() {
 
         {archived.length > 0 && (
           <div className="space-y-1">
-            <p className="text-sm font-medium">Archived (Ivy ignores these)</p>
+            <p className="text-sm font-medium">Archived (AI ignores these)</p>
             <ul className="divide-y rounded-md border">
               {archived.map((e) => (
                 <li key={e.id} className="flex items-center justify-between gap-2 p-3 text-sm text-muted-foreground">
