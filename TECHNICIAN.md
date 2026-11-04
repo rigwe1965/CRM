@@ -137,7 +137,7 @@ In code: the session carries `tenantId`; `tenantScope(user)` (`src/lib/access.ts
 
 ## Deployment (Vercel)
 1. Set the environment variables above in the Vercel project.
-2. Build runs `npm run vercel-build` (applies migrations, then builds).
+2. Build runs `npm run vercel-build` (a production build applies migrations, then builds; Preview builds never migrate).
 3. Schedule `/api/cron/task-reminders` daily at 08:00 UTC (a Vercel cron or any other scheduler). It needs `Authorization: Bearer <CRON_SECRET>` and sends task and instalment reminders.
 4. Check `/api/health` after deploy.
 

@@ -129,7 +129,7 @@ The server **checks this list at startup** (`src/instrumentation.ts`) and exits 
 ### 3. Deploy
 
 1. Push the repo to GitHub and import it in Vercel (framework: Next.js; set the build command to `npm run vercel-build`).
-2. Deploy. The build runs `prisma migrate deploy && next build` (`npm run vercel-build`), so migrations are applied before the new code goes live.
+2. Deploy. A **production** build runs `prisma migrate deploy && next build` (`npm run vercel-build`), so migrations are applied before the new code goes live. Preview and Development builds only run `next build`: they never migrate, so a pull request cannot change the production schema.
 3. Verify: `curl https://your-app/api/health` returns `{"status":"ok"}`.
 
 ### 4. First admin
@@ -264,7 +264,7 @@ Deal ─┬─< Activity
 | --- | --- |
 | `npm run dev` | Start the Next.js dev server |
 | `npm run build` / `start` | Production build and serve |
-| `npm run vercel-build` | Migrate, then build (used by Vercel) |
+| `npm run vercel-build` | Build; on production (`VERCEL_ENV=production`) migrate first (used by Vercel) |
 | `npm run typecheck` | TypeScript check |
 | `npm run db:generate` | Generate the Prisma client |
 | `npm run db:migrate` | Create and apply a migration (dev) |

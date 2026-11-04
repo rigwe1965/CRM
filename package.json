@@ -19,7 +19,7 @@
     "test": "vitest run",
     "postinstall": "prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "vercel-build": "DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL_UNPOOLED}\" prisma migrate deploy && next build",
+    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then DIRECT_URL=\"${DIRECT_URL:-$DATABASE_URL_UNPOOLED}\" prisma migrate deploy; fi && next build",
     "make-admin": "tsx scripts/make-admin.ts",
     "tenant-admin": "tsx scripts/tenant-admin.ts"
   },
