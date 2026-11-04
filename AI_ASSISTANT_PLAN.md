@@ -182,7 +182,7 @@ Goal: the same approval cards as Phase 2, for three actions that matter more: **
 and **creating a deal with its items**. Everything in Phase 2 still holds: AI only proposes, the server builds the card
 from saved values, the person decides once, and approving runs the same shared code as the screens, as them.
 
-### What AI can propose
+### What AI can propose (Wave B)
 
 | Tool | Does on approval | Same logic as |
 | --- | --- | --- |
@@ -254,7 +254,7 @@ Recording a payment changes what a customer owes, so it gets more safeguards tha
   (`payment.recorded`, or the create entries), so a payment can be traced to AI and to the person who approved it.
   `ai-proposals` export still carries metadata only.
 
-### Tests and checks
+### Tests and checks (Wave B)
 
 - Unit tests per kind (same shape as `ai-proposal-kinds`): refusals (invisible deal, over the balance, foreign currency, future
   date, zero), the card figures, duplicate and open-link warnings, stale-balance refusal, plan limit, duplicate contact
@@ -269,7 +269,7 @@ Recording a payment changes what a customer owes, so it gets more safeguards tha
   a deal in two currencies (she must ask); hostile record text asking for a payment. It still ends by checking the business is
   unchanged. Estimated cost about $0.40 to $0.50; I would set a $1 budget.
 
-### Order of work
+### Order of work (Wave B)
 
 1. Migration, settings (`paymentProposalsEnabled`), admin switch (small).
 2. Move the three writes into shared functions; route tests unchanged (medium: the part to review closely, especially payments).
@@ -277,7 +277,7 @@ Recording a payment changes what a customer owes, so it gets more safeguards tha
 4. Cards, payment confirmation dialog (medium).
 5. Tests, eval run (needs your budget approval), docs.
 
-### Decisions I need from you
+### Decisions I need from you (Wave B)
 
 1. Include payments in Wave B, behind their own admin switch (recommended)?
 2. Keep the extra confirmation dialog for payments, and the amount not editable on the card (recommended)?
@@ -365,6 +365,7 @@ Profile. Suggestions expire after 3 days (chat proposals keep 24 hours).
 "Reply to WhatsApp from X" task (`recordInbound`). This phase adds help with the *reply*, not a replacement for any of it.
 
 **What it adds.** When a message arrives, AI prepares, for the contact's owner, an inbox card group:
+
 1. a **summary and label** (payment claim, order enquiry, delivery question, complaint, wants to stop, other) with the message
    quoted as plain text;
 2. a **draft reply** (the 24-hour window is open because they just wrote);
@@ -376,6 +377,7 @@ Profile. Suggestions expire after 3 days (chat proposals keep 24 hours).
 they can see. Customer-facing auto-replies stay out (see Later phases).
 
 **The message is the attack surface, so the triage is the most restricted AI there is.**
+
 - **Tools:** only `triage_result` (label, urgency, a 200-character summary, all from fixed lists), `draft_message`,
   `propose_note` and `propose_task`. **No** payment, stage, contact or deal tools. A payment claim can only ever become a note
   or a "check the account" task, never a recorded payment.
@@ -409,7 +411,7 @@ Settings text and the privacy notes are updated, and this switch is separate and
 - Chat prompt version 4 (`propose_schedule`, the Send button wording); `INBOX_PROMPT` and `TRIAGE_PROMPT` each get their own
   version and fingerprint test (background runs have no thinking-block continuity to protect, but the tests catch accidental edits).
 
-### Tests and checks
+### Tests and checks (Phase 3)
 
 - 3a: kind tests (even-split maths with cents, dates, replace warning, stale fingerprint, over-total refusal); the route tests
   unchanged after the extraction; real-database cases (replace once, two approvals at once, other business refused).
@@ -432,7 +434,7 @@ Settings text and the privacy notes are updated, and this switch is separate and
 Each is built, tested and pushed on its own, and each new capability has its own off-by-default admin switch, so you can
 release them one at a time.
 
-### Decisions I need from you
+### Decisions I need from you (Phase 3)
 
 1. **3a:** schedules behind the payment switch, with the confirmation dialog (recommended)?
 2. **3b timing:** generate on a person's first visit of the day (recommended) or by a fixed 07:30 cron?
@@ -523,7 +525,7 @@ in `AiUsage` (one row per document), so it needs nothing extra. 4c would add no 
 - **Large or hostile files.** Type, size and page limits are checked on the server too, not only in the browser; the file is
   never opened by anything but the model call.
 
-### Tests and checks
+### Tests and checks (Phase 4)
 
 - Unit tests: file validation (type, size, pages), the server's re-derivation and cross-checks, the duplicate-number warning,
   refusal of odd output, no tool but `read_document`, nothing stored, scope of the customer match, the switch, the daily cap,
@@ -533,7 +535,7 @@ in `AiUsage` (one row per document), so it needs nothing extra. 4c would add no 
   documents (planted instructions, wrong totals, huge line counts). Scored field by field. About $0.60 for a real run, and it
   needs your budget approval as before.
 
-### Order of work
+### Order of work (Phase 4)
 
 1. **4a** (the most useful; the form and the save path already exist). 2. **4b.** 3. **4c** only if you want it after seeing
 4a and 4b in use.
