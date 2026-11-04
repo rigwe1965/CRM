@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_ORDER_ITEMS, ORDER_PROMPT, ORDER_PROMPT_VERSION, ORDER_TOOL, orderDraft, orderFingerprint, readOrderInput } from "@/lib/ai/documents/order-prompt";
 
-/** The order-reading instructions are pinned like Ivy's other prompts: an edit has to be deliberate. */
+/** The order-reading instructions are pinned like AI's other prompts: an edit has to be deliberate. */
 const PINNED = { version: "1", fingerprint: "1e876fe4b4c89160" };
 
 describe("the order reading prompt", () => {

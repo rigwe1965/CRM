@@ -9,9 +9,9 @@ import type { createPaymentSchema } from "@/lib/validations/crm";
 
 /**
  * Records a payment on a deal the caller can see. The one place this write lives: the deal's payments route and an
- * approved Ivy proposal (AI_ASSISTANT_PLAN.md, Wave B) both call it, so they cannot drift apart. Rejected if it would
+ * approved AI proposal (AI_ASSISTANT_PLAN.md, Wave B) both call it, so they cannot drift apart. Rejected if it would
  * exceed the deal's balance. Writes the `payment.recorded` audit entry; pass `req` when the route has one so the generic
- * entry is not added as well. `expectPaid` (an approved Ivy proposal passes it) is how much the deal had received when the
+ * entry is not added as well. `expectPaid` (an approved AI proposal passes it) is how much the deal had received when the
  * card was made: if that has changed by the time the lock is held, nothing is recorded, so a payment cannot be entered
  * twice. Run inside the business's context.
  */
@@ -33,7 +33,7 @@ export async function recordPayment(user: SessionUser, dealId: string, body: z.i
     const { _sum } = await tx.payment.aggregate({ where: { dealId: deal.id, ...tenantScope(user) }, _sum: { amount: true } });
     const paid = Number(_sum.amount ?? 0);
     if (opts.expectPaid !== undefined && Math.abs(paid - opts.expectPaid) > 0.004) {
-      throw new ApiError(409, `Another payment was recorded on this deal after Ivy suggested this (${paid.toFixed(2)} ${fresh.currency} has now been received), so nothing was recorded. Check the deal's payments and ask again if needed.`, "AI_PROPOSAL_STALE");
+      throw new ApiError(409, `Another payment was recorded on this deal after AI suggested this (${paid.toFixed(2)} ${fresh.currency} has now been received), so nothing was recorded. Check the deal's payments and ask again if needed.`, "AI_PROPOSAL_STALE");
     }
     const balance = Math.round((Number(fresh.amount) - paid) * 100) / 100;
     if (body.amount > balance) {

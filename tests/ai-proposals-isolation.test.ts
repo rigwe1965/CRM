@@ -3,7 +3,7 @@ import { createTenantDb } from "@/lib/tenant-db";
 import { withTenant } from "@/lib/tenant-context";
 import { createTwoTenants, testDatabaseUrl, type TenantFixture, type TwoTenants } from "./helpers/two-tenants";
 
-// Proposals against a real database that holds two businesses: Ivy can only propose about, and a person can only
+// Proposals against a real database that holds two businesses: AI can only propose about, and a person can only
 // approve in, their own business; approving really creates the record there and nowhere else; and nobody can see or
 // decide another person's proposal. Real code and queries; only the session is faked. Needs TEST_DATABASE_URL.
 
@@ -28,7 +28,7 @@ import { approveProposal, declineProposal, listProposals, propose } from "@/lib/
 
 const run = testDatabaseUrl() ? describe : describe.skip;
 
-run("Ivy's proposals across two businesses", () => {
+run("AI's proposals across two businesses", () => {
   let t: TwoTenants;
   const conv: Record<string, string> = {};
   const user = (f: TenantFixture, role: "ADMIN" | "SALES" = "ADMIN") => ({ id: role === "ADMIN" ? f.admin : f.sales, tenantId: f.tenantId, role, name: "Tester", email: "t@x.test", tenantWritable: true }) as never;
@@ -204,7 +204,7 @@ run("Ivy's proposals across two businesses", () => {
     const before = await dueDates(t.a.deal);
     const out = await inTenant(t.a, () => approveProposal(user(t.a), p.id, {}));
     expect(out.status).toBe("FAILED");
-    expect(out.failure).toMatch(/changed after Ivy suggested this/);
+    expect(out.failure).toMatch(/changed after AI suggested this/);
     expect(await dueDates(t.a.deal)).toEqual(before);
   });
 

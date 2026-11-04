@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 type P = { id: string };
 
 /**
- * GET /api/assistant/conversations/:id: one of your own chats, ready to show: your questions, Ivy's answers and a chip per
+ * GET /api/assistant/conversations/:id: one of your own chats, ready to show: your questions, AI's answers and a chip per
  * lookup. `stale` means it was started under older instructions and can be read but not continued; `full` that it has
  * reached its length limit. Thinking, tool inputs and raw results are never sent.
  */

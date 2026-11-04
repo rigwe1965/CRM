@@ -10,7 +10,7 @@ export { ToolError } from "@/lib/ai/tools/types";
 export type { IvyTool, ToolContext } from "@/lib/ai/tools/types";
 
 /**
- * Every tool Ivy has, in a fixed order. The first twelve only read; the last ten (`PROPOSAL_TOOLS`) save a proposal for the
+ * Every tool AI has, in a fixed order. The first twelve only read; the last ten (`PROPOSAL_TOOLS`) save a proposal for the
  * person to approve and change nothing themselves. The list and its schemas are part of the conversation's
  * identity: change them and `IVY_PROMPT_VERSION` (src/lib/ai/prompt.ts) must change too, so a test pins the two together.
  */

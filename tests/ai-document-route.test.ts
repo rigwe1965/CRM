@@ -123,7 +123,7 @@ describe("POST /api/assistant/documents", () => {
     expect(readPay).not.toHaveBeenCalled();
   });
 
-  it("is reachable in a read-only workspace like the rest of Ivy (it saves nothing; the invoice save is the guarded write)", () => {
+  it("is reachable in a read-only workspace like the rest of AI (it saves nothing; the invoice save is the guarded write)", () => {
     expect(allowedWhenReadOnly("/api/assistant/documents")).toBe(true);
   });
 });

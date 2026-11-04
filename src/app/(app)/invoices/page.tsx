@@ -42,7 +42,7 @@ export default function InvoicesPage() {
       setImported(undefined);
       setReading(r);
       setCreating(true);
-      toast.success(`Ivy read ${r.items.length} line${r.items.length === 1 ? "" : "s"}. Check them before you save.`);
+      toast.success(`AI read ${r.items.length} line${r.items.length === 1 ? "" : "s"}. Check them before you save.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not read that file.");
     } finally {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { INBOX_PROMPT, INBOX_PROMPT_VERSION, INBOX_TOOL, inboxFingerprint, writeSuggestionsInput } from "@/lib/ai/inbox/prompt";
 
 /**
- * The wording step's instructions are pinned, like Ivy's chat prompt: an edit has to be deliberate. (Background calls have
+ * The wording step's instructions are pinned, like AI's chat prompt: an edit has to be deliberate. (Background calls have
  * no thinking blocks to protect, so the version is for the record; the fingerprint is what stops an accidental change.)
  */
 const PINNED = { version: "1", fingerprint: "f147aeaddaa92c49" };

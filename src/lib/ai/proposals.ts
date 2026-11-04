@@ -7,14 +7,14 @@ import { KINDS, nice, type Prepared, type Preview } from "@/lib/ai/proposal-kind
 import { ToolError } from "@/lib/ai/tools/types";
 
 /**
- * Proposals: what Ivy suggests and what the person decided (AI_ASSISTANT_PLAN.md, Phase 2). Saving a proposal writes
+ * Proposals: what AI suggests and what the person decided (AI_ASSISTANT_PLAN.md, Phase 2). Saving a proposal writes
  * nothing to the business. A person's approval runs the real action, as them, through the same code as the screens, and
  * a proposal is decided exactly once: the claim below is a conditional update, so a double click cannot apply it twice.
  * Every lookup names the business and the person, so nobody can see or decide another's proposal.
  */
 
 export const PROPOSAL_TTL_MS = 24 * 3_600_000;
-/** Suggestions Ivy makes on her own wait longer than a chat proposal: nobody is looking at them as they arrive. */
+/** Suggestions AI makes on its own wait longer than a chat proposal: nobody is looking at them as they arrive. */
 export const INBOX_TTL_MS = 3 * 86_400_000;
 /** Cards waiting on one chat, and on one person overall: a runaway loop cannot bury them in suggestions. */
 export const MAX_PENDING_PER_CONVERSATION = 10;
@@ -26,7 +26,7 @@ export type ProposalDto = {
   id: string;
   conversationId: string | null;
   source: AiProposalSource;
-  /** Why Ivy suggested it, built from data; null for chat proposals. */
+  /** Why AI suggested it, built from data; null for chat proposals. */
   reason: string | null;
   kind: AiProposalKind;
   status: AiProposalStatus;
@@ -99,7 +99,7 @@ export async function expireDue(tenantId: string, now = new Date()) {
 }
 
 /**
- * Checks and saves a proposal made by Ivy's tool. `raw` is the model's input; `prepare` validates it against the
+ * Checks and saves a proposal made by AI's tool. `raw` is the model's input; `prepare` validates it against the
  * screens' own schemas and scope. Throws ToolError, in words the model can act on, when it should not be saved.
  */
 export async function propose(
@@ -113,10 +113,10 @@ export async function propose(
   if (!conversationId) throw new ToolError("Proposals are not available here.");
   const settings = await loadAssistantSettings(user.tenantId);
   if (settings.proposalsEnabled !== true) {
-    throw new ToolError("Proposed actions are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under Ivy, and describe what they can do themselves instead.");
+    throw new ToolError("Proposed actions are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under AI assistant, and describe what they can do themselves instead.");
   }
   if ((kind === "PAYMENT_RECORD" || kind === "SCHEDULE_REPLACE") && settings.paymentProposalsEnabled !== true) {
-    throw new ToolError("Payment proposals (which include instalment schedules) are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under Ivy, and that they can do it themselves on the deal's page.");
+    throw new ToolError("Payment proposals (which include instalment schedules) are switched off for this business, so you cannot propose this. Tell the person an admin can allow them in Settings, under AI assistant, and that they can do it themselves on the deal's page.");
   }
   if (user.tenantWritable === false) throw new ToolError("This workspace is read-only until its subscription is renewed, so nothing can be changed. Say so plainly.");
 
@@ -146,7 +146,7 @@ export async function propose(
 }
 
 /**
- * Saves a suggestion Ivy made on her own (the daily inbox, WhatsApp triage), for one person. The same checks and card
+ * Saves a suggestion AI made on its own (the daily inbox, WhatsApp triage), for one person. The same checks and card
  * building as a chat proposal (`prepare`), but it belongs to no chat and carries a dedupe key, so the same suggestion is
  * never made twice. Returns null when that key already exists. Throws ToolError when `prepare` refuses.
  */
@@ -188,7 +188,7 @@ export async function createBackgroundProposal(
   }
 }
 
-/** A person's own inbox: what Ivy suggested on her own and is still waiting, plus what they decided in the last day (so it shows as done, not vanished). */
+/** A person's own inbox: what AI suggested on its own and is still waiting, plus what they decided in the last day (so it shows as done, not vanished). */
 export async function listInbox(user: { id: string; tenantId: string }, now = new Date()) {
   await expireDue(user.tenantId, now);
   const rows = await db.aiProposal.findMany({
@@ -226,7 +226,7 @@ export async function declineProposal(user: { id: string; tenantId: string }, id
 
 /**
  * Approves a proposal: claims it (once), re-validates what will be applied (with any edits the person made), runs the
- * action as them and records the result. If the record changed since Ivy suggested it, nothing is done and the card says why.
+ * action as them and records the result. If the record changed since AI suggested it, nothing is done and the card says why.
  */
 export async function approveProposal(user: SessionUser, id: string, edits: unknown) {
   await expireDue(user.tenantId);
@@ -258,7 +258,7 @@ export async function approveProposal(user: SessionUser, id: string, edits: unkn
 }
 
 /**
- * The note that goes in front of the person's next question, telling Ivy how its earlier proposals ended, so it never
+ * The note that goes in front of the person's next question, telling AI how its earlier proposals ended, so it never
  * assumes. Marks them as told. Returns null when there is nothing new.
  */
 export async function takeOutcomes(user: { id: string; tenantId: string }, conversationId: string): Promise<string | null> {

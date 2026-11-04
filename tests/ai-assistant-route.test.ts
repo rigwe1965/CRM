@@ -62,18 +62,18 @@ describe("/api/admin/assistant", () => {
     expect(save).toHaveBeenCalledWith("t1", { enabled: true, monthlyCeilingUsd: 25 }, "u1");
   });
 
-  it("PUT refuses to switch Ivy on without a ceiling", async () => {
+  it("PUT refuses to switch AI on without a ceiling", async () => {
     await expect(put({ enabled: true, monthlyCeilingUsd: null })).rejects.toMatchObject({ status: 422 });
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("PUT refuses to switch Ivy on without a saved key", async () => {
+  it("PUT refuses to switch AI on without a saved key", async () => {
     integration.mockResolvedValue(null);
     await expect(put({ enabled: true, monthlyCeilingUsd: 10 })).rejects.toMatchObject({ status: 409, code: "AI_NOT_CONFIGURED" });
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("PUT can switch Ivy off, or set a ceiling, with no key", async () => {
+  it("PUT can switch AI off, or set a ceiling, with no key", async () => {
     integration.mockResolvedValue(null);
     await put({ enabled: false, monthlyCeilingUsd: 10 });
     await put({ enabled: false, monthlyCeilingUsd: null });

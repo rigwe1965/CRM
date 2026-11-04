@@ -9,12 +9,12 @@ import { IVY_MODEL } from "@/lib/ai/pricing";
  */
 export async function anthropicFor(tenantId: string): Promise<Anthropic> {
   const found = await getIntegration(tenantId, "ANTHROPIC");
-  if (!found) throw new ApiError(409, "Ivy has no Anthropic key yet. An admin can add one in Settings.", "AI_NOT_CONFIGURED");
+  if (!found) throw new ApiError(409, "AI has no Anthropic key yet. An admin can add one in Settings.", "AI_NOT_CONFIGURED");
   return new Anthropic({ apiKey: found.settings.apiKey, maxRetries: 2 });
 }
 
 /**
- * Checks a key before it is saved with one small, free request: Anthropic's own record of the model Ivy uses. It
+ * Checks a key before it is saved with one small, free request: Anthropic's own record of the model AI uses. It
  * proves the key is accepted and that it can use the model. Error text never includes the key.
  */
 export async function verifyApiKey(apiKey: string): Promise<void> {

@@ -109,7 +109,7 @@ const aiRange = (user: SessionUser, q: z.infer<typeof exportAiQuery>) => ({
   ...((q.from || q.to) && { createdAt: { gte: q.from, lte: q.to } }),
 });
 
-/** What Ivy has cost: tokens and an estimated cost per model call. No conversation text, and no questions. */
+/** What AI has cost: tokens and an estimated cost per model call. No conversation text, and no questions. */
 const aiUsage = listing({
   file: "ai-usage",
   adminOnly: true,
@@ -130,7 +130,7 @@ const aiUsage = listing({
 });
 
 /**
- * Who chatted with Ivy and when. Deliberately metadata only: the title comes from what the person asked and the
+ * Who chatted with AI and when. Deliberately metadata only: the title comes from what the person asked and the
  * messages hold customer data, so neither is exported (chats are kept in the app for AI_RETENTION_DAYS and then deleted).
  */
 const aiConversations = listing({
@@ -151,7 +151,7 @@ const aiConversations = listing({
 });
 
 /**
- * What Ivy proposed and what people decided: kind, status, who and when. Not the values: a proposal names customers,
+ * What AI proposed and what people decided: kind, status, who and when. Not the values: a proposal names customers,
  * deals and notes, so (like chats) its content stays in the app and goes with the conversation after AI_RETENTION_DAYS.
  */
 const aiProposals = listing({

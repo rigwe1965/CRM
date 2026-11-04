@@ -14,7 +14,7 @@ const body = z.object({
 
 /**
  * POST /api/assistant/documents/order { conversationId, contactId, draft }: the person chose the customer for an order
- * Ivy read but could not match for certain. Makes the Create a deal card. No model call and no cost; the draft is checked
+ * AI read but could not match for certain. Makes the Create a deal card. No model call and no cost; the draft is checked
  * again with the same rules as when it was read, and the contact must be one the person can see.
  */
 export const POST = authed(async ({ req, user }) => {

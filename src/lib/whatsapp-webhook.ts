@@ -58,7 +58,7 @@ export async function receiveWhatsappWebhook(req: Request, tenantId: string): Pr
     return NextResponse.json({ error: "Could not record message" }, { status: 500 });
   }
 
-  // Triage (Ivy, Phase 3c) is extra: it is queued here and done after Meta has its answer, and nothing about it can make this fail.
+  // Triage (AI, Phase 3c) is extra: it is queued here and done after Meta has its answer, and nothing about it can make this fail.
   if (filed.length > 0) {
     try {
       const queued = await withTenant(tenantId, () => enqueueTriage(tenantId, filed));

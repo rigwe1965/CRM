@@ -37,7 +37,7 @@ const KEY = "sk-ant-api03-this-is-a-secret-key-0123456789";
 beforeEach(() => vi.clearAllMocks());
 
 describe("verifyApiKey", () => {
-  it("accepts a key Anthropic accepts, by asking about the model Ivy uses", async () => {
+  it("accepts a key Anthropic accepts, by asking about the model AI uses", async () => {
     retrieve.mockResolvedValue({ id: IVY_MODEL });
     await expect(verifyApiKey(KEY)).resolves.toBeUndefined();
     expect(retrieve).toHaveBeenCalledWith(IVY_MODEL);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DOCUMENT_PROMPT_VERSION, INVOICE_PROMPT, INVOICE_TOOL, invoiceFingerprint, MAX_DOCUMENT_LINES, readInvoiceInput } from "@/lib/ai/documents/prompt";
 
-/** The invoice-reading instructions are pinned like Ivy's other prompts: an edit has to be deliberate. */
+/** The invoice-reading instructions are pinned like AI's other prompts: an edit has to be deliberate. */
 const PINNED = { version: "1", fingerprint: "fb94eee6eb41d923" };
 
 describe("the invoice reading prompt", () => {

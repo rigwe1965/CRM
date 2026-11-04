@@ -70,7 +70,7 @@ const lastUpdate = () => db.aiTriage.updateMany.mock.calls.at(-1)![0] as { where
 const cardsMade = () => proposals.createBackgroundProposal.mock.calls.map((c) => c[1] as { kind: string; dedupeKey: string; source: string; raw: Record<string, unknown>; reason: string; extraLines?: { label: string; value: string }[]; extraWarning?: string; subject: { type: string; id: string } });
 
 describe("enqueueTriage", () => {
-  it("queues nothing, and reads nothing, when triage or Ivy is off", async () => {
+  it("queues nothing, and reads nothing, when triage or AI is off", async () => {
     settings.mockResolvedValue({ ...on, triageEnabled: undefined });
     expect(await enqueueTriage(T, ["m1"])).toEqual([]);
     settings.mockResolvedValue({ ...on, enabled: false });

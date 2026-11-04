@@ -55,7 +55,7 @@ describe("POST /api/assistant/proposals/:id/approve", () => {
     expect(lib.approveProposal).toHaveBeenCalledWith(holder.user, "p1", { title: "Call Ada early" });
     expect(audit).toHaveBeenCalledTimes(1);
     expect(audit.mock.calls[0][1]).toMatchObject({ action: "assistant.proposal.approve", entity: "ai_proposal", entityId: "p1" });
-    expect(audit.mock.calls[0][1].summary).toBe("Approved Ivy's proposal (Create a task · Task: Call Ada): applied");
+    expect(audit.mock.calls[0][1].summary).toBe("Approved AI's proposal (Create a task · Task: Call Ada): applied");
   });
 
   it("works with no edits", async () => {

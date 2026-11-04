@@ -105,7 +105,7 @@ export async function matchCustomer(user: SessionUser, who: { name?: string; pho
 export async function assertCanReadOrder(user: Pick<SessionUser, "id" | "tenantId"> & { tenantWritable?: boolean }, now = new Date()) {
   await assertCanReadDocument(user, now);
   const settings = await loadAssistantSettings(user.tenantId);
-  if (settings.proposalsEnabled !== true) throw new ApiError(403, "Turning an order into a deal needs Ivy's proposed actions, which are switched off for this business. An admin can allow them in Settings, under Ivy. You can still create the deal yourself.", "AI_PROPOSALS_OFF");
+  if (settings.proposalsEnabled !== true) throw new ApiError(403, "Turning an order into a deal needs AI's proposed actions, which are switched off for this business. An admin can allow them in Settings, under AI assistant. You can still create the deal yourself.", "AI_PROPOSALS_OFF");
   if (user.tenantWritable === false) throw new ApiError(403, "This workspace is read-only until its subscription is renewed, so no deal can be created.", "TENANT_READ_ONLY");
 }
 
@@ -133,7 +133,7 @@ export async function chatFor(user: SessionUser, conversationId: string | undefi
   if (!conversationId) return startConversation(user, "Order from a screenshot");
   const existing = await loadConversation(user, conversationId);
   if (!existing) throw new ApiError(404, "That conversation was not found.", "NOT_FOUND");
-  if (existing.promptVersion !== IVY_PROMPT_VERSION) throw new ApiError(409, "This conversation was started with an older version of Ivy. Start a new chat to continue.", "AI_CONVERSATION_STALE");
+  if (existing.promptVersion !== IVY_PROMPT_VERSION) throw new ApiError(409, "This conversation was started with an older version of AI. Start a new chat to continue.", "AI_CONVERSATION_STALE");
   if (existing.messages.length + 2 > MAX_MESSAGES) throw new ApiError(409, "This conversation has reached its length limit. Start a new chat.", "AI_CONVERSATION_FULL");
   return existing;
 }
@@ -167,7 +167,7 @@ export async function readOrderFile(user: SessionUser, file: DocumentFile, opts:
   } catch (e) {
     console.error("[ivy-documents] order read failed", e instanceof Error ? e.message : e);
     await release();
-    throw new ApiError(502, "Ivy could not read that picture just now. Try again in a moment, or create the deal yourself.", "AI_DOCUMENT_FAILED");
+    throw new ApiError(502, "AI could not read that picture just now. Try again in a moment, or create the deal yourself.", "AI_DOCUMENT_FAILED");
   }
   try {
     await recordUsage({ tenantId: user.tenantId, userId: user.id, model: message.model, usage: tokenUsage(message.usage), purpose: "DOCUMENT" });
@@ -177,10 +177,10 @@ export async function readOrderFile(user: SessionUser, file: DocumentFile, opts:
 
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === ORDER_TOOL.name);
   const parsed = use ? readOrderInput.safeParse(use.input) : null;
-  if (message.stop_reason === "max_tokens") throw new ApiError(422, "That message is too long for Ivy to read in one go. Send a shorter part of it, or create the deal yourself.", "AI_DOCUMENT_TOO_LONG");
-  if (!parsed?.success) throw new ApiError(422, "Ivy could not make sense of that picture. Try a clearer screenshot, or create the deal yourself.", "AI_DOCUMENT_UNREADABLE");
+  if (message.stop_reason === "max_tokens") throw new ApiError(422, "That message is too long for AI to read in one go. Send a shorter part of it, or create the deal yourself.", "AI_DOCUMENT_TOO_LONG");
+  if (!parsed?.success) throw new ApiError(422, "AI could not make sense of that picture. Try a clearer screenshot, or create the deal yourself.", "AI_DOCUMENT_UNREADABLE");
   if (!parsed.data.readable) {
-    throw new ApiError(422, `That does not look like a customer order Ivy can read${parsed.data.problem ? ` (${parsed.data.problem.slice(0, 200)})` : ""}. Try a clearer screenshot.`, "AI_DOCUMENT_UNREADABLE");
+    throw new ApiError(422, `That does not look like a customer order AI can read${parsed.data.problem ? ` (${parsed.data.problem.slice(0, 200)})` : ""}. Try a clearer screenshot.`, "AI_DOCUMENT_UNREADABLE");
   }
 
   const { draft, blocking, warnings } = buildOrder(parsed.data);

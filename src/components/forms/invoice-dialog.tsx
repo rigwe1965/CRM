@@ -61,7 +61,7 @@ export function InvoiceDialog({
   invoice?: Invoice;
   /** Lines read from an imported spreadsheet, to review before saving a new invoice. */
   initialItems?: ImportedItem[];
-  /** An invoice Ivy read from a PDF or photo: the header, the lines and what to double-check. Nothing is saved until the person saves the form. */
+  /** An invoice AI read from a PDF or photo: the header, the lines and what to double-check. Nothing is saved until the person saves the form. */
   reading?: DocumentReading;
 }) {
   return (
@@ -141,7 +141,7 @@ function InvoiceForm({ invoice, initialItems, reading, onClose }: { invoice?: In
   return (
     <FormShell
       title={invoice ? "Edit invoice" : "New supplier invoice"}
-      description={invoice ? undefined : reading ? `Ivy read ${reading.items.length} line${reading.items.length === 1 ? "" : "s"} from your document. It can misread numbers, so check every field against the original before you save.` : initialItems?.length ? `${initialItems.length} lines imported from your file. Check them, add the invoice details, then save.` : "Record a stock order from a supplier."}
+      description={invoice ? undefined : reading ? `AI read ${reading.items.length} line${reading.items.length === 1 ? "" : "s"} from your document. It can misread numbers, so check every field against the original before you save.` : initialItems?.length ? `${initialItems.length} lines imported from your file. Check them, add the invoice details, then save.` : "Record a stock order from a supplier."}
       submitLabel={invoice ? "Save changes" : "Create invoice"}
       pending={save.isPending}
       formError={form.formError}

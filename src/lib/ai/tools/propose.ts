@@ -4,7 +4,7 @@ import { propose } from "@/lib/ai/proposals";
 import { contactCreateInput, dealCreateInput, messageDraftInput, noteCreateInput, paymentInput, scheduleInput, stageChangeInput, taskChangeInput, taskCreateInput } from "@/lib/ai/proposal-kinds";
 
 /**
- * The tools that let Ivy suggest an action. None of them changes anything: each checks the input against the screens'
+ * The tools that let AI suggest an action. None of them changes anything: each checks the input against the screens'
  * own rules, saves a proposal for the person to approve in the panel, and tells the model nothing has been done yet.
  * The card the person sees is built by the server from the saved values, not from anything the model says.
  */

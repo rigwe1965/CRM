@@ -70,7 +70,7 @@ describe("POST /api/assistant/chat: before anything is streamed", () => {
   });
 
   it("checks the gates first and goes no further when one fails", async () => {
-    gate.mockRejectedValue(Object.assign(new Error("Ivy is switched off"), { status: 403, code: "AI_DISABLED" }));
+    gate.mockRejectedValue(Object.assign(new Error("AI is switched off"), { status: 403, code: "AI_DISABLED" }));
     await expect(post({ message: "hi" })).rejects.toMatchObject({ code: "AI_DISABLED" });
     expect(client).not.toHaveBeenCalled();
     expect(convo.start).not.toHaveBeenCalled();
@@ -155,7 +155,7 @@ describe("POST /api/assistant/chat: a new chat", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     runIvy.mockRejectedValue(new Error("boom with a secret"));
     const out = await events(await post({ message: "hi" }));
-    expect(out.at(-1)).toEqual({ type: "error", code: "AI_FAILED", message: "Ivy could not answer that. Please try again." });
+    expect(out.at(-1)).toEqual({ type: "error", code: "AI_FAILED", message: "AI could not answer that. Please try again." });
     expect(JSON.stringify(out)).not.toContain("secret");
     spy.mockRestore();
   });
@@ -191,7 +191,7 @@ describe("POST /api/assistant/chat: continuing a chat", () => {
     expect(outcomes).toHaveBeenCalledWith(expect.objectContaining({ id: "u1", tenantId: "t1" }), "c1");
   });
 
-  it("puts the note about how Ivy's earlier proposals ended in front of the question, once", async () => {
+  it("puts the note about how AI's earlier proposals ended in front of the question, once", async () => {
     convo.load.mockResolvedValue({ id: "c1", title: "Earlier", promptVersion: IVY_PROMPT_VERSION, messages: [{ role: "USER", content: [{ type: "text", text: "first" }] }, { role: "ASSISTANT", content: [{ type: "text", text: "answer" }] }] });
     const note = ["<proposal_outcomes>", "- done", "</proposal_outcomes>"].join(String.fromCharCode(10));
     outcomes.mockResolvedValue(note);
@@ -267,7 +267,7 @@ describe("conversation routes", () => {
 });
 
 describe("read-only workspaces", () => {
-  it("can still use Ivy (it only reads business data), but nothing else new", () => {
+  it("can still use AI (it only reads business data), but nothing else new", () => {
     expect(allowedWhenReadOnly("/api/assistant/chat")).toBe(true);
     expect(allowedWhenReadOnly("/api/assistant/conversations/abc")).toBe(true);
     expect(allowedWhenReadOnly("/api/deals")).toBe(false);

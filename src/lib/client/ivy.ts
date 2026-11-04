@@ -11,7 +11,7 @@ export type IvyEvent =
 export type IvyMessage = { role: "user" | "assistant"; text: string; tools: string[] };
 export type IvyChat = { id: string; title: string; stale: boolean; full: boolean; messages: IvyMessage[] };
 export type IvyChatSummary = { id: string; title: string; updatedAt: string };
-export type IvyStatus = { ready: boolean; /** Whether people may have Ivy read an invoice from a PDF or photo. */ documents?: boolean; /** Whether people may attach a customer's order screenshot (needs documents and proposed actions). */ orders?: boolean; /** Whether people may attach a bank transfer receipt (needs documents, proposed actions and payment proposals). */ payments?: boolean; reason: "AI_DISABLED" | "AI_NOT_CONFIGURED" | "AI_CEILING_UNSET" | "AI_CEILING_REACHED" | null; resetsOn: string | null };
+export type IvyStatus = { ready: boolean; /** Whether people may have AI read an invoice from a PDF or photo. */ documents?: boolean; /** Whether people may attach a customer's order screenshot (needs documents and proposed actions). */ orders?: boolean; /** Whether people may attach a bank transfer receipt (needs documents, proposed actions and payment proposals). */ payments?: boolean; reason: "AI_DISABLED" | "AI_NOT_CONFIGURED" | "AI_CEILING_UNSET" | "AI_CEILING_REACHED" | null; resetsOn: string | null };
 
 const KNOWN = new Set(["conversation", "text", "tool", "done", "error"]);
 
@@ -32,7 +32,7 @@ export function splitEvents(buffer: string): { events: IvyEvent[]; rest: string 
   return { events, rest };
 }
 
-/** Asks Ivy and reports each event as it arrives. Rejects with ApiClientError when the server refuses before streaming (Ivy off, ceiling reached, ...). */
+/** Asks AI and reports each event as it arrives. Rejects with ApiClientError when the server refuses before streaming (AI off, ceiling reached, ...). */
 export async function streamChat(body: { conversationId?: string; message: string }, onEvent: (e: IvyEvent) => void, signal?: AbortSignal): Promise<void> {
   let res: Response;
   try {
@@ -59,11 +59,11 @@ export async function streamChat(body: { conversationId?: string; message: strin
     buffer += decoder.decode();
     splitEvents(`${buffer}\n`).events.forEach(onEvent);
   } catch {
-    if (!signal?.aborted) throw new ApiClientError(0, "The connection dropped while Ivy was answering. Try again.", "NETWORK");
+    if (!signal?.aborted) throw new ApiClientError(0, "The connection dropped while AI was answering. Try again.", "NETWORK");
   }
 }
 
-// ── Showing Ivy's text safely ────────────────────────────────────────────────────────────────────────────────────
+// ── Showing AI's text safely ────────────────────────────────────────────────────────────────────────────────────
 
 export type Inline = { kind: "text"; text: string } | { kind: "bold"; text: string } | { kind: "link"; text: string; href: string };
 export type TextBlock = { kind: "p"; inline: Inline[] } | { kind: "ul" | "ol"; items: Inline[][] };

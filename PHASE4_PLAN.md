@@ -12,7 +12,7 @@ this plan only proposes real gaps. Checked in `TECHNICIAN.md`, `AI_ASSISTANT_PLA
 | Automations                          | **Built:** instalment emails, low-stock alerts, quiet leads, shipping updates, stage tasks (`src/lib/automations/`). |
 | Customer-facing invoice / pay links  | **Built:** `/pay`, `/my-order`, `/api/public/my-order`.                                             |
 | WhatsApp / email templates           | **Built:** per-business Meta templates, slots, opt-in check. **Not run against the real Meta service** (TECHNICIAN.md says so). |
-| Ivy assistant                        | **Built:** Ask Ivy, proposals, instalment schedules, inbox triage, document intake, knowledge base. Auto-reply (Phase 5) deliberately **not** built. |
+| AI assistant                        | **Built:** Ask AI, proposals, instalment schedules, inbox triage, document intake, knowledge base. Auto-reply (Phase 5) deliberately **not** built. |
 | Reports                              | **Thin:** `GET /api/reports` returns revenue by month, days to pay, best sellers and lead sources only. |
 
 I have not exhaustively read every screen, so treat "built" as "found in the docs and code", and correct me where the
@@ -46,7 +46,7 @@ template and slot values, preview recipients, send.
   rate limit; every send audit-logged; a dry-run preview first; stop on repeated provider errors.
 - Needs your decision on volumes and Meta's per-number messaging tier. Effort: about 1-2 weeks. Risk: **medium** (messaging customers, spend, account quality). Needs 4.1 first.
 
-### 4.4 Ivy auto-reply (AI Phase 5): recommend deferring
+### 4.4 AI auto-reply (AI Phase 5): recommend deferring
 
 The assistant plan already says this needs its own approval, and the rule "no sending to customers without approval"
 stands. I recommend not starting it until 4.1 to 4.3 have run in the real shop for a while. If you want it sooner, I will

@@ -101,7 +101,7 @@ describe("TASK_CHANGE", () => {
     expect(actions.updateTask).toHaveBeenCalledWith(sales, "t1", { status: "DONE", dueDate: new Date("2026-11-09") });
   });
 
-  it("does nothing if the task moved on since Ivy suggested it, and says so", async () => {
+  it("does nothing if the task moved on since AI suggested it, and says so", async () => {
     db.task.findFirst.mockResolvedValue({ status: "DONE" });
     await expect(KINDS.TASK_CHANGE.apply!(sales, { taskId: "t1", changes: { status: "CANCELLED" }, expect: { status: "TODO" } })).rejects.toMatchObject({ status: 409, code: "AI_PROPOSAL_STALE" });
     expect(actions.updateTask).not.toHaveBeenCalled();

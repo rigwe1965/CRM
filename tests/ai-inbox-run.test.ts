@@ -49,7 +49,7 @@ beforeEach(() => {
 });
 
 describe("inboxAvailability", () => {
-  it("is on only when Ivy and the daily suggestions are both on, the person has not muted them, and the workspace is writable", async () => {
+  it("is on only when AI and the daily suggestions are both on, the person has not muted them, and the workspace is writable", async () => {
     expect(await inboxAvailability(user)).toBe("ok");
     settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, proposalsEnabled: true });
     expect(await inboxAvailability(user)).toBe("disabled");

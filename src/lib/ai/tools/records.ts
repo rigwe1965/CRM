@@ -9,7 +9,7 @@ import { defineTool, ToolError } from "@/lib/ai/tools/types";
 
 /**
  * Tools over the people and paperwork: contacts, deals, tasks and supplier invoices. Each one reads through the
- * caller's own scope (`owned`, or the task and activity scopes), so Ivy sees exactly what the person asking can see.
+ * caller's own scope (`owned`, or the task and activity scopes), so AI sees exactly what the person asking can see.
  */
 
 const CONTACT_TYPES = ["LEAD", "PROSPECT", "CUSTOMER", "PARTNER", "OTHER"] as const;

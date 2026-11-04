@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-/** Conversations with Ivy are deleted this many days after their last message (their messages go with them). */
+/** Conversations with AI are deleted this many days after their last message (their messages go with them). */
 export const AI_RETENTION_DAYS = 90;
 const DAY_MS = 86_400_000;
 
@@ -14,7 +14,7 @@ export async function purgeOldConversations(tenantId: string, now = new Date()) 
   // Proposals whose time ran out are closed first; the rest go with their conversation.
   await db.aiProposal.updateMany({ where: { tenantId, status: "PENDING", expiresAt: { lt: now } }, data: { status: "EXPIRED", decidedAt: now } });
   const { count } = await db.aiConversation.deleteMany({ where: { tenantId, updatedAt: { lt: cutoff } } });
-  // Suggestions Ivy made on her own belong to no conversation, so they go on their own clock, once decided or expired; so do the daily run records.
+  // Suggestions AI made on its own belong to no conversation, so they go on their own clock, once decided or expired; so do the daily run records.
   await db.aiProposal.deleteMany({ where: { tenantId, conversationId: null, status: { not: "PENDING" }, createdAt: { lt: cutoff } } });
   await db.aiInboxRun.deleteMany({ where: { tenantId, startedAt: { lt: cutoff } } });
   await db.aiTriage.deleteMany({ where: { tenantId, createdAt: { lt: cutoff } } });

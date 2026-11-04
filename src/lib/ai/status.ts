@@ -7,7 +7,7 @@ import { DEFAULT_DOCUMENTS_DAILY_CAP, DEFAULT_TRIAGE_DAILY_CAP, loadAssistantSet
 import { ceilingState, monthToDateByPurpose, monthToDateMicros, nextMonthStart } from "@/lib/ai/usage";
 import { usd } from "@/lib/ai/pricing";
 
-/** Everything the admin screen (and the gates below) need to know about Ivy. Never contains the key. */
+/** Everything the admin screen (and the gates below) need to know about AI. Never contains the key. */
 export async function assistantStatus(tenantId: string, now = new Date()) {
   const [settings, key, spent, byPurpose] = await Promise.all([loadAssistantSettings(tenantId), getIntegration(tenantId, "ANTHROPIC"), monthToDateMicros(tenantId, now), monthToDateByPurpose(tenantId, now)]);
   return {
@@ -33,16 +33,16 @@ export async function assistantStatus(tenantId: string, now = new Date()) {
 export type AssistantStatus = Awaited<ReturnType<typeof assistantStatus>>;
 
 /**
- * Gate for a new question to Ivy: switched on, has a key, has a ceiling that is not used up, and the user is not
+ * Gate for a new question to AI: switched on, has a key, has a ceiling that is not used up, and the user is not
  * asking too fast. Throws a plain-words ApiError otherwise. Run inside the business's context.
  */
 export async function assertCanAsk(user: { id: string; tenantId: string }, now = new Date()) {
   const s = await assistantStatus(user.tenantId, now);
-  if (!s.enabled) throw new ApiError(403, "Ivy is switched off for this business. An admin can turn it on in Settings.", "AI_DISABLED");
-  if (!s.keyConfigured) throw new ApiError(409, "Ivy has no Anthropic key yet. An admin can add one in Settings.", "AI_NOT_CONFIGURED");
-  if (s.level === "unset") throw new ApiError(409, "Ivy has no monthly spending limit yet. An admin can set one in Settings.", "AI_CEILING_UNSET");
+  if (!s.enabled) throw new ApiError(403, "AI is switched off for this business. An admin can turn it on in Settings.", "AI_DISABLED");
+  if (!s.keyConfigured) throw new ApiError(409, "AI has no Anthropic key yet. An admin can add one in Settings.", "AI_NOT_CONFIGURED");
+  if (s.level === "unset") throw new ApiError(409, "AI has no monthly spending limit yet. An admin can set one in Settings.", "AI_CEILING_UNSET");
   if (s.level === "reached") {
-    throw new ApiError(429, `This month's spending limit for Ivy ($${s.ceilingUsd}) has been reached. An admin can raise it in Settings, or Ivy resumes on ${s.resetsOn}.`, "AI_CEILING_REACHED");
+    throw new ApiError(429, `This month's spending limit for AI ($${s.ceilingUsd}) has been reached. An admin can raise it in Settings, or AI resumes on ${s.resetsOn}.`, "AI_CEILING_REACHED");
   }
   await enforceRateLimit(`ai:ask:${user.id}`, LIMITS.assistant);
   return s;
@@ -53,7 +53,7 @@ export async function assertUnderCeiling(tenantId: string, now = new Date()) {
   const settings = await loadAssistantSettings(tenantId);
   const state = ceilingState(settings.monthlyCeilingUsd, await monthToDateMicros(tenantId, now));
   if (state.level === "unset" || state.level === "reached") {
-    throw new ApiError(429, "This month's spending limit for Ivy has been reached.", "AI_CEILING_REACHED");
+    throw new ApiError(429, "This month's spending limit for AI has been reached.", "AI_CEILING_REACHED");
   }
   return state;
 }

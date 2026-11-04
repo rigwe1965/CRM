@@ -104,8 +104,8 @@ describe("streamChat", () => {
   });
 
   it("rejects with the server's code when it refuses before streaming", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Ivy is switched off", code: "AI_DISABLED" }), { status: 403 })));
-    await expect(streamChat({ message: "hi" }, () => undefined)).rejects.toMatchObject({ status: 403, code: "AI_DISABLED", message: "Ivy is switched off" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "AI is switched off", code: "AI_DISABLED" }), { status: 403 })));
+    await expect(streamChat({ message: "hi" }, () => undefined)).rejects.toMatchObject({ status: 403, code: "AI_DISABLED", message: "AI is switched off" });
     await expect(streamChat({ message: "hi" }, () => undefined)).rejects.toBeInstanceOf(ApiClientError);
   });
 

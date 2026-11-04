@@ -13,7 +13,7 @@ export const maxDuration = 60;
  * POST /api/assistant/documents (multipart: file, kind=invoice|order|payment): reads a supplier invoice from a PDF or photo and
  * returns the fields for the New invoice form, with warnings; or (kind=order, with an optional conversationId) reads a
  * customer's order screenshot into a Create a deal card for the person to approve. Reading saves nothing and keeps
- * nothing; or (kind=payment) a bank transfer receipt into a Record a payment card, the strictest of the three. The file is held in memory for this request. The gates (Ivy on, "Read documents" on, key, ceiling, daily
+ * nothing; or (kind=payment) a bank transfer receipt into a Record a payment card, the strictest of the three. The file is held in memory for this request. The gates (AI on, "Read documents" on, key, ceiling, daily
  * number, rate limit; for an order also proposed actions) run before the file is read.
  */
 export const POST = authed(async ({ req, user }) => {

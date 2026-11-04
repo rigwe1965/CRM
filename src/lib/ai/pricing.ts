@@ -1,5 +1,5 @@
 /**
- * What Ivy costs, estimated from the token counts the API reports (AI_ASSISTANT_PLAN.md). The business pays Anthropic
+ * What AI costs, estimated from the token counts the API reports (AI_ASSISTANT_PLAN.md). The business pays Anthropic
  * directly with its own key, so this is only the basis for the monthly ceiling we enforce; Anthropic's invoice is the
  * source of truth. Change the table here when prices or the model change.
  */

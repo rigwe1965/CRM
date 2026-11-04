@@ -12,7 +12,7 @@ import { optInColumns } from "@/lib/whatsapp-optin";
 import type { createActivitySchema, createContactSchema, createDealSchema, createTaskSchema, dealStageSchema, updateTaskSchema } from "@/lib/validations/crm";
 
 /**
- * The writes that both a screen's API route and an approved Ivy proposal run (AI_ASSISTANT_PLAN.md, Phase 2), so the
+ * The writes that both a screen's API route and an approved AI proposal run (AI_ASSISTANT_PLAN.md, Phase 2), so the
  * two can never drift apart. Each takes input already validated by its schema and acts as `user`: the caller's scope
  * and business rules are enforced here, not by whoever calls. Run inside the business's context (authed() does).
  */

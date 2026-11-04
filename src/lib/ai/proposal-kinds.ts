@@ -17,7 +17,7 @@ import { fullName } from "@/lib/ai/tools/result";
 import { optInColumns } from "@/lib/whatsapp-optin";
 
 /**
- * What Ivy can propose (AI_ASSISTANT_PLAN.md, Phase 2). For each kind: `input` is what the model may send, `prepare`
+ * What AI can propose (AI_ASSISTANT_PLAN.md, Phase 2). For each kind: `input` is what the model may send, `prepare`
  * checks it against the same schemas and scope the screens use and builds the card text from the checked values
  * (never from the model's own wording), and `apply` runs the real action as the signed-in person when they approve.
  * Nothing here runs without a person's approval except `prepare`, which only reads.
@@ -143,7 +143,7 @@ const taskChange = {
     const body = parseOrTell(updateTaskSchema, changes);
     const now = await db.task.findFirst({ where: { AND: [{ id: taskId }, taskScope(user)] }, select: { status: true } });
     if (!now) throw new ApiError(404, "That task no longer exists, so nothing was changed.", "NOT_FOUND");
-    if (now.status !== expect.status) throw new ApiError(409, `The task is now ${nice(now.status)} (it was ${nice(expect.status)} when Ivy suggested this), so nothing was changed.`, "AI_PROPOSAL_STALE");
+    if (now.status !== expect.status) throw new ApiError(409, `The task is now ${nice(now.status)} (it was ${nice(expect.status)} when AI suggested this), so nothing was changed.`, "AI_PROPOSAL_STALE");
     const task = await updateTask(user, taskId, body);
     return { entity: "task", id: task.id, href: "/tasks" };
   },
@@ -208,7 +208,7 @@ const stageChange = {
     const body = parseOrTell(dealStageSchema, { stage: rest.stage, lostReason: rest.lostReason ?? undefined });
     const now = await db.deal.findFirst({ where: { id: dealId, deletedAt: null, ...ownerScope(user) }, select: { stage: true } });
     if (!now) throw new ApiError(404, "That deal no longer exists, so nothing was changed.", "NOT_FOUND");
-    if (now.stage !== fromStage) throw new ApiError(409, `The deal is now in ${nice(now.stage)} (it was in ${nice(fromStage)} when Ivy suggested this), so nothing was changed.`, "AI_PROPOSAL_STALE");
+    if (now.stage !== fromStage) throw new ApiError(409, `The deal is now in ${nice(now.stage)} (it was in ${nice(fromStage)} when AI suggested this), so nothing was changed.`, "AI_PROPOSAL_STALE");
     await changeDealStage(user, dealId, body);
     return { entity: "deal", id: dealId, href: `/deals/${dealId}` };
   },

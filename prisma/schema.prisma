@@ -143,7 +143,7 @@ model User {
   campaigns          Campaign[]          @relation("CampaignCreator")
   savedFilters       SavedFilter[]
   aiConversations    AiConversation[]
-  // Mutes the daily "Suggested actions" for this person (they can turn them back on in the Ivy panel).
+  // Mutes the daily "Suggested actions" for this person (they can turn them back on in the AI panel).
   aiSuggestionsMuted Boolean   @default(false)
   aiProposals       AiProposal[]
   aiInboxRuns       AiInboxRun[]
@@ -702,7 +702,7 @@ enum IntegrationKind {
   STRIPE
   WHATSAPP
   LEAD_FORM
-  // The business's own Anthropic API key, used by the Ivy assistant (AI_ASSISTANT_PLAN.md).
+  // The business's own Anthropic API key, used by the AI assistant (AI_ASSISTANT_PLAN.md).
   ANTHROPIC
 }
 
@@ -719,7 +719,7 @@ model TenantIntegration {
   @@unique([tenantId, kind])
 }
 
-// ─── Ivy, the AI assistant (AI_ASSISTANT_PLAN.md) ───────
+// ─── The AI assistant (AI_ASSISTANT_PLAN.md) ───────
 
 enum AiRole {
   USER
@@ -753,7 +753,7 @@ enum AiProposalStatus {
   FAILED
 }
 
-// One chat between a user and Ivy. Visible only to that user; purged after AI_RETENTION_DAYS (src/lib/ai/retention.ts).
+// One chat between a user and AI. Visible only to that user; purged after AI_RETENTION_DAYS (src/lib/ai/retention.ts).
 model AiConversation {
   id        String   @id @default(cuid())
   tenantId  String
@@ -761,7 +761,7 @@ model AiConversation {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String   @default("New conversation")
-  // The version of Ivy's instructions and tools this chat was started with (src/lib/ai/prompt.ts). A chat can only be
+  // The version of AI's instructions and tools this chat was started with (src/lib/ai/prompt.ts). A chat can only be
   // continued while it matches: the model's thinking blocks are only valid if the prompt and tools are unchanged.
   promptVersion String   @default("")
   createdAt DateTime @default(now())
@@ -813,7 +813,7 @@ model AiUsage {
   @@index([tenantId, createdAt])
 }
 
-// What Ivy suggested and what the person decided (AI_ASSISTANT_PLAN.md, Phase 2). `params` is the exact action, validated
+// What AI suggested and what the person decided (AI_ASSISTANT_PLAN.md, Phase 2). `params` is the exact action, validated
 // when it was proposed and again when approved; `preview` is the card text built from it by the server. A proposal
 // writes nothing to the business until the person approves it, and is decided once. Removed with its conversation.
 model AiProposal {
@@ -822,13 +822,13 @@ model AiProposal {
   tenant         Tenant              @relation(fields: [tenantId], references: [id])
   userId         String
   user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Null for suggestions Ivy made on her own (the daily inbox, WhatsApp triage), which belong to no chat.
+  // Null for suggestions AI made on its own (the daily inbox, WhatsApp triage), which belong to no chat.
   conversationId String?
   conversation   AiConversation?     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   source         AiProposalSource    @default(CHAT)
   // Stops the same suggestion being made twice (rule, record and ISO week); unique per business and person.
   dedupeKey      String?
-  // Why Ivy suggested it, in words built from data ("Instalment 2 was due 5 days ago"). Shown on the card.
+  // Why AI suggested it, in words built from data ("Instalment 2 was due 5 days ago"). Shown on the card.
   reason         String?
   subjectType    String?
   subjectId      String?
@@ -844,7 +844,7 @@ model AiProposal {
   createdAt      DateTime            @default(now())
   expiresAt      DateTime
   decidedAt      DateTime?
-  // Set once Ivy has been told the outcome (in the person's next message).
+  // Set once AI has been told the outcome (in the person's next message).
   reportedAt     DateTime?
 
   @@unique([tenantId, userId, dedupeKey])
@@ -906,7 +906,7 @@ model AiTriage {
   @@index([status, createdAt])
 }
 
-// The business's own written answers (return policy, FAQs) that Ivy looks up before it answers or drafts a reply. An admin
+// The business's own written answers (return policy, FAQs) that AI looks up before it answers or drafts a reply. An admin
 // edits them in Settings; every edit keeps the old text in KnowledgeEntryVersion. Entries are archived, never deleted.
 model KnowledgeEntry {
   id          String   @id @default(cuid())

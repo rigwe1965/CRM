@@ -25,7 +25,7 @@ describe("purgeOldConversations", () => {
     expect(Object.keys(db)).toEqual(["aiConversation", "aiProposal", "aiInboxRun", "aiTriage"]);
   });
 
-  it("deletes decided or expired suggestions made on Ivy's own (no conversation) and old run records, after the same period", async () => {
+  it("deletes decided or expired suggestions made on AI's own (no conversation) and old run records, after the same period", async () => {
     db.aiConversation.deleteMany.mockResolvedValue({ count: 0 });
     const now = new Date("2026-10-30T12:00:00Z");
     await purgeOldConversations("t1", now);

@@ -22,9 +22,9 @@ const chatBody = z.object({
 });
 
 /**
- * POST /api/assistant/chat { conversationId?, message }: asks Ivy a question and streams the answer as newline-delimited
+ * POST /api/assistant/chat { conversationId?, message }: asks AI a question and streams the answer as newline-delimited
  * JSON events (see IvyEvent in src/lib/ai/ivy.ts): `conversation`, then `text` and `tool` as it works, then `done` or
- * `error`. Any signed-in user; Ivy only reads what that user can see. Problems found before the stream starts (Ivy
+ * `error`. Any signed-in user; AI only reads what that user can see. Problems found before the stream starts (AI
  * off, no key, ceiling reached, rate limit, a stale or full chat) are ordinary error responses.
  */
 export const POST = authed(async ({ req, user }) => {
@@ -35,14 +35,14 @@ export const POST = authed(async ({ req, user }) => {
   const existing = body.conversationId ? await loadConversation(user, body.conversationId) : null;
   if (body.conversationId && !existing) throw new ApiError(404, "That conversation was not found.", "NOT_FOUND");
   if (existing && existing.promptVersion !== IVY_PROMPT_VERSION) {
-    throw new ApiError(409, "This conversation was started with an older version of Ivy. Start a new chat to continue.", "AI_CONVERSATION_STALE");
+    throw new ApiError(409, "This conversation was started with an older version of AI. Start a new chat to continue.", "AI_CONVERSATION_STALE");
   }
   if (existing && existing.messages.length >= MAX_MESSAGES) throw new ApiError(409, "This conversation has reached its length limit. Start a new chat.", "AI_CONVERSATION_FULL");
 
   const convo = existing ?? (await startConversation(user, body.message));
   const history = existing ? toParams(existing.messages) : [];
   const userBlocks: { type: "text"; text: string }[] = [{ type: "text", text: body.message }];
-  // How Ivy's earlier proposals ended, so it never assumes one was done (or not).
+  // How AI's earlier proposals ended, so it never assumes one was done (or not).
   const outcomes = existing ? await takeOutcomes(user, convo.id) : null;
   if (outcomes) userBlocks.unshift({ type: "text", text: outcomes });
   if (history.length === 0) {
@@ -59,7 +59,7 @@ export const POST = authed(async ({ req, user }) => {
   }
 
   // Metadata only: what they asked is not written to the audit log.
-  await audit(user, { action: "assistant.ask", entity: "ai_conversation", entityId: convo.id, summary: `Asked Ivy (${body.message.length} characters)` }, req);
+  await audit(user, { action: "assistant.ask", entity: "ai_conversation", entityId: convo.id, summary: `Asked AI (${body.message.length} characters)` }, req);
 
   // The answer streams after this handler has returned, so it has to re-enter the business itself.
   const inBusiness = keepTenant();
@@ -91,7 +91,7 @@ export const POST = authed(async ({ req, user }) => {
       )
         .catch((e) => {
           console.error("[ivy] run failed", e instanceof Error ? e.message : e);
-          emit({ type: "error", code: "AI_FAILED", message: "Ivy could not answer that. Please try again." });
+          emit({ type: "error", code: "AI_FAILED", message: "AI could not answer that. Please try again." });
         })
         .finally(() => {
           try {
