@@ -19,4 +19,8 @@ Dev server runs on port 3001. `npm run db:seed` WIPES data: never on real data.
 - Do not change code without an approved plan from the owner.
 - Keep seed data as a newcomer sample; don't clear it unless asked.
 
+## Hair store
+
+For all hair product, care, quantity, texture, and ordering questions, use the detailed answers in hair-store/products-faq.md. Always ask clarifying questions (length, texture, fullness, closure/frontal needed) before giving final recommendations.
+
 Docs: `HANDOVER.md`, `TECHNICIAN.md`, `README.md`. Playbooks: skill `ivycandy-crm`.
