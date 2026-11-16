@@ -152,6 +152,7 @@ async function seedTenant(db: PrismaClient, k: string): Promise<TenantFixture> {
   const chat = await db.aiConversation.create({ data: { ...t, userId: sales.id, title: `Chat ${k}` } });
   await db.aiMessage.create({ data: { ...t, conversationId: chat.id, position: 0, role: "USER", content: [{ type: "text", text: `Hello ${k}` }] } });
   await db.aiUsage.create({ data: { ...t, userId: sales.id, conversationId: chat.id, model: "claude-sonnet-5-5", inputTokens: 10, outputTokens: 5, costMicros: 80 } });
+  await db.aiCredit.create({ data: { ...t, amountMicros: 1_000_000, source: "PACK", reference: `seed-${k}`, note: "fixture" } });
   await db.aiInboxRun.create({ data: { ...t, userId: sales.id, day: "2026-10-30", status: "DONE", candidates: 1, created: 1 } });
   await db.aiTriage.create({ data: { ...t, activityId: `act-${k}`, contactId: contact.id, status: "DONE", label: "OTHER", urgency: "LOW", summary: "Fixture", modelCalled: true } });
   await db.knowledgeEntry.create({ data: { ...t, key: `fixture-${k}`, category: "FAQ", title: `Fixture ${k}`, body: `Policy text ${k}`, keywords: ["fixture"], versions: { create: { ...t, version: 1, title: `Fixture ${k}`, body: `Policy text ${k}`, status: "ACTIVE" } } } });
