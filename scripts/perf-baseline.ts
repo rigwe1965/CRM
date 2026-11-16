@@ -10,7 +10,7 @@
  */
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 
 const arg = (name: string, fallback: number) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -33,7 +33,7 @@ const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.len
 const p95 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * 0.95))];
 
 async function main() {
-  const admin = new PrismaClient({ datasourceUrl: base });
+  const admin = createPrismaClient({ url: base });
   // pg_trgm belongs in public (see ensureTrigramExtension in tests/helpers/two-tenants.ts); one installed in the throwaway schema would be dropped with it.
   await admin.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public`).catch(() => undefined);
   await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
@@ -41,7 +41,7 @@ async function main() {
   const url = withSchema(schema);
   try {
     execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url, PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1" /* each run migrates its own throwaway schema; the lock is database-wide and only makes parallel test files queue */ }, stdio: "pipe" });
-    const db = new PrismaClient({ datasourceUrl: url });
+    const db = createPrismaClient({ url: url });
 
     console.log(`Filling ${TENANTS} businesses x ${CONTACTS} contacts = ${TENANTS * CONTACTS} contacts...`);
     const t0 = Date.now();
@@ -98,7 +98,7 @@ async function main() {
     await db.$disconnect();
   } finally {
     if (!KEEP && /^perf_test_[0-9a-f]{10}$/.test(schema)) {
-      const cleaner = new PrismaClient({ datasourceUrl: base });
+      const cleaner = createPrismaClient({ url: base });
       await cleaner.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
       await cleaner.$disconnect();
     } else if (KEEP) console.log(`\nKept schema ${schema}`);

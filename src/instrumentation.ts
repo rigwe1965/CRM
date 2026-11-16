@@ -10,9 +10,9 @@ export async function register() {
   // The database's second wall between businesses only holds if the app connects as a restricted role. A wrong
   // role breaks nothing visibly, so say so loudly at start instead (TECHNICIAN.md, "Row-level security").
   try {
-    const { PrismaClient } = await import("@prisma/client");
+    const { createPrismaClient } = await import("@/lib/prisma-client");
     const { rowLevelSecurityWarning } = await import("@/lib/rls-check");
-    const client = new PrismaClient();
+    const client = createPrismaClient();
     try {
       const warning = await rowLevelSecurityWarning(client);
       if (warning) {

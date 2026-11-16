@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { Prisma } from "@prisma/client";
+import { dmmfModels } from "./helpers/dmmf";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TENANT_ID } from "@/lib/tenant";
 import { TENANTLESS_MODELS, businessModels } from "./helpers/two-tenants";
@@ -10,7 +10,7 @@ import { TENANTLESS_MODELS, businessModels } from "./helpers/two-tenants";
 /** Business tables created after Phase 0, each with its tenantId from the start. */
 const ADDED_LATER = ["TenantIntegration", "StockThreshold", "AiConversation", "AiMessage", "AiUsage", "AiCredit", "AiProposal", "AiInboxRun", "AiTriage", "KnowledgeEntry", "KnowledgeEntryVersion", "WhatsappTemplate", "CustomerOrderLink", "Campaign", "CampaignRecipient"];
 
-const models = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
+const models = new Map(dmmfModels.map((m) => [m.name, m]));
 
 describe("tenant columns", () => {
   it("every business table carries a required tenantId with no default, so a create must name its business", () => {
@@ -66,7 +66,7 @@ describe("row-level security (Phase 2)", () => {
 
   it("every implicit many-to-many table between business tables has its own policy (it has no model, so the check above misses it)", () => {
     const migration = sql();
-    const joins = Prisma.dmmf.datamodel.models.filter((m) => businessModels().includes(m.name)).flatMap((m) => m.fields.filter((f) => f.relationName && f.isList && models.get(f.type)?.fields.some((g) => g.relationName === f.relationName && g.isList)).map((f) => f.relationName));
+    const joins = dmmfModels.filter((m) => businessModels().includes(m.name)).flatMap((m) => m.fields.filter((f) => f.relationName && f.isList && models.get(f.type)?.fields.some((g) => g.relationName === f.relationName && g.isList)).map((f) => f.relationName));
     expect(joins.length).toBeGreaterThan(0);
     for (const rel of new Set(joins)) {
       expect(migration, `_${rel} RLS`).toContain(`ALTER TABLE "_${rel}" ENABLE ROW LEVEL SECURITY;`);
