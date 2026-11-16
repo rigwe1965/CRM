@@ -2,7 +2,7 @@ import { ApiError } from "@/lib/api";
 import { getIntegration } from "@/lib/integrations";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
-import { IVY_MODEL } from "@/lib/ai/pricing";
+import { MODEL_OPTIONS, resolveModel } from "@/lib/ai/models";
 import { DEFAULT_DOCUMENTS_DAILY_CAP, DEFAULT_TRIAGE_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
 import { ceilingState, monthToDateByPurpose, monthToDateMicros, nextMonthStart } from "@/lib/ai/usage";
 import { usd } from "@/lib/ai/pricing";
@@ -11,7 +11,9 @@ import { usd } from "@/lib/ai/pricing";
 export async function assistantStatus(tenantId: string, now = new Date()) {
   const [settings, key, spent, byPurpose] = await Promise.all([loadAssistantSettings(tenantId), getIntegration(tenantId, "ANTHROPIC"), monthToDateMicros(tenantId, now), monthToDateByPurpose(tenantId, now)]);
   return {
-    model: IVY_MODEL,
+    model: resolveModel(settings.model),
+    /** The models a business may choose, for the settings screen. */
+    modelOptions: MODEL_OPTIONS.map(({ id, label, blurb }) => ({ id, label, blurb })),
     keyConfigured: !!key,
     keySource: key?.source ?? null,
     enabled: settings.enabled,
@@ -55,5 +57,5 @@ export async function assertUnderCeiling(tenantId: string, now = new Date()) {
   if (state.level === "unset" || state.level === "reached") {
     throw new ApiError(429, "This month's spending limit for AI has been reached.", "AI_CEILING_REACHED");
   }
-  return state;
+  return { ...state, model: resolveModel(settings.model) };
 }

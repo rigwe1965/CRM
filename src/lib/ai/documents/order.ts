@@ -5,8 +5,8 @@ import type { SessionUser } from "@/lib/auth-helpers";
 import { ownerScope } from "@/lib/access";
 import { normalizePhone } from "@/lib/phone";
 import { anthropicFor } from "@/lib/ai/client";
-import { IVY_MODEL, tokenUsage } from "@/lib/ai/pricing";
-import { FALLBACK_BETA, IVY_EFFORT } from "@/lib/ai/ivy";
+import { tokenUsage } from "@/lib/ai/pricing";
+import { modelFields } from "@/lib/ai/models";
 import { appendMessages, loadConversation, MAX_MESSAGES, startConversation } from "@/lib/ai/conversations";
 import { IVY_PROMPT_VERSION } from "@/lib/ai/prompt";
 import { propose } from "@/lib/ai/proposals";
@@ -110,21 +110,18 @@ export async function assertCanReadOrder(user: Pick<SessionUser, "id" | "tenantI
 }
 
 /** The one request that reads an order. Exported so the quality check sends exactly what the app sends. */
-export function orderRequest(file: DocumentFile) {
+export function orderRequest(file: DocumentFile, model?: string) {
   const data = Buffer.from(file.bytes).toString("base64");
   const source =
     file.mediaType === "application/pdf"
       ? ({ type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data } })
       : ({ type: "image" as const, source: { type: "base64" as const, media_type: file.mediaType, data } });
   return {
-    model: IVY_MODEL,
+    ...modelFields(model),
     max_tokens: 8000,
     system: ORDER_PROMPT,
     tools: [ORDER_TOOL] as unknown as Anthropic.Beta.BetaToolUnion[],
     messages: [{ role: "user" as const, content: [source, { type: "text" as const, text: "Read this customer order." }] }],
-    output_config: { effort: IVY_EFFORT },
-    betas: [FALLBACK_BETA],
-    fallbacks: "default" as const,
   };
 }
 
@@ -161,9 +158,10 @@ export async function readOrderFile(user: SessionUser, file: DocumentFile, opts:
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
   const release = await reserveDocument(user, now);
+  const model = (await loadAssistantSettings(user.tenantId)).model;
   let message;
   try {
-    message = await client.beta.messages.create(orderRequest(file), { timeout: 55_000 });
+    message = await client.beta.messages.create(orderRequest(file, model), { timeout: 55_000 });
   } catch (e) {
     console.error("[ivy-documents] order read failed", e instanceof Error ? e.message : e);
     await release();

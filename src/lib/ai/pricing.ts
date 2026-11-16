@@ -3,12 +3,18 @@
  * directly with its own key, so this is only the basis for the monthly ceiling we enforce; Anthropic's invoice is the
  * source of truth. Change the table here when prices or the model change.
  */
-export const IVY_MODEL = "claude-sonnet-5-5";
+import { DEFAULT_MODEL } from "@/lib/ai/models";
+
+/** The model AI uses unless a business chooses another (Settings > AI). */
+export const IVY_MODEL = DEFAULT_MODEL;
 
 /** Dollars per million tokens, which is the same number as micro-dollars per token. */
 type Price = { input: number; output: number; cacheRead: number; cacheWrite: number };
 
 export const PRICES: Record<string, Price> = {
+  // Prices as listed by Anthropic; the same cache multipliers apply to every model.
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  "claude-opus-5-5": { input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5 },
   // Cache writes are billed at 1.25x the input price (5-minute cache); reads at a tenth.
   "claude-sonnet-5-5": { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
   // The model Anthropic's server-side fallback can switch to for some declined requests; same prices.

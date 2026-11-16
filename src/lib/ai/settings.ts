@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isSelectableModel, SELECTABLE_MODEL_IDS } from "@/lib/ai/models";
 
 /**
  * A business's AI settings, kept in AutomationSetting under the `assistant` key. Off by default, and there is no
@@ -18,6 +19,8 @@ export const assistantSettingsSchema = z
       .max(10_000, "Must be $10,000 or less")
       .transform((n) => Math.round(n * 100) / 100)
       .nullable(),
+    /** Which Claude model AI uses (Settings > AI). Left out means "keep what is stored", and nothing stored means the default model. */
+    model: z.enum(SELECTABLE_MODEL_IDS).optional(),
     /** Whether AI may put proposed actions in front of people for approval (Phase 2). Off until an admin allows it; left out means "keep what is stored". */
     proposalsEnabled: z.boolean().optional(),
     /** Whether AI may also propose recording payments (Wave B). A separate switch, off until an admin allows it; left out means "keep what is stored". */
@@ -44,7 +47,9 @@ export const DEFAULT_ASSISTANT: AssistantSettings = { enabled: false, monthlyCei
 
 /** Stored settings that no longer validate fall back to "off", never to something that spends. */
 export function resolveAssistant(raw: unknown): AssistantSettings {
-  const parsed = assistantSettingsSchema.safeParse(raw);
+  // A model that is no longer on the list (retired) means "the default model"; it must not switch AI off.
+  const stored = raw && typeof raw === "object" && "model" in raw && !isSelectableModel((raw as { model?: unknown }).model) ? { ...(raw as object), model: undefined } : raw;
+  const parsed = assistantSettingsSchema.safeParse(stored);
   return parsed.success ? parsed.data : DEFAULT_ASSISTANT;
 }
 
@@ -56,6 +61,7 @@ export async function loadAssistantSettings(tenantId: string): Promise<Assistant
 export async function saveAssistantSettings(tenantId: string, settings: AssistantSettings, updatedById: string) {
   // A save that leaves a switch out (the limit and on/off buttons do) keeps what is stored.
   const stored = await loadAssistantSettings(tenantId);
+  const model = settings.model ?? stored.model;
   const proposalsEnabled = settings.proposalsEnabled ?? stored.proposalsEnabled;
   const paymentProposalsEnabled = settings.paymentProposalsEnabled ?? stored.paymentProposalsEnabled;
   const inboxEnabled = settings.inboxEnabled ?? stored.inboxEnabled;
@@ -65,6 +71,7 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   const documentsDailyCap = settings.documentsDailyCap ?? stored.documentsDailyCap;
   const config = {
     ...settings,
+    ...(model === undefined ? {} : { model }),
     ...(proposalsEnabled === undefined ? {} : { proposalsEnabled }),
     ...(paymentProposalsEnabled === undefined ? {} : { paymentProposalsEnabled }),
     ...(inboxEnabled === undefined ? {} : { inboxEnabled }),

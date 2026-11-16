@@ -8,8 +8,8 @@ import { accessOf } from "@/lib/plans";
 import { paymentSummaries } from "@/lib/payments";
 import { anthropicFor } from "@/lib/ai/client";
 import { flagForeignContent } from "@/lib/ai/draft-check";
-import { IVY_MODEL, tokenUsage } from "@/lib/ai/pricing";
-import { FALLBACK_BETA, IVY_EFFORT } from "@/lib/ai/ivy";
+import { tokenUsage } from "@/lib/ai/pricing";
+import { modelFields } from "@/lib/ai/models";
 import { createBackgroundProposal } from "@/lib/ai/proposals";
 import { DEFAULT_TRIAGE_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
 import { ceilingState, monthToDateMicros, recordUsage } from "@/lib/ai/usage";
@@ -179,7 +179,7 @@ async function triageOne(tenantId: string, activityId: string, opts: { now?: Dat
   const sheet = await factSheet(user, contact, activityId);
   // The customer's recent words pick the policy entries the model gets to read; the model never searches by itself.
   const policy = (await searchKnowledge(tenantId, sheet.thread.filter((m) => m.from === "customer").slice(-3).map((m) => m.text).join(" "), 5)).results;
-  const message = await client.beta.messages.create(triageRequest(sheet, policy), { timeout: 40_000 });
+  const message = await client.beta.messages.create(triageRequest(sheet, policy, settings.model), { timeout: 40_000 });
   const cost = await recordUsage({ tenantId, userId: owner.id, model: message.model, usage: tokenUsage(message.usage), purpose: "TRIAGE" });
   const use = message.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use" && b.name === TRIAGE_TOOL.name);
   const parsed = use ? triageResultInput.safeParse(use.input) : null;
@@ -223,9 +223,9 @@ async function triageOne(tenantId: string, activityId: string, opts: { now?: Dat
 }
 
 /** The one request triage makes. Exported so the quality check (scripts/triage-eval.ts) sends exactly what the app sends. */
-export function triageRequest(sheet: { customer: unknown; thread: unknown }, policy: readonly { title: string; basis: string; body: string }[] = []) {
+export function triageRequest(sheet: { customer: unknown; thread: unknown }, policy: readonly { title: string; basis: string; body: string }[] = [], model?: string) {
   return {
-    model: IVY_MODEL,
+    ...modelFields(model),
     max_tokens: 2000,
     system: TRIAGE_PROMPT,
     tools: [TRIAGE_TOOL] as unknown as Anthropic.Beta.BetaToolUnion[],
@@ -233,9 +233,6 @@ export function triageRequest(sheet: { customer: unknown; thread: unknown }, pol
 <policy_excerpts>
 ${JSON.stringify(policy.map((p) => ({ title: p.title, basis: p.basis, text: p.body })))}
 </policy_excerpts>` }] }],
-    output_config: { effort: IVY_EFFORT },
-    betas: [FALLBACK_BETA],
-    fallbacks: "default" as const,
   };
 }
 

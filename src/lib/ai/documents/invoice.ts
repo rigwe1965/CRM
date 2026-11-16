@@ -4,8 +4,8 @@ import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { tenantScope } from "@/lib/access";
 import { anthropicFor } from "@/lib/ai/client";
-import { IVY_MODEL, tokenUsage } from "@/lib/ai/pricing";
-import { FALLBACK_BETA, IVY_EFFORT } from "@/lib/ai/ivy";
+import { tokenUsage } from "@/lib/ai/pricing";
+import { modelFields } from "@/lib/ai/models";
 import { DEFAULT_DOCUMENTS_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
 import { assertCanAsk } from "@/lib/ai/status";
 import { recordUsage } from "@/lib/ai/usage";
@@ -140,21 +140,18 @@ export async function assertCanReadDocument(user: Pick<SessionUser, "id" | "tena
 }
 
 /** The one request that reads an invoice. Exported so the quality check (scripts/document-eval.ts) sends exactly what the app sends. */
-export function invoiceRequest(file: DocumentFile) {
+export function invoiceRequest(file: DocumentFile, model?: string) {
   const data = Buffer.from(file.bytes).toString("base64");
   const source =
     file.mediaType === "application/pdf"
       ? ({ type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data } })
       : ({ type: "image" as const, source: { type: "base64" as const, media_type: file.mediaType, data } });
   return {
-    model: IVY_MODEL,
+    ...modelFields(model),
     max_tokens: 16000,
     system: INVOICE_PROMPT,
     tools: [INVOICE_TOOL] as unknown as Anthropic.Beta.BetaToolUnion[],
     messages: [{ role: "user" as const, content: [source, { type: "text" as const, text: "Read this supplier invoice." }] }],
-    output_config: { effort: IVY_EFFORT },
-    betas: [FALLBACK_BETA],
-    fallbacks: "default" as const,
   };
 }
 
@@ -165,9 +162,10 @@ export async function readInvoiceFile(user: SessionUser, file: DocumentFile, opt
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
   const release = await reserveDocument(user, now);
+  const model = (await loadAssistantSettings(user.tenantId)).model;
   let message;
   try {
-    message = await client.beta.messages.create(invoiceRequest(file), { timeout: 55_000 });
+    message = await client.beta.messages.create(invoiceRequest(file, model), { timeout: 55_000 });
   } catch (e) {
     console.error("[ivy-documents] read failed", e instanceof Error ? e.message : e);
     await release();

@@ -39,7 +39,7 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; model?: string; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -115,6 +115,32 @@ export function AssistantCard() {
               </Button>
             </div>
           </form>
+
+          <fieldset className="max-w-xl space-y-2" disabled={saveSettings.isPending || !data.keyConfigured}>
+            <legend className="text-sm font-medium">Which Claude model AI uses</legend>
+            <p className="text-sm text-muted-foreground">
+              You can change this at any time; it applies to the next question. Your key is checked against the model before the change is saved, so AI never stops working because of a choice.
+              Prices differ, and the monthly limit above counts each model at its own price.
+            </p>
+            <div className="grid gap-2">
+              {data.modelOptions.map((m) => (
+                <label key={m.id} className="flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm has-[:checked]:border-primary">
+                  <input
+                    type="radio"
+                    name="assistant-model"
+                    className="mt-1"
+                    checked={data.model === m.id}
+                    onChange={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, model: m.id })}
+                  />
+                  <span>
+                    <span className="font-medium">{m.label}</span>
+                    <span className="block text-muted-foreground">{m.blurb}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {!data.keyConfigured && <p className="text-sm text-muted-foreground">Save your Anthropic key first.</p>}
+          </fieldset>
 
           <div className="space-y-2">
             <Button
