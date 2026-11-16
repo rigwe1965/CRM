@@ -8,7 +8,7 @@ import { TENANTLESS_MODELS, businessModels } from "./helpers/two-tenants";
 // without a tenantId, so a table can never silently escape tenant scoping.
 
 /** Business tables created after Phase 0, each with its tenantId from the start. */
-const ADDED_LATER = ["TenantIntegration", "StockThreshold", "AiConversation", "AiMessage", "AiUsage", "AiProposal", "AiInboxRun", "AiTriage", "KnowledgeEntry", "KnowledgeEntryVersion", "WhatsappTemplate", "CustomerOrderLink", "Campaign", "CampaignRecipient"];
+const ADDED_LATER = ["TenantIntegration", "StockThreshold", "AiConversation", "AiMessage", "AiUsage", "AiCredit", "AiProposal", "AiInboxRun", "AiTriage", "KnowledgeEntry", "KnowledgeEntryVersion", "WhatsappTemplate", "CustomerOrderLink", "Campaign", "CampaignRecipient"];
 
 const models = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, m]));
 

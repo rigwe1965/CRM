@@ -1,6 +1,6 @@
 import { ApiError, ok, readBody } from "@/lib/api";
 import { authed } from "@/lib/route";
-import { getIntegration } from "@/lib/integrations";
+import { hasAiKey, notConfiguredError, resolveAiKey } from "@/lib/ai/included";
 import { assistantSettingsSchema, saveAssistantSettings } from "@/lib/ai/settings";
 import { assistantStatus } from "@/lib/ai/status";
 import { verifyApiKey } from "@/lib/ai/client";
@@ -21,14 +21,14 @@ export const GET = authed(async ({ user }) => ok(await assistantStatus(user.tena
  */
 export const PUT = authed(async ({ req, user }) => {
   const body = await readBody(req, assistantSettingsSchema);
-  if (body.enabled && !(await getIntegration(user.tenantId, "ANTHROPIC"))) {
+  if (body.enabled && !(await hasAiKey(user.tenantId))) {
     throw new ApiError(409, "Add your Anthropic key before switching AI on.", "AI_NOT_CONFIGURED");
   }
   // A different model is only saved once the business's own key is shown to be allowed to use it, so a choice can never leave AI broken.
   if (body.model && body.model !== (await loadAssistantSettings(user.tenantId)).model) {
-    const key = await getIntegration(user.tenantId, "ANTHROPIC");
-    if (!key) throw new ApiError(409, "Add your Anthropic key before choosing a model.", "AI_NOT_CONFIGURED");
-    await verifyApiKey(key.settings.apiKey, body.model);
+    const key = await resolveAiKey(user.tenantId);
+    if (key.kind === "none") throw key.reason === "included_exhausted" ? notConfiguredError(key.reason) : new ApiError(409, "Add your Anthropic key before choosing a model.", "AI_NOT_CONFIGURED");
+    await verifyApiKey(key.apiKey, body.model);
   }
   await saveAssistantSettings(user.tenantId, body, user.id);
   return ok(await assistantStatus(user.tenantId));
