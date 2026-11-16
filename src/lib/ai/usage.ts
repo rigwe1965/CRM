@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { costMicros, usd, type TokenUsage } from "@/lib/ai/pricing";
 import { platformCharge } from "@/lib/ai/included";
+import { afterCall, noticesFor, sendIncludedNotices } from "@/lib/ai/included-notices";
 
 /** A business's spending is counted per calendar month in UTC, so everyone sees the same reset moment. */
 export const monthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -27,6 +28,11 @@ export async function recordUsage(input: { tenantId: string; userId?: string | n
       creditMicros: charge.creditMicros,
     },
   });
+  // Included AI: tell the admins when this call crossed 80% of the allowance, used it all up, or ran the credit low.
+  if (charge.platformKey && charge.before) {
+    const after = afterCall(charge.before, cost, charge.creditMicros);
+    await sendIncludedNotices(input.tenantId, noticesFor(charge.before, after), after);
+  }
   return cost;
 }
 

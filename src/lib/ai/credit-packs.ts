@@ -6,25 +6,17 @@ import { accessOf } from "@/lib/plans";
 import { platformDb } from "@/lib/platform-db";
 import { automaticTax, billingConfigured, billingStripe } from "@/lib/billing";
 import { platformKey } from "@/lib/ai/included";
+import { CREDIT_CURRENCY, packById, type PackId } from "@/lib/ai/credit-pack-table";
 
 /**
  * Prepaid AI credit (INCLUDED_AI_PLAN.md, option D). A business buys a pack with a one-time Stripe payment on the
  * platform's own Stripe account; when Stripe confirms the payment, the credit is added to its ledger (AiCredit), once.
  *
- * The pack table below is the only source of how much credit a payment is worth: the amount of credit is never read from
- * anything in the payment event, and the paid amount must match the pack's price or nothing is added. Prices are the
- * owner's (set 2026-11-16: "Balanced", a 2x markup); change them here. Packs are in US dollars.
+ * The pack table (credit-pack-table.ts) is the only source of how much credit a payment is worth: the amount of credit is
+ * never read from anything in the payment event, and the paid amount must match the pack's price or nothing is added.
  */
-export const CREDIT_PACKS = [
-  { id: "pack10", priceCents: 1000, creditMicros: 5_000_000 },
-  { id: "pack25", priceCents: 2500, creditMicros: 12_500_000 },
-] as const;
-export type PackId = (typeof CREDIT_PACKS)[number]["id"];
-export const PACK_IDS = CREDIT_PACKS.map((p) => p.id) as [PackId, ...PackId[]];
-export const CREDIT_CURRENCY = "usd";
+export { CREDIT_PACKS, PACK_IDS, CREDIT_CURRENCY, packById, type PackId } from "@/lib/ai/credit-pack-table";
 const KIND = "ai_credit_pack";
-
-export const packById = (id: unknown) => CREDIT_PACKS.find((p) => p.id === id);
 
 /** The Checkout Session we ask Stripe for. Pure, so the metadata and tax options are easy to test. */
 export function creditCheckoutParams(o: { customer: string; tenantId: string; packId: PackId; baseUrl: string }): Stripe.Checkout.SessionCreateParams {

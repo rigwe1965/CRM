@@ -152,6 +152,8 @@ export type AssistantStatus = {
   modelOptions: { id: string; label: string; blurb: string }[];
   keyConfigured: boolean;
   keySource: "settings" | "env" | null;
+  /** Included AI (INCLUDED_AI_PLAN.md). `eligible` is false unless the owner has switched it on and the plan includes some. */
+  included: { eligible: boolean; allowanceUsd: number; allowanceUsedUsd: number; creditUsd: number; leftUsd: number; canBuy: boolean; packs: { id: string; priceUsd: number; creditUsd: number }[] };
   enabled: boolean;
   proposalsEnabled: boolean;
   paymentProposalsEnabled: boolean;
