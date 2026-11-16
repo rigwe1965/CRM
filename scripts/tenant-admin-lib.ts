@@ -95,3 +95,40 @@ export async function setPlan(db: PrismaClient, id: string, plan: PlanChoice, op
   await db.auditLog.create({ data: { tenantId: id, actorEmail: "tenant-admin", action: "tenant.plan_set_by_operator", entity: "tenant", entityId: id, summary: `${tenant.plan} to ${plan}`, data: { from: tenant.plan, to: plan, forced: !!opts.force } } });
   return { name: tenant.name, from: tenant.plan, to: plan };
 }
+
+/** The most one grant may be without --force: a typo ($500 for $5.00) should not give away real money. */
+export const GRANT_SOFT_LIMIT_USD = 100;
+/** AiCredit.amountMicros is a 32-bit integer ($2,147 at most); no grant, forced or not, goes near it. */
+export const GRANT_HARD_LIMIT_USD = 2000;
+
+/** What a business has left to spend on included AI, in millionths of a dollar: everything credited, less what usage took from credit. */
+export async function creditLeftMicros(db: PrismaClient, tenantId: string): Promise<number> {
+  const [added, used] = await Promise.all([
+    db.aiCredit.aggregate({ where: { tenantId }, _sum: { amountMicros: true } }),
+    db.aiUsage.aggregate({ where: { tenantId, platformKey: true }, _sum: { creditMicros: true } }),
+  ]);
+  return Math.max(0, (added._sum.amountMicros ?? 0) - (used._sum.creditMicros ?? 0));
+}
+
+/**
+ * Gives a business free AI credit (a pilot, a goodwill gesture, a refund made as credit). It goes in the same append-only
+ * ledger as bought credit, marked GRANT with your note, and is recorded in the audit log. Only the owner role can write the
+ * ledger, so this is the one way to add credit by hand. Credit is only usable once the included AI is switched on.
+ */
+export async function grantCredit(db: PrismaClient, id: string, usd: number, opts: { note?: string; force?: boolean } = {}, now = new Date()) {
+  if (!Number.isFinite(usd) || usd < 0.01) throw new Error("The amount must be at least $0.01");
+  if (usd > GRANT_HARD_LIMIT_USD) throw new Error(`The most one grant can be is $${GRANT_HARD_LIMIT_USD}`);
+  if (usd > GRANT_SOFT_LIMIT_USD && !opts.force) throw new Error(`$${usd} is more than the $${GRANT_SOFT_LIMIT_USD} limit for one grant. Pass --force if you meant it`);
+  const tenant = await db.tenant.findUnique({ where: { id } });
+  if (!tenant) throw new Error(`No business with id ${id}`);
+  if (tenant.status === "PENDING") throw new Error("That signup has not confirmed its email yet");
+  const amountMicros = Math.round(usd * 1_000_000);
+  const note = opts.note?.trim().slice(0, 200) || null;
+  // A reference nobody repeats: the ledger's (business, reference) pair is unique, which is what makes bought credit safe to replay.
+  const reference = `grant-${now.toISOString()}-${randomBytes(3).toString("hex")}`;
+  await db.$transaction([
+    db.aiCredit.create({ data: { tenantId: id, amountMicros, source: "GRANT", reference, note } }),
+    db.auditLog.create({ data: { tenantId: id, actorEmail: "tenant-admin", action: "ai.credit_granted_by_operator", entity: "tenant", entityId: id, summary: `$${usd.toFixed(2)} AI credit${note ? `: ${note}` : ""}`, data: { amountMicros, reference } } }),
+  ]);
+  return { name: tenant.name, amountMicros, leftMicros: await creditLeftMicros(db, id) };
+}

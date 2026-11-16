@@ -6,11 +6,13 @@
 //   npm run tenant-admin -- create "<business name>" <admin email> [--plan trial|starter|pro] [--admin-name "Name"] [--trial-days N]
 //       makes a business that is active at once (a pilot, say) with its first admin, and prints a 7-day set-password link
 //   npm run tenant-admin -- set-plan <tenantId> trial|starter|pro [--force]   move a business to another plan by hand
+//   npm run tenant-admin -- grant-credit <tenantId> <dollars> [--note "why"] [--force]   give a business free AI credit (max $100 without --force)
+//   npm run tenant-admin -- credit <tenantId>   how much AI credit a business has left
 // Run against the production DATABASE_URL (or PLATFORM_DATABASE_URL, the owner role, which is preferred).
 // Nothing is deleted here; removing a business's data is Phase 5.
 import "dotenv/config";
 import { createPrismaClient } from "../src/lib/prisma-client";
-import { createBusiness, isPlanChoice, PLAN_CHOICES, setPlan } from "./tenant-admin-lib";
+import { createBusiness, creditLeftMicros, grantCredit, isPlanChoice, PLAN_CHOICES, setPlan } from "./tenant-admin-lib";
 
 const argv = process.argv.slice(2);
 const [cmd, id, days] = argv;
@@ -65,6 +67,19 @@ ${base}/reset-password?token=${made.token}` : `NEXTAUTH_URL is not set here, so 
     return;
   }
 
+  if (cmd === "grant-credit") {
+    const usd = Number(argv[2]);
+    if (argv[2] === undefined || argv[2].startsWith("--") || Number.isNaN(usd)) throw new Error('Usage: npm run tenant-admin -- grant-credit <tenantId> <dollars> [--note "why"] [--force]');
+    const g = await grantCredit(db, id, usd, { note: flag("note"), force: argv.includes("--force") });
+    console.log(`${g.name}: added $${(g.amountMicros / 1_000_000).toFixed(2)} of AI credit. Credit left: $${(g.leftMicros / 1_000_000).toFixed(2)}`);
+    console.log("It can be used once the included AI is switched on (INCLUDED_AI_ANTHROPIC_KEY is set).");
+    return;
+  }
+  if (cmd === "credit") {
+    console.log(`${tenant.name}: AI credit left $${((await creditLeftMicros(db, id)) / 1_000_000).toFixed(2)}`);
+    return;
+  }
+
   if (cmd === "suspend" || cmd === "resume") {
     if (tenant.status === "PENDING") throw new Error("That signup has not confirmed its email; it is deleted automatically after a week");
     await db.tenant.update({ where: { id }, data: { status: cmd === "suspend" ? "SUSPENDED" : "ACTIVE" } });
@@ -77,7 +92,7 @@ ${base}/reset-password?token=${made.token}` : `NEXTAUTH_URL is not set here, so 
     await db.tenant.update({ where: { id }, data: { trialEndsAt, billingStatus: tenant.billingStatus === "ACTIVE" ? "ACTIVE" : "TRIALING" } });
     console.log(`${tenant.name}: trial now ends ${trialEndsAt.toISOString().slice(0, 10)}`);
   } else {
-    throw new Error('Usage: npm run tenant-admin -- list | create "<name>" <admin email> [--plan ...] | set-plan <id> <plan> | suspend <id> | resume <id> | extend-trial <id> <days>');
+    throw new Error('Usage: npm run tenant-admin -- list | create "<name>" <admin email> [--plan ...] | set-plan <id> <plan> | grant-credit <id> <dollars> | credit <id> | suspend <id> | resume <id> | extend-trial <id> <days>');
   }
 }
 
