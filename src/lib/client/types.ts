@@ -149,6 +149,7 @@ export type Reports = {
 /** GET /api/admin/assistant: AI's state for the admin screen. Never contains the key. */
 export type AssistantStatus = {
   model: string;
+  modelOptions: { id: string; label: string; blurb: string }[];
   keyConfigured: boolean;
   keySource: "settings" | "env" | null;
   enabled: boolean;

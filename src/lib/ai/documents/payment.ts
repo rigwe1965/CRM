@@ -4,8 +4,8 @@ import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { ownerScope } from "@/lib/access";
 import { anthropicFor } from "@/lib/ai/client";
-import { IVY_MODEL, tokenUsage } from "@/lib/ai/pricing";
-import { FALLBACK_BETA, IVY_EFFORT } from "@/lib/ai/ivy";
+import { tokenUsage } from "@/lib/ai/pricing";
+import { modelFields } from "@/lib/ai/models";
 import { appendMessages } from "@/lib/ai/conversations";
 import { propose } from "@/lib/ai/proposals";
 import { loadAssistantSettings } from "@/lib/ai/settings";
@@ -92,21 +92,18 @@ export async function assertCanReadPayment(user: Pick<SessionUser, "id" | "tenan
 }
 
 /** The one request that reads a receipt. Exported so the quality check sends exactly what the app sends. */
-export function paymentRequest(file: DocumentFile) {
+export function paymentRequest(file: DocumentFile, model?: string) {
   const data = Buffer.from(file.bytes).toString("base64");
   const source =
     file.mediaType === "application/pdf"
       ? ({ type: "document" as const, source: { type: "base64" as const, media_type: "application/pdf" as const, data } })
       : ({ type: "image" as const, source: { type: "base64" as const, media_type: file.mediaType, data } });
   return {
-    model: IVY_MODEL,
+    ...modelFields(model),
     max_tokens: 4000,
     system: PAYMENT_PROMPT,
     tools: [PAYMENT_TOOL] as unknown as Anthropic.Beta.BetaToolUnion[],
     messages: [{ role: "user" as const, content: [source, { type: "text" as const, text: "Read this payment receipt." }] }],
-    output_config: { effort: IVY_EFFORT },
-    betas: [FALLBACK_BETA],
-    fallbacks: "default" as const,
   };
 }
 
@@ -137,9 +134,10 @@ export async function readPaymentFile(user: SessionUser, file: DocumentFile, opt
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
   const release = await reserveDocument(user, now);
+  const model = (await loadAssistantSettings(user.tenantId)).model;
   let message;
   try {
-    message = await client.beta.messages.create(paymentRequest(file), { timeout: 55_000 });
+    message = await client.beta.messages.create(paymentRequest(file, model), { timeout: 55_000 });
   } catch (e) {
     console.error("[ivy-documents] payment read failed", e instanceof Error ? e.message : e);
     await release();

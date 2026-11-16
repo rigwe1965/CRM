@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ApiError } from "@/lib/api";
-import { IVY_MODEL, tokenUsage } from "@/lib/ai/pricing";
-import { FALLBACK_BETA, IVY_EFFORT } from "@/lib/ai/ivy";
+import { tokenUsage } from "@/lib/ai/pricing";
+import { modelFields } from "@/lib/ai/models";
 import { assertUnderCeiling } from "@/lib/ai/status";
 import { recordUsage } from "@/lib/ai/usage";
 import { clip } from "@/lib/ai/tools/result";
@@ -45,17 +45,14 @@ export async function writeWording(opts: {
   const want = opts.candidates.filter((c) => c.task || c.message);
   if (want.length === 0) return { words, costMicros: 0 };
   try {
-    await assertUnderCeiling(opts.tenantId, opts.now);
+    const gate = await assertUnderCeiling(opts.tenantId, opts.now);
     const message = await opts.client.beta.messages.create(
       {
-        model: IVY_MODEL,
+        ...modelFields(gate?.model),
         max_tokens: 3000,
         system: INBOX_PROMPT,
         tools: [INBOX_TOOL] as unknown as Anthropic.Beta.BetaToolUnion[],
         messages: [{ role: "user", content: [{ type: "text", text: `<candidates>\n${JSON.stringify(want.map(factSheet))}\n</candidates>` }] }],
-        output_config: { effort: IVY_EFFORT },
-        betas: [FALLBACK_BETA],
-        fallbacks: "default",
       },
       { timeout: 40_000 },
     );

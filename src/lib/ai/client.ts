@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ApiError } from "@/lib/api";
 import { getIntegration } from "@/lib/integrations";
-import { IVY_MODEL } from "@/lib/ai/pricing";
+import { DEFAULT_MODEL } from "@/lib/ai/models";
 
 /**
  * The Anthropic client for one business, built from that business's own key (Settings, or ANTHROPIC_API_KEY for the
@@ -17,14 +17,14 @@ export async function anthropicFor(tenantId: string): Promise<Anthropic> {
  * Checks a key before it is saved with one small, free request: Anthropic's own record of the model AI uses. It
  * proves the key is accepted and that it can use the model. Error text never includes the key.
  */
-export async function verifyApiKey(apiKey: string): Promise<void> {
+export async function verifyApiKey(apiKey: string, model: string = DEFAULT_MODEL): Promise<void> {
   const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 15_000 });
   try {
-    await client.models.retrieve(IVY_MODEL);
+    await client.models.retrieve(model);
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) throw new ApiError(422, "Anthropic did not accept this key. Check that you copied the whole key.", "AI_KEY_REJECTED");
     if (e instanceof Anthropic.PermissionDeniedError) throw new ApiError(422, "This key is not allowed to use Anthropic's models. Create a standard API key, not an admin key.", "AI_KEY_REJECTED");
-    if (e instanceof Anthropic.NotFoundError) throw new ApiError(422, `This key cannot use ${IVY_MODEL}. Check the key's workspace and access in the Anthropic console.`, "AI_MODEL_UNAVAILABLE");
+    if (e instanceof Anthropic.NotFoundError) throw new ApiError(422, `This key cannot use ${model}. Check the key's workspace and access in the Anthropic console.`, "AI_MODEL_UNAVAILABLE");
     // Busy right now, but the key itself was accepted.
     if (e instanceof Anthropic.RateLimitError) return;
     if (e instanceof Anthropic.APIConnectionError) throw new ApiError(502, "Could not reach Anthropic to check the key. Try again in a moment.", "AI_UNREACHABLE");

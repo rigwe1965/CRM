@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ApiError } from "@/lib/api";
-import { IVY_MODEL, tokenUsage } from "@/lib/ai/pricing";
+import { tokenUsage } from "@/lib/ai/pricing";
+import { FALLBACK_BETA, IVY_EFFORT, modelFields } from "@/lib/ai/models";
 import { SYSTEM_PROMPT } from "@/lib/ai/prompt";
 import { assertUnderCeiling } from "@/lib/ai/status";
 import { TOOL_DEFINITIONS, ToolError, toolByName, type ToolContext } from "@/lib/ai/tools";
@@ -12,16 +13,13 @@ import { recordUsage } from "@/lib/ai/usage";
  * outcome ends in `emit` events and a returned summary.
  */
 
-/** Effort starts low (Anthropic's suggestion for chat); the eval set tells us if it should rise. */
-export const IVY_EFFORT = "low" as const;
 /** Includes the model's thinking as well as the answer, which both count towards this. */
 export const MAX_TOKENS = 8000;
 /** Tool rounds in one answer. After this AI says what it has so far instead of calling more. */
 export const MAX_ROUNDS = 6;
 /** Wall-clock budget for one answer, kept inside the host's function time limit (the chat route sets maxDuration to 60s). */
 export const DEADLINE_MS = 50_000;
-/** Anthropic's server-side fallback for requests its safety classifiers decline; needs this beta header. */
-export const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+export { FALLBACK_BETA, IVY_EFFORT };
 
 type Param = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlockParam;
@@ -85,20 +83,17 @@ export async function runIvy(opts: {
       if (remaining <= 0) return await sayAndStop("\n\nThat is taking longer than I can allow. Ask me a narrower question and I will continue.", "deadline");
 
       // Checked before every model call, so a long answer stops at the ceiling instead of passing it.
-      await assertUnderCeiling(ctx.user.tenantId, ctx.now);
+      const gate = await assertUnderCeiling(ctx.user.tenantId, ctx.now);
 
       run.rounds++;
       const stream = client.beta.messages.stream(
         {
-          model: IVY_MODEL,
+          ...modelFields(gate?.model),
           max_tokens: MAX_TOKENS,
           system: SYSTEM_PROMPT,
           tools: TOOL_DEFINITIONS as unknown as Anthropic.Beta.BetaToolUnion[],
           messages,
-          output_config: { effort: IVY_EFFORT },
           cache_control: { type: "ephemeral" },
-          betas: [FALLBACK_BETA],
-          fallbacks: "default",
         },
         { signal, timeout: remaining },
       );
