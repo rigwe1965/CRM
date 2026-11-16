@@ -53,6 +53,7 @@ export default function DpaPage() {
 
       <LegalSection n={5} title="Your own accounts with providers">
         <P>When you connect your own Stripe, WhatsApp (Meta) or AI (Anthropic) account, you are the one with the contract with that provider, and what it does with data is under your agreement with it.</P>
+        <P>Where you use the AI included in your plan, or AI credit you have bought, instead of your own Anthropic account, the AI assistant runs on our account with Anthropic, and Anthropic is then our sub-processor for that processing. [Lawyer to confirm.]</P>
       </LegalSection>
 
       <LegalSection n={6} title="Transfers between countries">
