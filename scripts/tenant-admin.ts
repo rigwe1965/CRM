@@ -9,7 +9,7 @@
 // Run against the production DATABASE_URL (or PLATFORM_DATABASE_URL, the owner role, which is preferred).
 // Nothing is deleted here; removing a business's data is Phase 5.
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import { createBusiness, isPlanChoice, PLAN_CHOICES, setPlan } from "./tenant-admin-lib";
 
 const argv = process.argv.slice(2);
@@ -19,7 +19,7 @@ const flag = (name: string) => {
   const i = argv.indexOf(`--${name}`);
   return i === -1 ? undefined : argv[i + 1];
 };
-const db = new PrismaClient({ datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined });
+const db = createPrismaClient({ url: process.env.PLATFORM_DATABASE_URL || undefined });
 
 async function main() {
   if (cmd === "list") {

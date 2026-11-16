@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "@/lib/prisma-client";
 import { createTenantDb } from "@/lib/tenant-db";
 
 /**
@@ -10,10 +10,6 @@ const globalForPrisma = globalThis as unknown as { prisma?: ReturnType<typeof cr
 
 export const db =
   globalForPrisma.prisma ??
-  createTenantDb(
-    new PrismaClient({
-      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-    }),
-  );
+  createTenantDb(createPrismaClient());
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

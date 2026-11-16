@@ -1,6 +1,8 @@
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { Prisma, PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "@/lib/prisma-client";
+import { dmmfModels } from "./dmmf";
 
 /**
  * Tenant-isolation test harness (MULTI_TENANCY_PLAN.md, Phase 0).
@@ -24,7 +26,7 @@ export const TENANTLESS_MODELS = ["Tenant", "Account", "Session", "VerificationT
 
 /** Business models, in the order the generated Prisma client knows them. */
 export const businessModels = () =>
-  Prisma.dmmf.datamodel.models.map((m) => m.name).filter((n) => !(TENANTLESS_MODELS as readonly string[]).includes(n));
+  dmmfModels.map((m) => m.name).filter((n) => !(TENANTLESS_MODELS as readonly string[]).includes(n));
 
 export const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
 
@@ -64,14 +66,14 @@ export async function createTwoTenants(): Promise<TwoTenants> {
   const schema = `tenant_test_${randomBytes(5).toString("hex")}`;
   const url = withSchema(base, schema);
 
-  const admin = new PrismaClient({ datasourceUrl: base });
+  const admin = createPrismaClient({ url: base });
   await ensureTrigramExtension(admin);
   await admin.$executeRawUnsafe(`CREATE SCHEMA "${schema}"`);
   await admin.$disconnect();
 
   execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url, DIRECT_URL: url, PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK: "1" /* each run migrates its own throwaway schema; the lock is database-wide and only makes parallel test files queue */ }, stdio: "pipe" });
 
-  const db = new PrismaClient({ datasourceUrl: url });
+  const db = createPrismaClient({ url: url });
   const a = await seedTenant(db, "a");
   const b = await seedTenant(db, "b");
 
@@ -87,7 +89,7 @@ export async function createTwoTenants(): Promise<TwoTenants> {
     const appUrl = new URL(url);
     appUrl.username = role;
     appUrl.password = password;
-    appDb = new PrismaClient({ datasourceUrl: appUrl.toString() });
+    appDb = createPrismaClient({ url: appUrl.toString() });
   }
 
   return {
@@ -101,7 +103,7 @@ export async function createTwoTenants(): Promise<TwoTenants> {
       if (appDb !== db) await appDb.$disconnect();
       await db.$disconnect();
       if (!/^tenant_test_[0-9a-f]{10}$/.test(schema)) return; // never drop anything we did not create
-      const cleaner = new PrismaClient({ datasourceUrl: base });
+      const cleaner = createPrismaClient({ url: base });
       await cleaner.$executeRawUnsafe(`DROP SCHEMA "${schema}" CASCADE`);
       if (rls && /^crm_t_[0-9a-f]{10}$/.test(role)) await cleaner.$executeRawUnsafe(`DROP ROLE "${role}"`);
       await cleaner.$disconnect();

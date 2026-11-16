@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import bcrypt from "bcryptjs";
 import { sampleInvoice } from "./sample-invoice";
 import { DEFAULT_TENANT_ID } from "../src/lib/tenant";
@@ -9,7 +9,7 @@ import { assertSafeTarget } from "../scripts/safe-target";
 assertSafeTarget();
 
 // The seed creates businesses and wipes tables, which the restricted app role may not do: use the owner connection.
-const prisma = new PrismaClient({ datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined });
+const prisma = createPrismaClient({ url: process.env.PLATFORM_DATABASE_URL || undefined });
 
 // Every row below belongs to the original business.
 const tenantId = DEFAULT_TENANT_ID;
