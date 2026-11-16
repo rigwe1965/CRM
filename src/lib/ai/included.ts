@@ -129,11 +129,15 @@ export const notConfiguredError = (reason: "no_key" | "included_exhausted") =>
  * For recordUsage: whether a call that has just finished ran on the platform key, and how its cost splits. Only looks
  * anything up when a platform key is configured at all, so a deployment that does not use included AI pays no extra queries.
  */
-export async function platformCharge(tenantId: string, costMicros: number, now = new Date()): Promise<{ platformKey: boolean; creditMicros: number }> {
+export async function platformCharge(
+  tenantId: string,
+  costMicros: number,
+  now = new Date(),
+): Promise<{ platformKey: boolean; creditMicros: number; /** The business's position just before this call, for the usage notices. */ before?: { allowanceMicros: number; allowanceUsedMicros: number; creditMicros: number } }> {
   if (!platformKey()) return { platformKey: false, creditMicros: 0 };
   if (await getIntegration(tenantId, "ANTHROPIC")) return { platformKey: false, creditMicros: 0 };
   const b = await includedBalance(tenantId, now);
   if (!b.eligible) return { platformKey: false, creditMicros: 0 };
   const { fromCredit } = splitCost(costMicros, Math.max(0, b.allowanceMicros - b.allowanceUsedMicros), b.creditMicros);
-  return { platformKey: true, creditMicros: fromCredit };
+  return { platformKey: true, creditMicros: fromCredit, before: { allowanceMicros: b.allowanceMicros, allowanceUsedMicros: b.allowanceUsedMicros, creditMicros: b.creditMicros } };
 }

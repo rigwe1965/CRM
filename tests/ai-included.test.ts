@@ -11,6 +11,7 @@ const { db, getIntegration } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ db }));
 vi.mock("@/lib/integrations", () => ({ getIntegration }));
+vi.mock("@/lib/ai/included-notices", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/included-notices")>()), sendIncludedNotices: vi.fn() }));
 
 import { balanceOf, hasAiKey, includedBalance, planAllowanceUsd, platformCharge, resolveAiKey, splitCost } from "@/lib/ai/included";
 import { recordUsage } from "@/lib/ai/usage";
@@ -153,17 +154,31 @@ describe("recording a call", () => {
   });
   it("is a free platform call while the allowance covers it", async () => {
     ledger({ monthSpend: 0 });
-    expect(await platformCharge("t1", 400_000, NOW)).toEqual({ platformKey: true, creditMicros: 0 });
+    expect(await platformCharge("t1", 400_000, NOW)).toMatchObject({ platformKey: true, creditMicros: 0, before: { allowanceMicros: 3_000_000, allowanceUsedMicros: 0, creditMicros: 0 } });
   });
   it("charges the overflow to credit", async () => {
     ledger({ monthSpend: 2_800_000, added: 1_000_000 });
-    expect(await platformCharge("t1", 500_000, NOW)).toEqual({ platformKey: true, creditMicros: 300_000 });
+    expect(await platformCharge("t1", 500_000, NOW)).toMatchObject({ platformKey: true, creditMicros: 300_000 });
   });
   it("stores platformKey and the credit part on the usage row", async () => {
     ledger({ monthSpend: 2_900_000, added: 1_000_000 });
     const cost = await recordUsage({ tenantId: "t1", model: "claude-sonnet-5-5", usage });
     expect(cost).toBe(2_000_000);
     expect(db.aiUsage.create.mock.calls[0][0].data).toMatchObject({ platformKey: true, creditMicros: 1_000_000, costMicros: 2_000_000 });
+  });
+  it("tells the admins when a call takes the allowance past 80%", async () => {
+    const notices = await import("@/lib/ai/included-notices");
+    ledger({ monthSpend: 1_500_000 }); // $1.50 of a $3 allowance used; this $2 call finishes it
+    await recordUsage({ tenantId: "t1", model: "claude-sonnet-5-5", usage });
+    expect(notices.sendIncludedNotices).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notices.sendIncludedNotices).mock.calls[0][1]).toEqual(["exhausted"]);
+  });
+  it("sends no notices for a business using its own key", async () => {
+    const notices = await import("@/lib/ai/included-notices");
+    vi.mocked(notices.sendIncludedNotices).mockClear();
+    getIntegration.mockResolvedValue({ settings: { apiKey: "sk-own" }, source: "settings" });
+    await recordUsage({ tenantId: "t1", model: "claude-sonnet-5-5", usage });
+    expect(notices.sendIncludedNotices).not.toHaveBeenCalled();
   });
   it("leaves ordinary businesses exactly as before, with no extra lookups, when no platform key is set", async () => {
     vi.stubEnv("INCLUDED_AI_ANTHROPIC_KEY", "");
