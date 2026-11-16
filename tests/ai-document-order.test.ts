@@ -10,7 +10,7 @@ const { db, settings, status, usageRecord, clientFor, convo, proposeMock } = vi.
   proposeMock: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({ db }));
-vi.mock("@/lib/ai/settings", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/settings")>()), loadAssistantSettings: settings }));
+vi.mock("@/lib/ai/settings", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/settings")>()), loadAssistantSettings: settings, effectiveModel: async () => (await settings())?.model }));
 vi.mock("@/lib/ai/status", () => status);
 vi.mock("@/lib/ai/usage", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/usage")>()), recordUsage: usageRecord }));
 vi.mock("@/lib/ai/documents/reserve", () => ({ reserveDocument: async () => async () => undefined }));

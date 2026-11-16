@@ -57,7 +57,7 @@ export function AssistantCard() {
     onError: (e) => toast.error(errorMessage(e)),
   });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; model?: string; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; model?: string; userModelChoice?: boolean; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -195,6 +195,24 @@ export function AssistantCard() {
               ))}
             </div>
             {!data.keyConfigured && <p className="text-sm text-muted-foreground">Save your Anthropic key first.</p>}
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-sm font-medium">Let each person choose their own model</h3>
+                <Badge variant={data.userModelChoice ? "default" : "secondary"}>{data.userModelChoice ? "Allowed" : "Off"}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                When allowed, each person can pick a model for the questions they ask AI themselves and the documents they have it read; everyone else follows the model above. Everyone&apos;s use still counts toward the same
+                monthly limit, so a person who picks a more expensive model uses it up faster. Daily suggestions and WhatsApp message help always use the model above.
+              </p>
+              <Button
+                type="button"
+                variant={data.userModelChoice ? "outline" : "default"}
+                disabled={saveSettings.isPending}
+                onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, userModelChoice: !data.userModelChoice })}
+              >
+                {data.userModelChoice ? "Stop letting people choose" : "Let people choose"}
+              </Button>
+            </div>
           </fieldset>
 
           <div className="space-y-2">

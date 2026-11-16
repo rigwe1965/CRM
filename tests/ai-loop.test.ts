@@ -103,6 +103,12 @@ describe("a plain answer", () => {
     expect(result).toMatchObject({ stopped: "answered", rounds: 1, tools: [], costMicros: 100 });
   });
 
+  it("asks the spending gate on behalf of this person, so a model they chose for themselves can apply", async () => {
+    await ask([say("ok")]);
+    expect(assertUnderCeiling.mock.calls[0].slice(0, 1)).toEqual(["t1"]);
+    expect(assertUnderCeiling.mock.calls[0][2]).toBe("u1");
+  });
+
   it("saves the question before the model is called, so it is never lost", async () => {
     const order: string[] = [];
     const { client } = fakeClient([say("ok")]);

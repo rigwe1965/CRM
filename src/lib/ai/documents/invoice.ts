@@ -6,7 +6,7 @@ import { tenantScope } from "@/lib/access";
 import { anthropicFor } from "@/lib/ai/client";
 import { tokenUsage } from "@/lib/ai/pricing";
 import { modelFields } from "@/lib/ai/models";
-import { DEFAULT_DOCUMENTS_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
+import { DEFAULT_DOCUMENTS_DAILY_CAP, effectiveModel, loadAssistantSettings } from "@/lib/ai/settings";
 import { assertCanAsk } from "@/lib/ai/status";
 import { recordUsage } from "@/lib/ai/usage";
 import { reserveDocument } from "@/lib/ai/documents/reserve";
@@ -162,7 +162,7 @@ export async function readInvoiceFile(user: SessionUser, file: DocumentFile, opt
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
   const release = await reserveDocument(user, now);
-  const model = (await loadAssistantSettings(user.tenantId)).model;
+  const model = await effectiveModel(user.tenantId, user.id);
   let message;
   try {
     message = await client.beta.messages.create(invoiceRequest(file, model), { timeout: 55_000 });

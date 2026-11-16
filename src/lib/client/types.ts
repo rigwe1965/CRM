@@ -150,6 +150,8 @@ export type Reports = {
 export type AssistantStatus = {
   model: string;
   modelOptions: { id: string; label: string; blurb: string }[];
+  /** Whether each person may choose their own model. */
+  userModelChoice: boolean;
   keyConfigured: boolean;
   keySource: "settings" | "env" | null;
   /** Included AI (INCLUDED_AI_PLAN.md). `eligible` is false unless the owner has switched it on and the plan includes some. */

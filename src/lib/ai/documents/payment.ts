@@ -8,7 +8,7 @@ import { tokenUsage } from "@/lib/ai/pricing";
 import { modelFields } from "@/lib/ai/models";
 import { appendMessages } from "@/lib/ai/conversations";
 import { propose } from "@/lib/ai/proposals";
-import { loadAssistantSettings } from "@/lib/ai/settings";
+import { effectiveModel, loadAssistantSettings } from "@/lib/ai/settings";
 import { recordUsage } from "@/lib/ai/usage";
 import { reserveDocument } from "@/lib/ai/documents/reserve";
 import { ToolError } from "@/lib/ai/tools/types";
@@ -134,7 +134,7 @@ export async function readPaymentFile(user: SessionUser, file: DocumentFile, opt
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
   const release = await reserveDocument(user, now);
-  const model = (await loadAssistantSettings(user.tenantId)).model;
+  const model = await effectiveModel(user.tenantId, user.id);
   let message;
   try {
     message = await client.beta.messages.create(paymentRequest(file, model), { timeout: 55_000 });
