@@ -74,3 +74,24 @@ describe("signing up", () => {
     expect(signupSchema.safeParse({ ...base, acceptTerms: true }).success).toBe(true);
   });
 });
+
+describe("included AI wording (INCLUDED_AI_PLAN.md)", () => {
+  const read = (f: string) => readFileSync(f, "utf8");
+  it("no longer says AI only ever runs through the business's own account", () => {
+    for (const f of ["src/lib/legal-content.ts", "src/app/(legal)/privacy/page.tsx", "src/app/(legal)/terms/page.tsx"]) {
+      expect(read(f), f).toMatch(/our account|service's account|service&apos;s account/);
+    }
+    expect(read("src/app/(legal)/dpa/page.tsx")).toContain("our sub-processor");
+  });
+  it("tells businesses that included AI is measured, renews monthly, and credit is for the assistant only", () => {
+    const terms = read("src/app/(legal)/terms/page.tsx");
+    expect(terms).toContain("does not carry over");
+    expect(terms).toContain("for the assistant only");
+    expect(read("src/app/(legal)/privacy/page.tsx")).toContain("we do not use the content of questions for any other purpose");
+  });
+  it("leaves the open points marked for the owner and the lawyer rather than deciding them", () => {
+    expect(read("src/app/(legal)/terms/page.tsx")).toContain("[Owner to decide:");
+    expect(read("src/app/(legal)/dpa/page.tsx")).toContain("[Lawyer to confirm.]");
+  });
+  it("keeps the version unchanged: it is bumped on the day included AI is switched on, so businesses re-accept once", () => expect(LEGAL_VERSION).toBe("2026-11-01"));
+});
