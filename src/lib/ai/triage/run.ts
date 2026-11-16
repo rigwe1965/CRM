@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth-helpers";
 import { ownerScope, taskScope } from "@/lib/access";
-import { getIntegration } from "@/lib/integrations";
+import { hasAiKey } from "@/lib/ai/included";
 import { accessOf } from "@/lib/plans";
 import { paymentSummaries } from "@/lib/payments";
 import { anthropicFor } from "@/lib/ai/client";
@@ -170,7 +170,7 @@ async function triageOne(tenantId: string, activityId: string, opts: { now?: Dat
   if (today >= (settings.triageDailyCap ?? DEFAULT_TRIAGE_DAILY_CAP)) return skip(tenantId, activityId, "daily_cap");
   const level = ceilingState(settings.monthlyCeilingUsd, await monthToDateMicros(tenantId, now)).level;
   if (level === "reached" || level === "unset") return skip(tenantId, activityId, "ceiling");
-  if (opts.client === null || (!opts.client && !(await getIntegration(tenantId, "ANTHROPIC")))) return skip(tenantId, activityId, "no_key");
+  if (opts.client === null || (!opts.client && !(await hasAiKey(tenantId)))) return skip(tenantId, activityId, "no_key");
   const client = opts.client ?? (await anthropicFor(tenantId));
 
   // Counted from here, even if the call fails: a failing call still costs, and must not be retried without limit.

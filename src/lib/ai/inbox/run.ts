@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import type Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth-helpers";
-import { getIntegration } from "@/lib/integrations";
+import { hasAiKey } from "@/lib/ai/included";
 import { anthropicFor } from "@/lib/ai/client";
 import { flagForeignContent } from "@/lib/ai/draft-check";
 import { createBackgroundProposal } from "@/lib/ai/proposals";
@@ -81,7 +81,7 @@ export async function runInboxForUser(user: SessionUser, opts: { now?: Date; cli
     const spent = await monthToDateMicros(user.tenantId, now);
     const level = ceilingState(settings.monthlyCeilingUsd, spent).level;
     const canSpend = level !== "reached" && level !== "unset";
-    if (candidates.length > 0 && canSpend && opts.client !== null && (opts.client || (await getIntegration(user.tenantId, "ANTHROPIC")))) {
+    if (candidates.length > 0 && canSpend && opts.client !== null && (opts.client || (await hasAiKey(user.tenantId)))) {
       const client = opts.client ?? (await anthropicFor(user.tenantId));
       const wrote = await writeWording({ client, tenantId: user.tenantId, userId: user.id, candidates, now });
       words = wrote.words;

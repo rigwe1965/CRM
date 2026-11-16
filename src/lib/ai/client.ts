@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ApiError } from "@/lib/api";
-import { getIntegration } from "@/lib/integrations";
+import { notConfiguredError, resolveAiKey } from "@/lib/ai/included";
 import { DEFAULT_MODEL } from "@/lib/ai/models";
 
 /**
@@ -8,9 +8,9 @@ import { DEFAULT_MODEL } from "@/lib/ai/models";
  * original business). The key is only ever read here, server-side; it is never logged or returned.
  */
 export async function anthropicFor(tenantId: string): Promise<Anthropic> {
-  const found = await getIntegration(tenantId, "ANTHROPIC");
-  if (!found) throw new ApiError(409, "AI has no Anthropic key yet. An admin can add one in Settings.", "AI_NOT_CONFIGURED");
-  return new Anthropic({ apiKey: found.settings.apiKey, maxRetries: 2 });
+  const key = await resolveAiKey(tenantId);
+  if (key.kind === "none") throw notConfiguredError(key.reason);
+  return new Anthropic({ apiKey: key.apiKey, maxRetries: 2 });
 }
 
 /**

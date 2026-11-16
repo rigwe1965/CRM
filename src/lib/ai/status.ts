@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import { getIntegration } from "@/lib/integrations";
+import { hasAiKey, includedBalance } from "@/lib/ai/included";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
 import { MODEL_OPTIONS, resolveModel } from "@/lib/ai/models";
@@ -9,12 +10,15 @@ import { usd } from "@/lib/ai/pricing";
 
 /** Everything the admin screen (and the gates below) need to know about AI. Never contains the key. */
 export async function assistantStatus(tenantId: string, now = new Date()) {
-  const [settings, key, spent, byPurpose] = await Promise.all([loadAssistantSettings(tenantId), getIntegration(tenantId, "ANTHROPIC"), monthToDateMicros(tenantId, now), monthToDateByPurpose(tenantId, now)]);
+  const [settings, key, spent, byPurpose, included, usable] = await Promise.all([loadAssistantSettings(tenantId), getIntegration(tenantId, "ANTHROPIC"), monthToDateMicros(tenantId, now), monthToDateByPurpose(tenantId, now), includedBalance(tenantId, now), hasAiKey(tenantId)]);
   return {
     model: resolveModel(settings.model),
     /** The models a business may choose, for the settings screen. */
     modelOptions: MODEL_OPTIONS.map(({ id, label, blurb }) => ({ id, label, blurb })),
-    keyConfigured: !!key,
+    // True with the business's own key, or with included AI that still has something left.
+    keyConfigured: usable,
+    /** Included AI (INCLUDED_AI_PLAN.md): only meaningful when `eligible`. Dollars, never the platform key. */
+    included: { eligible: included.eligible, allowanceUsd: usd(included.allowanceMicros), allowanceUsedUsd: usd(included.allowanceUsedMicros), creditUsd: usd(included.creditMicros), leftUsd: usd(included.leftMicros) },
     keySource: key?.source ?? null,
     enabled: settings.enabled,
     proposalsEnabled: settings.proposalsEnabled === true,

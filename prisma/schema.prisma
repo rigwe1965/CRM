@@ -286,6 +286,7 @@ model Tenant {
   knowledgeVersions   KnowledgeEntryVersion[]
   aiMessages          AiMessage[]
   aiUsage             AiUsage[]
+  aiCredits           AiCredit[]
 }
 
 // ─── CRM core ───────────────────────────────────────────
@@ -808,8 +809,32 @@ model AiUsage {
   costMicros       Int      @default(0)
   // What the call was for: CHAT, INBOX (daily suggestions) or TRIAGE (WhatsApp), so Settings can show where the money goes.
   purpose          String   @default("CHAT")
+  // Included AI (INCLUDED_AI_PLAN.md): true when the call ran on the platform's key instead of the business's own. Only those
+  // calls use the plan allowance or credit. creditMicros is the part of costMicros paid from bought credit; the rest of a
+  // platform call came out of the month's plan allowance.
+  platformKey      Boolean  @default(false)
+  creditMicros     Int      @default(0)
   createdAt        DateTime @default(now())
 
+  @@index([tenantId, createdAt])
+}
+
+// Credit a business has bought or been given for AI on the platform's key (INCLUDED_AI_PLAN.md, option D). Append-only:
+// the balance is the sum of amountMicros minus the creditMicros already charged on AiUsage rows. `reference` (for example a
+// Stripe event id) is unique per business, so a payment that is reported twice adds its credit once.
+model AiCredit {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  // Millionths of a US dollar, always positive.
+  amountMicros Int
+  // PACK (bought), GRANT (given by the owner), ADJUST (a correction).
+  source      String
+  reference   String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, reference])
   @@index([tenantId, createdAt])
 }
 

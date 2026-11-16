@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { costMicros, usd, type TokenUsage } from "@/lib/ai/pricing";
+import { platformCharge } from "@/lib/ai/included";
 
 /** A business's spending is counted per calendar month in UTC, so everyone sees the same reset moment. */
 export const monthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -8,6 +9,8 @@ export const nextMonthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYea
 /** Records one model call and returns its estimated cost in micro-dollars. Call inside the business's context. */
 export async function recordUsage(input: { tenantId: string; userId?: string | null; conversationId?: string | null; model: string; usage: TokenUsage; /** What the call was for; defaults to CHAT. */ purpose?: "CHAT" | "INBOX" | "TRIAGE" | "DOCUMENT" }) {
   const cost = costMicros(input.model, input.usage);
+  // Included AI: when the call ran on the platform key, note it and how much of it came out of bought credit.
+  const charge = await platformCharge(input.tenantId, cost);
   await db.aiUsage.create({
     data: {
       tenantId: input.tenantId,
@@ -20,6 +23,8 @@ export async function recordUsage(input: { tenantId: string; userId?: string | n
       cacheWriteTokens: input.usage.cacheWriteTokens,
       costMicros: cost,
       purpose: input.purpose ?? "CHAT",
+      platformKey: charge.platformKey,
+      creditMicros: charge.creditMicros,
     },
   });
   return cost;
