@@ -6,6 +6,7 @@ import { releaseStaleSenderClaims } from "@/lib/sender";
 import { purgeUnconfirmedSignups } from "@/lib/signup";
 import { purgeDeletedTenants } from "@/lib/tenant-deletion";
 import { sendInstalmentReminders, sendTaskReminders } from "@/lib/notifications";
+import { runDailyPlatformAiCheck } from "@/lib/ai/platform-spend";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -45,11 +46,13 @@ export async function GET(req: Request) {
     const reconciliation = await runDailyReconciliation().catch((e) => (console.error("[reconcile] run failed", e), null));
     // AI conversations are kept for AI_RETENTION_DAYS; a failure here must not affect the rest.
     const aiRetention = await runDailyAiRetention().catch((e) => (console.error("[ai] retention run failed", e), null));
+    // The owner's early warning on what the included AI costs in total; does nothing unless the alert limit is set.
+    const aiSpend = await runDailyPlatformAiCheck().catch((e) => (console.error("[ai] spend check failed", e), null));
     // Broadcast campaigns left unfinished (an admin closed the page) carry on here.
     const campaigns = await runDailyCampaigns().catch((e) => (console.error("[campaign] run failed", e), null));
     // `tasks` fields stay at the top level for existing callers.
     // The steps above swallow their own errors so one failure cannot stop the rest; the heartbeat still records it.
-    const failedSteps = [unconfirmedSignups === -1 && "signups", erasedBusinesses === null && "deletions", reconciliation === null && "reconciliation", aiRetention === null && "retention", campaigns === null && "campaigns"].filter(Boolean);
-    return { ok: failedSteps.length === 0, summary: { failedSteps }, response: { ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups, erasedBusinesses, senderClaims, reconciliation, aiRetention, campaigns } };
+    const failedSteps = [unconfirmedSignups === -1 && "signups", erasedBusinesses === null && "deletions", reconciliation === null && "reconciliation", aiRetention === null && "retention", campaigns === null && "campaigns", aiSpend === null && "ai-spend"].filter(Boolean);
+    return { ok: failedSteps.length === 0, summary: { failedSteps }, response: { ok: true, ...tasks, instalmentReminders: instalments, automations, unconfirmedSignups, erasedBusinesses, senderClaims, reconciliation, aiRetention, campaigns, aiSpend } };
   }).then((r) => r.response));
 }
