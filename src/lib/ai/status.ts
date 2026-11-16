@@ -5,7 +5,7 @@ import { CREDIT_PACKS } from "@/lib/ai/credit-pack-table";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
 import { MODEL_OPTIONS, resolveModel } from "@/lib/ai/models";
-import { DEFAULT_DOCUMENTS_DAILY_CAP, DEFAULT_TRIAGE_DAILY_CAP, loadAssistantSettings } from "@/lib/ai/settings";
+import { DEFAULT_DOCUMENTS_DAILY_CAP, DEFAULT_TRIAGE_DAILY_CAP, effectiveModel, loadAssistantSettings, loadUserModel } from "@/lib/ai/settings";
 import { ceilingState, monthToDateByPurpose, monthToDateMicros, nextMonthStart } from "@/lib/ai/usage";
 import { usd } from "@/lib/ai/pricing";
 
@@ -16,6 +16,8 @@ export async function assistantStatus(tenantId: string, now = new Date()) {
     model: resolveModel(settings.model),
     /** The models a business may choose, for the settings screen. */
     modelOptions: MODEL_OPTIONS.map(({ id, label, blurb }) => ({ id, label, blurb })),
+    /** Whether each person may choose their own model (Settings > AI). */
+    userModelChoice: settings.userModelChoice === true,
     // True with the business's own key, or with included AI that still has something left.
     keyConfigured: usable,
     /** Included AI (INCLUDED_AI_PLAN.md): only meaningful when `eligible`. Dollars, never the platform key. */
@@ -59,11 +61,29 @@ export async function assertCanAsk(user: { id: string; tenantId: string }, now =
 }
 
 /** Cheap re-check before every model call inside one answer, so a long answer stops at the ceiling instead of overshooting it. */
-export async function assertUnderCeiling(tenantId: string, now = new Date()) {
+export async function assertUnderCeiling(tenantId: string, now = new Date(), userId?: string | null) {
   const settings = await loadAssistantSettings(tenantId);
   const state = ceilingState(settings.monthlyCeilingUsd, await monthToDateMicros(tenantId, now));
   if (state.level === "unset" || state.level === "reached") {
     throw new ApiError(429, "This month's spending limit for AI has been reached.", "AI_CEILING_REACHED");
   }
-  return { ...state, model: resolveModel(settings.model) };
+  return { ...state, model: resolveModel(await effectiveModel(tenantId, userId, settings)) };
 }
+
+/** What the model picker shows one person: whether they may choose, what they chose, and what applies to them. Holds no spending figures. */
+export async function userModelState(tenantId: string, userId: string) {
+  const settings = await loadAssistantSettings(tenantId);
+  const allowed = settings.userModelChoice === true;
+  const own = allowed ? ((await loadUserModel(tenantId, userId)) ?? null) : null;
+  return {
+    allowed,
+    /** What this person has chosen, or null when they follow the business's model. */
+    own,
+    /** The business's model: what applies to anyone who has not chosen. */
+    businessModel: resolveModel(settings.model),
+    /** What will actually answer this person's questions. */
+    model: resolveModel(own ?? settings.model),
+    options: MODEL_OPTIONS.map(({ id, label, blurb }) => ({ id, label, blurb })),
+  };
+}
+

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/common/page";
+import { ModelPicker } from "@/components/assistant/model-picker";
 import { ProposalCards, ProposalList, type ProposalCard } from "@/components/assistant/proposal-cards";
 import { useCurrentUser } from "@/components/providers";
 import { ApiClientError, request } from "@/lib/client/api";
@@ -287,6 +288,7 @@ export function AskIvy() {
               <Button variant="ghost" size="icon" aria-label="New chat" onClick={reset}><Plus className="size-4" /></Button>
             </div>
           </div>
+          <ModelPicker active={open && ready} />
 
           {view === "suggested" ? (
             <div className="flex-1 space-y-3 overflow-y-auto p-4">

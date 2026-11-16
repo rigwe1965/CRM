@@ -83,7 +83,7 @@ export async function runIvy(opts: {
       if (remaining <= 0) return await sayAndStop("\n\nThat is taking longer than I can allow. Ask me a narrower question and I will continue.", "deadline");
 
       // Checked before every model call, so a long answer stops at the ceiling instead of passing it.
-      const gate = await assertUnderCeiling(ctx.user.tenantId, ctx.now);
+      const gate = await assertUnderCeiling(ctx.user.tenantId, ctx.now, ctx.user.id);
 
       run.rounds++;
       const stream = client.beta.messages.stream(
