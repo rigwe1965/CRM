@@ -54,6 +54,7 @@ const PLATFORM_USERS: Record<string, string> = {
   "src/lib/tenant-deletion.ts": "erases a whole business after its grace period (a daily job with no signed-in business), and starts or cancels that countdown",
   "src/lib/sender.ts": "registers, verifies and removes the business's sending domain with the email provider; only the server may write the verified state, so the app role gets no grant",
   "src/lib/billing.ts": "Stripe Billing events name a Stripe customer, which is matched to its business; checkout stores that customer on the business",
+  "src/lib/ai/credit-packs.ts": "a paid AI-credit event names a Stripe customer, matched to its business; only the platform may add credit (the app role has read-only access to AiCredit)",
   "src/lib/payment-links.ts": "a Stripe event names no business; the payment link says which, and the rest runs as that business",
   "src/lib/job-runs.ts": "the daily job's heartbeat belongs to the platform, not to a business, and the app role has no access to its table",
   "src/lib/order-links.ts": "a customer opens an order link without signing in; the token says which business it is, and the rest runs as that business",

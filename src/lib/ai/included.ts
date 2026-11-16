@@ -22,13 +22,25 @@ const monthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.ge
 
 export const platformKey = () => process.env.INCLUDED_AI_ANTHROPIC_KEY?.trim() || null;
 
-const ALLOWANCE_ENV: Partial<Record<PlanKey, string>> = { trial: "INCLUDED_AI_ALLOWANCE_TRIAL", starter: "INCLUDED_AI_ALLOWANCE_STARTER", pro: "INCLUDED_AI_ALLOWANCE_PRO" };
+/** The owner's choice (2026-11-16, "Balanced"): $2 a month on Starter, $10 on Pro, none in the free trial (a trial that spends the owner's money invites sign-ups just to use it). */
+const ALLOWANCE: Partial<Record<PlanKey, { env: string; usd: number }>> = {
+  trial: { env: "INCLUDED_AI_ALLOWANCE_TRIAL", usd: 0 },
+  starter: { env: "INCLUDED_AI_ALLOWANCE_STARTER", usd: 2 },
+  pro: { env: "INCLUDED_AI_ALLOWANCE_PRO", usd: 10 },
+};
 
-/** US dollars of AI a plan includes each month. 0 (the default, and for any unset or invalid value) means none. */
+/**
+ * US dollars of AI a plan includes each month: the amounts above, unless the server sets INCLUDED_AI_ALLOWANCE_<PLAN>
+ * (0 switches a plan's allowance off). A blank or invalid value means the amount above. None of this does anything until
+ * INCLUDED_AI_ANTHROPIC_KEY is set. The internal plan, and any plan not listed, has none.
+ */
 export function planAllowanceUsd(plan: string): number {
-  const name = ALLOWANCE_ENV[planOf(plan)];
-  const n = name ? Number(process.env[name]) : 0;
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 10_000) : 0;
+  const entry = ALLOWANCE[planOf(plan)];
+  if (!entry) return 0;
+  const raw = process.env[entry.env]?.trim();
+  if (!raw) return entry.usd;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, 10_000) : entry.usd;
 }
 
 export type IncludedBalance = {
@@ -117,11 +129,15 @@ export const notConfiguredError = (reason: "no_key" | "included_exhausted") =>
  * For recordUsage: whether a call that has just finished ran on the platform key, and how its cost splits. Only looks
  * anything up when a platform key is configured at all, so a deployment that does not use included AI pays no extra queries.
  */
-export async function platformCharge(tenantId: string, costMicros: number, now = new Date()): Promise<{ platformKey: boolean; creditMicros: number }> {
+export async function platformCharge(
+  tenantId: string,
+  costMicros: number,
+  now = new Date(),
+): Promise<{ platformKey: boolean; creditMicros: number; /** The business's position just before this call, for the usage notices. */ before?: { allowanceMicros: number; allowanceUsedMicros: number; creditMicros: number } }> {
   if (!platformKey()) return { platformKey: false, creditMicros: 0 };
   if (await getIntegration(tenantId, "ANTHROPIC")) return { platformKey: false, creditMicros: 0 };
   const b = await includedBalance(tenantId, now);
   if (!b.eligible) return { platformKey: false, creditMicros: 0 };
   const { fromCredit } = splitCost(costMicros, Math.max(0, b.allowanceMicros - b.allowanceUsedMicros), b.creditMicros);
-  return { platformKey: true, creditMicros: fromCredit };
+  return { platformKey: true, creditMicros: fromCredit, before: { allowanceMicros: b.allowanceMicros, allowanceUsedMicros: b.allowanceUsedMicros, creditMicros: b.creditMicros } };
 }

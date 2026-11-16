@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/api";
 import { getIntegration } from "@/lib/integrations";
-import { hasAiKey, includedBalance } from "@/lib/ai/included";
+import { hasAiKey, includedBalance, platformKey } from "@/lib/ai/included";
+import { CREDIT_PACKS } from "@/lib/ai/credit-pack-table";
 import { enforceRateLimit, LIMITS } from "@/lib/rate-limit";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
 import { MODEL_OPTIONS, resolveModel } from "@/lib/ai/models";
@@ -18,7 +19,10 @@ export async function assistantStatus(tenantId: string, now = new Date()) {
     // True with the business's own key, or with included AI that still has something left.
     keyConfigured: usable,
     /** Included AI (INCLUDED_AI_PLAN.md): only meaningful when `eligible`. Dollars, never the platform key. */
-    included: { eligible: included.eligible, allowanceUsd: usd(included.allowanceMicros), allowanceUsedUsd: usd(included.allowanceUsedMicros), creditUsd: usd(included.creditMicros), leftUsd: usd(included.leftMicros) },
+    included: { eligible: included.eligible, allowanceUsd: usd(included.allowanceMicros), allowanceUsedUsd: usd(included.allowanceUsedMicros), creditUsd: usd(included.creditMicros), leftUsd: usd(included.leftMicros),
+      /** Whether the Buy credit buttons can work: billing is set up and the platform key is on. */
+      canBuy: !!process.env.BILLING_STRIPE_SECRET_KEY && !!process.env.BILLING_STRIPE_WEBHOOK_SECRET && platformKey() !== null,
+      packs: CREDIT_PACKS.map((p) => ({ id: p.id, priceUsd: p.priceCents / 100, creditUsd: usd(p.creditMicros) })) },
     keySource: key?.source ?? null,
     enabled: settings.enabled,
     proposalsEnabled: settings.proposalsEnabled === true,

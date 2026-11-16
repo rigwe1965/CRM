@@ -345,3 +345,40 @@ export function lowStockEmail(d: LowStockMail): Rendered {
     ),
   };
 }
+
+export type IncludedAiNotice = "warn" | "exhausted" | "credit_low";
+export type IncludedAiMail = { brand: string; kind: IncludedAiNotice; month: string; allowanceUsd: number; usedUsd: number; creditUsd: number; resetsOn: string };
+
+const usdText = (n: number) => `$${n.toLocaleString("en", { minimumFractionDigits: n < 100 ? 2 : 0, maximumFractionDigits: 2 })}`;
+
+/** The three notices about included AI (INCLUDED_AI_PLAN.md): 80% of the month's allowance used, all of it used up, or credit running low. */
+export function includedAiEmail(d: IncludedAiMail): Rendered {
+  const url = `${appUrl()}/settings`;
+  const options = "You can buy AI credit in Settings, or add your own Anthropic key there and pay Anthropic directly.";
+  let subject: string;
+  let intro: string;
+  let detail: string;
+  if (d.kind === "warn") {
+    subject = "Your included AI is 80% used this month";
+    intro = `You have used ${usdText(d.usedUsd)} of the ${usdText(d.allowanceUsd)} of AI included in your plan for ${d.month}.`;
+    detail = `When it is used up, AI keeps working on any credit you have bought, then pauses until ${d.resetsOn}. ${options}`;
+  } else if (d.kind === "exhausted") {
+    subject = "Your included AI is used up";
+    intro = `The AI included in your plan for ${d.month} is used up, and you have no AI credit left.`;
+    detail = `AI is paused until ${d.resetsOn}, when your plan's allowance renews. ${options}`;
+  } else {
+    subject = `Your AI credit is running low (${usdText(d.creditUsd)} left)`;
+    intro = `You have ${usdText(d.creditUsd)} of AI credit left, after this month's included AI.`;
+    detail = `When it runs out, AI pauses until ${d.resetsOn}. ${options}`;
+  }
+  const text = `${intro}\n\n${detail}\n\nOpen settings: ${url}\n\nAI use is counted from token estimates; Anthropic's own record is the source of truth. You get each of these notices at most once.`;
+  return {
+    subject,
+    text,
+    html: layout(
+      "AI usage",
+      `<p style="margin:0 0 14px">${esc(intro)}</p><p style="margin:0 0 14px">${esc(detail)}</p>${button(url, "Open settings")}<p style="margin:0;color:#71717a;font-size:13px">AI use is counted from token estimates; Anthropic's own record is the source of truth. You get each of these notices at most once.</p>`,
+      d.brand,
+    ),
+  };
+}
