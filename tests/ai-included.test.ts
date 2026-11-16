@@ -38,19 +38,31 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("planAllowanceUsd", () => {
-  it("reads the dollars each plan includes", () => {
+  it("reads the dollars each plan includes from the server settings", () => {
     expect(planAllowanceUsd("starter")).toBe(3);
     expect(planAllowanceUsd("pro")).toBe(15);
   });
-  it("is zero when unset, blank, invalid, negative, or for the internal plan", () => {
+  it("uses the owner's chosen amounts ($2 Starter, $10 Pro, $0 trial) when nothing is set", () => {
+    vi.stubEnv("INCLUDED_AI_ALLOWANCE_STARTER", "");
+    vi.stubEnv("INCLUDED_AI_ALLOWANCE_PRO", "");
+    vi.stubEnv("INCLUDED_AI_ALLOWANCE_TRIAL", "");
+    expect(planAllowanceUsd("starter")).toBe(2);
+    expect(planAllowanceUsd("pro")).toBe(10);
     expect(planAllowanceUsd("trial")).toBe(0);
-    vi.stubEnv("INCLUDED_AI_ALLOWANCE_STARTER", "abc");
-    expect(planAllowanceUsd("starter")).toBe(0);
-    vi.stubEnv("INCLUDED_AI_ALLOWANCE_STARTER", "-5");
-    expect(planAllowanceUsd("starter")).toBe(0);
-    expect(planAllowanceUsd("internal")).toBe(0);
   });
-  it("treats an unknown plan like the trial plan", () => expect(planAllowanceUsd("mystery")).toBe(0));
+  it("falls back to those amounts for an invalid or negative value, and 0 switches a plan off", () => {
+    vi.stubEnv("INCLUDED_AI_ALLOWANCE_STARTER", "abc");
+    expect(planAllowanceUsd("starter")).toBe(2);
+    vi.stubEnv("INCLUDED_AI_ALLOWANCE_STARTER", "-5");
+    expect(planAllowanceUsd("starter")).toBe(2);
+    vi.stubEnv("INCLUDED_AI_ALLOWANCE_STARTER", "0");
+    expect(planAllowanceUsd("starter")).toBe(0);
+  });
+  it("is zero for the internal plan, and an unknown plan counts as the trial", () => {
+    expect(planAllowanceUsd("internal")).toBe(0);
+    expect(planAllowanceUsd("mystery")).toBe(0);
+  });
+  it("gives the free trial nothing even if the server key is set", () => expect(planAllowanceUsd("trial")).toBe(0));
 });
 
 describe("splitCost", () => {

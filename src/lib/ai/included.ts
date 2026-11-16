@@ -22,13 +22,25 @@ const monthStart = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.ge
 
 export const platformKey = () => process.env.INCLUDED_AI_ANTHROPIC_KEY?.trim() || null;
 
-const ALLOWANCE_ENV: Partial<Record<PlanKey, string>> = { trial: "INCLUDED_AI_ALLOWANCE_TRIAL", starter: "INCLUDED_AI_ALLOWANCE_STARTER", pro: "INCLUDED_AI_ALLOWANCE_PRO" };
+/** The owner's choice (2026-11-16, "Balanced"): $2 a month on Starter, $10 on Pro, none in the free trial (a trial that spends the owner's money invites sign-ups just to use it). */
+const ALLOWANCE: Partial<Record<PlanKey, { env: string; usd: number }>> = {
+  trial: { env: "INCLUDED_AI_ALLOWANCE_TRIAL", usd: 0 },
+  starter: { env: "INCLUDED_AI_ALLOWANCE_STARTER", usd: 2 },
+  pro: { env: "INCLUDED_AI_ALLOWANCE_PRO", usd: 10 },
+};
 
-/** US dollars of AI a plan includes each month. 0 (the default, and for any unset or invalid value) means none. */
+/**
+ * US dollars of AI a plan includes each month: the amounts above, unless the server sets INCLUDED_AI_ALLOWANCE_<PLAN>
+ * (0 switches a plan's allowance off). A blank or invalid value means the amount above. None of this does anything until
+ * INCLUDED_AI_ANTHROPIC_KEY is set. The internal plan, and any plan not listed, has none.
+ */
 export function planAllowanceUsd(plan: string): number {
-  const name = ALLOWANCE_ENV[planOf(plan)];
-  const n = name ? Number(process.env[name]) : 0;
-  return Number.isFinite(n) && n > 0 ? Math.min(n, 10_000) : 0;
+  const entry = ALLOWANCE[planOf(plan)];
+  if (!entry) return 0;
+  const raw = process.env[entry.env]?.trim();
+  if (!raw) return entry.usd;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, 10_000) : entry.usd;
 }
 
 export type IncludedBalance = {
