@@ -4,9 +4,9 @@ A modern full-stack CRM. Includes authentication, the REST API, the web app, tra
 
 ## Stack
 
-- Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui (Radix)
+- Next.js 16 + React 19 (App Router) + TypeScript + Tailwind CSS + shadcn/ui (Radix)
 - TanStack Query (data fetching, optimistic updates), Recharts, dnd-kit (Kanban), Sonner (toasts)
-- PostgreSQL + Prisma 6
+- PostgreSQL + Prisma 7
 - Zod for validation
 - Auth.js v5 (`next-auth@beta`) with the Prisma adapter and JWT sessions
 - Resend for email (Nodemailer/SMTP fallback), deployed on Vercel
@@ -205,7 +205,7 @@ Do before going live:
 
 ## Prerequisites
 
-- Node.js 18.18+ (tested on 24)
+- Node.js 24 (what CI runs)
 - A PostgreSQL 14+ database: local install, Docker, or hosted (Neon, Supabase)
 
 ## Setup
@@ -293,3 +293,9 @@ src/
     env.ts          production environment contract
 .github/workflows/ci.yml   migrations check, typecheck, lint, build
 ```
+
+## Contributing, security and licence
+
+Work on a branch, open a pull request, and keep CI green: `verify` (migrations, schema check, typecheck, lint, tests, build) and `security` (dependency audit and secret scan) must pass before anything merges to `main`. Changes users will notice go in [CHANGELOG.md](CHANGELOG.md). To report a security problem, read [SECURITY.md](SECURITY.md). The last full security review is [SECURITY_AUDIT.md](SECURITY_AUDIT.md).
+
+All rights reserved. See [LICENSE](LICENSE).
