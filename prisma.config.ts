@@ -10,5 +10,10 @@ import { defineConfig } from "prisma/config";
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: { path: "prisma/migrations", seed: "tsx prisma/seed.ts" },
-  datasource: { url: process.env.DIRECT_URL || process.env.DATABASE_URL || "" },
+  datasource: {
+    url: process.env.DIRECT_URL || process.env.DATABASE_URL || "",
+    // Only `prisma migrate diff --from-migrations` (the CI schema check) uses this: an EMPTY scratch database that Prisma resets.
+    // Never point it at a database that holds data.
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL || undefined,
+  },
 });
