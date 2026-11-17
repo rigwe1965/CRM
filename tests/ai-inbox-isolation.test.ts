@@ -49,6 +49,10 @@ run("the daily inbox across two businesses", () => {
   beforeAll(async () => {
     t = await createTwoTenants();
     holder.db = createTenantDb(t.appDb);
+    // Proposals expire a few days after their creation date (WED). Decline and approve read the real clock, so without this the
+    // tests only passed in the week they were written and then failed with "already expired". Only Date is faked: timers stay real.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(WED);
     // A clean slate: no fixture tasks or notes that would count as a recent follow-up.
     for (const f of [t.a, t.b]) {
       await t.db.task.deleteMany({ where: { tenantId: f.tenantId } });
@@ -64,6 +68,7 @@ run("the daily inbox across two businesses", () => {
     await settingsFor(t.b, false);
   }, 60_000);
   afterAll(async () => {
+    vi.useRealTimers();
     holder.db = null;
     await t?.dispose();
   });

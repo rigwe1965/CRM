@@ -43,8 +43,13 @@ run("create and set-plan on a real database", () => {
     t = await createTwoTenants();
     db = t.db as PrismaClient;
     holder.platform = t.db;
+    // The invite token expires a few days after `now`, and consumePasswordResetToken reads the real clock, so without this the
+    // test only passed in the week it was written. Only Date is faked: timers stay real.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
   }, 180_000);
   afterAll(async () => {
+    vi.useRealTimers();
     await t?.dispose();
   }, 60_000);
 
