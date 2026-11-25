@@ -89,6 +89,7 @@
   "overrides": {
     "nodemailer": "^10.0.15",
     "deepmerge-ts": "^8.0.2",
+    "effect": "^3.22.1",
     "postcss-selector-parser": "^7.1.6",
     "postcss": "$postcss"
   }
