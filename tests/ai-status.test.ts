@@ -1,18 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { settings, spent, byPurpose, integration, rate } = vi.hoisted(() => ({
+const { settings, userModel, spent, byPurpose, integration, rate } = vi.hoisted(() => ({
   settings: vi.fn(),
+  userModel: vi.fn(),
   spent: vi.fn(),
   byPurpose: vi.fn(),
   integration: vi.fn(),
   rate: vi.fn(),
 }));
 vi.mock("@/lib/ai/settings", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/settings")>()), loadAssistantSettings: settings }));
+// The person's own choice is read from the business's settings store; userModel stands in for what is stored there.
+vi.mock("@/lib/db", () => ({
+  db: { automationSetting: { findUnique: async ({ where }: { where: { tenantId_key: { tenantId: string; key: string } } }) => { const m = await userModel(where.tenantId_key.tenantId, where.tenantId_key.key.replace("assistant-user:", "")); return m ? { config: { model: m } } : null; } } },
+}));
 vi.mock("@/lib/ai/usage", async (orig) => ({ ...(await orig<typeof import("@/lib/ai/usage")>()), monthToDateMicros: spent, monthToDateByPurpose: byPurpose }));
 vi.mock("@/lib/integrations", () => ({ getIntegration: integration }));
 vi.mock("@/lib/rate-limit", async (orig) => ({ ...(await orig<typeof import("@/lib/rate-limit")>()), enforceRateLimit: rate }));
 
-import { assertCanAsk, assertUnderCeiling, assistantStatus } from "@/lib/ai/status";
+import { assertCanAsk, assertUnderCeiling, assistantStatus, userModelState } from "@/lib/ai/status";
+import { SELECTABLE_MODEL_IDS } from "@/lib/ai/models";
 import { AI_RETENTION_DAYS } from "@/lib/ai/retention";
 
 const user = { id: "u1", tenantId: "t1" };
@@ -119,3 +125,49 @@ describe("assertUnderCeiling", () => {
     await expect(assertUnderCeiling("t1", NOW)).rejects.toMatchObject({ code: "AI_CEILING_REACHED" });
   });
 });
+
+describe("which model the spending gate hands back", () => {
+  const [A, B] = SELECTABLE_MODEL_IDS;
+  it("is the person's own choice when the business allows it", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, model: A, userModelChoice: true });
+    userModel.mockResolvedValue(B);
+    expect((await assertUnderCeiling("t1", NOW, "u1")).model).toBe(B);
+    expect(userModel).toHaveBeenCalledWith("t1", "u1");
+  });
+  it("is the business's model for background work, which names no person", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, model: A, userModelChoice: true });
+    userModel.mockResolvedValue(B);
+    expect((await assertUnderCeiling("t1", NOW)).model).toBe(A);
+    expect(userModel).not.toHaveBeenCalled();
+  });
+  it("is the business's model whatever the person chose, while the business does not allow choosing", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, model: A });
+    userModel.mockResolvedValue(B);
+    expect((await assertUnderCeiling("t1", NOW, "u1")).model).toBe(A);
+    expect(userModel).not.toHaveBeenCalled();
+  });
+});
+
+describe("userModelState: what the picker shows", () => {
+  const [A, B] = SELECTABLE_MODEL_IDS;
+  it("hides the choice (and does not look it up) while the business has not allowed it", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, model: A });
+    const s = await userModelState("t1", "u1");
+    expect(s).toMatchObject({ allowed: false, own: null, businessModel: A, model: A });
+    expect(userModel).not.toHaveBeenCalled();
+  });
+  it("shows a person's own choice, the business's model and what will answer", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, model: A, userModelChoice: true });
+    userModel.mockResolvedValue(B);
+    expect(await userModelState("t1", "u1")).toMatchObject({ allowed: true, own: B, businessModel: A, model: B });
+  });
+  it("shows the business's model as what answers a person who has not chosen, and lists the models without prices or keys", async () => {
+    settings.mockResolvedValue({ enabled: true, monthlyCeilingUsd: 10, model: A, userModelChoice: true });
+    userModel.mockResolvedValue(undefined);
+    const s = await userModelState("t1", "u1");
+    expect(s).toMatchObject({ own: null, model: A });
+    expect(s.options.map((o) => o.id)).toEqual([...SELECTABLE_MODEL_IDS]);
+    expect(JSON.stringify(s)).not.toContain("sk-ant");
+  });
+});
+

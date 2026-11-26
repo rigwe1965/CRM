@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +38,26 @@ export function AssistantCard() {
     onSuccess: done("Key removed"),
     onError: (e) => toast.error(errorMessage(e)),
   });
+  // Stripe sends the buyer back here after paying for AI credit; the credit itself arrives a moment later, from Stripe's message to us.
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("ai_credit");
+    if (!result) return;
+    if (result === "success") {
+      toast.success("Payment received. Your credit appears here within a minute.");
+      const t = setTimeout(() => void qc.invalidateQueries({ queryKey: ["assistant"] }), 5000);
+      return () => clearTimeout(t);
+    }
+    if (result === "canceled") toast.info("No payment was taken.");
+  }, [qc]);
+  const buyCredit = useMutation({
+    mutationFn: (pack: string) => request<{ data: { url: string } }>("POST", "/api/billing/ai-credit", { pack }),
+    onSuccess: (r) => {
+      window.location.href = r.data.url;
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
   const saveSettings = useMutation({
-    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; model?: string; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
+    mutationFn: (body: { enabled: boolean; monthlyCeilingUsd: number | null; model?: string; userModelChoice?: boolean; proposalsEnabled?: boolean; paymentProposalsEnabled?: boolean; inboxEnabled?: boolean; triageEnabled?: boolean; triageDailyCap?: number; documentsEnabled?: boolean; documentsDailyCap?: number }) => request("PUT", "/api/admin/assistant", body),
     onSuccess: done("Saved"),
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -62,16 +80,53 @@ export function AssistantCard() {
         <CardHeader>
           <CardTitle>AI assistant</CardTitle>
           <CardDescription>
-            AI answers questions about your contacts, deals, payments and stock. It uses your own Anthropic account, so the cost goes on your Anthropic bill, and it only ever sees what the person asking
-            can see.
+            AI answers questions about your contacts, deals, payments and stock, and it only ever sees what the person asking can see.{" "}
+            {data.included.eligible && !data.keySource ? "It uses the AI included in your plan and any credit you buy, or your own Anthropic account if you save a key below." : "It uses your own Anthropic account, so the cost goes on your Anthropic bill."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={data.keyConfigured ? "default" : "secondary"}>{data.keyConfigured ? "Key saved" : "No key yet"}</Badge>
+            <Badge variant={data.keyConfigured ? "default" : "secondary"}>{data.keySource ? "Key saved" : data.keyConfigured ? "Using included AI" : "No key yet"}</Badge>
             <Badge variant={data.enabled ? "default" : "secondary"}>{data.enabled ? "AI is on" : "AI is off"}</Badge>
             {data.keySource === "env" && <span className="text-xs text-muted-foreground">key comes from the server settings (.env)</span>}
           </div>
+
+          {data.included.eligible && !data.keySource && (
+            <div className="max-w-xl space-y-3 rounded-md border p-4" data-testid="included-ai">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-sm font-medium">Included AI</h3>
+                <Badge variant={data.included.leftUsd > 0 ? "default" : "secondary"}>{data.included.leftUsd > 0 ? "Available" : "Used up for now"}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Your plan includes {dollars(data.included.allowanceUsd)} of AI each month, so you can use AI without an Anthropic account. It renews on {data.resetsOn}. When it is used up, AI keeps working on any credit you have bought, then pauses.
+              </p>
+              {data.included.allowanceUsd > 0 && (
+                <div>
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span>Included this month</span>
+                    <span>
+                      {dollars(data.included.allowanceUsedUsd)} of {dollars(data.included.allowanceUsd)} used
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.round((data.included.allowanceUsedUsd / data.included.allowanceUsd) * 100))} aria-label="Share of this month's included AI used">
+                    <div className={cn("h-2 rounded", data.included.allowanceUsedUsd >= data.included.allowanceUsd * 0.8 ? "bg-amber-500" : "bg-primary")} style={{ width: `${Math.min(100, (data.included.allowanceUsedUsd / data.included.allowanceUsd) * 100)}%` }} />
+                  </div>
+                </div>
+              )}
+              <p className="text-sm">
+                AI credit: <span className="font-medium">{dollars(data.included.creditUsd)}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {data.included.packs.map((p) => (
+                  <Button key={p.id} type="button" variant="outline" size="sm" disabled={!data.included.canBuy || buyCredit.isPending} onClick={() => buyCredit.mutate(p.id)}>
+                    Buy {dollars(p.creditUsd)} of AI for {dollars(p.priceUsd)}
+                  </Button>
+                ))}
+              </div>
+              {!data.included.canBuy && <p className="text-xs text-muted-foreground">Buying credit is not available yet.</p>}
+              <p className="text-xs text-muted-foreground">Prefer to pay Anthropic directly? Save your own key below and AI will use it instead, with no limit from your plan.</p>
+            </div>
+          )}
 
           <form
             className="grid max-w-xl gap-3"
@@ -85,7 +140,7 @@ export function AssistantCard() {
             </FormField>
             <div className="flex gap-2">
               <Button type="submit" disabled={saveKey.isPending}>
-                {saveKey.isPending ? "Checking…" : data.keyConfigured ? "Replace key" : "Save key"}
+                {saveKey.isPending ? "Checking…" : data.keySource ? "Replace key" : "Save key"}
               </Button>
               {data.keySource === "settings" && (
                 <Button type="button" variant="outline" disabled={removeKey.isPending} onClick={() => removeKey.mutate()}>
@@ -140,6 +195,24 @@ export function AssistantCard() {
               ))}
             </div>
             {!data.keyConfigured && <p className="text-sm text-muted-foreground">Save your Anthropic key first.</p>}
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="text-sm font-medium">Let each person choose their own model</h3>
+                <Badge variant={data.userModelChoice ? "default" : "secondary"}>{data.userModelChoice ? "Allowed" : "Off"}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                When allowed, each person can pick a model for the questions they ask AI themselves and the documents they have it read; everyone else follows the model above. Everyone&apos;s use still counts toward the same
+                monthly limit, so a person who picks a more expensive model uses it up faster. Daily suggestions and WhatsApp message help always use the model above.
+              </p>
+              <Button
+                type="button"
+                variant={data.userModelChoice ? "outline" : "default"}
+                disabled={saveSettings.isPending}
+                onClick={() => saveSettings.mutate({ enabled: data.enabled, monthlyCeilingUsd: data.monthlyCeilingUsd, userModelChoice: !data.userModelChoice })}
+              >
+                {data.userModelChoice ? "Stop letting people choose" : "Let people choose"}
+              </Button>
+            </div>
           </fieldset>
 
           <div className="space-y-2">

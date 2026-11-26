@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "@/lib/prisma-client";
 
 /**
  * The client for work that belongs to no single business: signing in (the business is learned from the user),
@@ -12,9 +13,6 @@ const globalForPrisma = globalThis as unknown as { platformPrisma?: PrismaClient
 
 export const platformDb =
   globalForPrisma.platformPrisma ??
-  new PrismaClient({
-    datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined,
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+  createPrismaClient({ url: process.env.PLATFORM_DATABASE_URL || undefined });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.platformPrisma = platformDb;

@@ -10,7 +10,7 @@ import { modelFields } from "@/lib/ai/models";
 import { appendMessages, loadConversation, MAX_MESSAGES, startConversation } from "@/lib/ai/conversations";
 import { IVY_PROMPT_VERSION } from "@/lib/ai/prompt";
 import { propose } from "@/lib/ai/proposals";
-import { loadAssistantSettings } from "@/lib/ai/settings";
+import { effectiveModel, loadAssistantSettings } from "@/lib/ai/settings";
 import { recordUsage } from "@/lib/ai/usage";
 import { reserveDocument } from "@/lib/ai/documents/reserve";
 import { ToolError } from "@/lib/ai/tools/types";
@@ -158,7 +158,7 @@ export async function readOrderFile(user: SessionUser, file: DocumentFile, opts:
   const client = opts.client ?? (await anthropicFor(user.tenantId));
 
   const release = await reserveDocument(user, now);
-  const model = (await loadAssistantSettings(user.tenantId)).model;
+  const model = await effectiveModel(user.tenantId, user.id);
   let message;
   try {
     message = await client.beta.messages.create(orderRequest(file, model), { timeout: 55_000 });

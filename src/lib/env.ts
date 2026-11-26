@@ -51,6 +51,14 @@ const productionEnv = z
     WHATSAPP_APP_SECRET: z.string().optional(),
     WHATSAPP_VERIFY_TOKEN: z.string().optional(),
     ANTHROPIC_API_KEY: z.string().optional(),
+    // Included AI (INCLUDED_AI_PLAN.md): the platform's own key, and the dollars of AI each plan includes per month. All off when unset.
+    INCLUDED_AI_ANTHROPIC_KEY: z.string().optional(),
+    INCLUDED_AI_ALLOWANCE_TRIAL: z.string().optional(),
+    INCLUDED_AI_ALLOWANCE_STARTER: z.string().optional(),
+    INCLUDED_AI_ALLOWANCE_PRO: z.string().optional(),
+    // Owner alert (src/lib/ai/platform-spend.ts): email when the month's included-AI spend nears this many US dollars. Both set, or no alert.
+    INCLUDED_AI_ALERT_USD: z.string().optional(),
+    INCLUDED_AI_ALERT_EMAIL: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     const add = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });

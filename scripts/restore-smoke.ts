@@ -4,14 +4,14 @@
 // the audit log refuses UPDATE. The last check inserts one audit row inside a transaction that is always rolled back.
 // Exits 1 on any failure. Uses the owner role, like db:verify.
 import { readdirSync } from "node:fs";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 
 const ROLLBACK = new Error("rollback");
 
 async function main() {
   const url = process.argv[2];
   if (!url) throw new Error('Usage: npm run db:smoke -- "<restored database url>"');
-  const prisma = new PrismaClient({ datasourceUrl: url });
+  const prisma = createPrismaClient({ url: url });
   const failures: string[] = [];
   const pass = (m: string) => console.log(`ok   ${m}`);
   const fail = (m: string) => (failures.push(m), console.error(`FAIL ${m}`));

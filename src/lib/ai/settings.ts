@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { isSelectableModel, SELECTABLE_MODEL_IDS } from "@/lib/ai/models";
+import { isSelectableModel, SELECTABLE_MODEL_IDS, type SelectableModel } from "@/lib/ai/models";
 
 /**
  * A business's AI settings, kept in AutomationSetting under the `assistant` key. Off by default, and there is no
@@ -21,6 +21,8 @@ export const assistantSettingsSchema = z
       .nullable(),
     /** Which Claude model AI uses (Settings > AI). Left out means "keep what is stored", and nothing stored means the default model. */
     model: z.enum(SELECTABLE_MODEL_IDS).optional(),
+    /** Whether each person may pick their own model for what they ask AI themselves. Off until an admin allows it, because everyone's use comes out of the same spending limit; left out means "keep what is stored". */
+    userModelChoice: z.boolean().optional(),
     /** Whether AI may put proposed actions in front of people for approval (Phase 2). Off until an admin allows it; left out means "keep what is stored". */
     proposalsEnabled: z.boolean().optional(),
     /** Whether AI may also propose recording payments (Wave B). A separate switch, off until an admin allows it; left out means "keep what is stored". */
@@ -62,6 +64,7 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   // A save that leaves a switch out (the limit and on/off buttons do) keeps what is stored.
   const stored = await loadAssistantSettings(tenantId);
   const model = settings.model ?? stored.model;
+  const userModelChoice = settings.userModelChoice ?? stored.userModelChoice;
   const proposalsEnabled = settings.proposalsEnabled ?? stored.proposalsEnabled;
   const paymentProposalsEnabled = settings.paymentProposalsEnabled ?? stored.paymentProposalsEnabled;
   const inboxEnabled = settings.inboxEnabled ?? stored.inboxEnabled;
@@ -72,6 +75,7 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   const config = {
     ...settings,
     ...(model === undefined ? {} : { model }),
+    ...(userModelChoice === undefined ? {} : { userModelChoice }),
     ...(proposalsEnabled === undefined ? {} : { proposalsEnabled }),
     ...(paymentProposalsEnabled === undefined ? {} : { paymentProposalsEnabled }),
     ...(inboxEnabled === undefined ? {} : { inboxEnabled }),
@@ -87,3 +91,39 @@ export async function saveAssistantSettings(tenantId: string, settings: Assistan
   });
   return loadAssistantSettings(tenantId);
 }
+
+/**
+ * A person's own model choice, kept beside the business's settings under a key of their own (AutomationSetting, so no
+ * database change). It only counts while the business allows it (`userModelChoice`), and only for what that person asks AI
+ * themselves (chat and reading documents). Background work (daily suggestions, WhatsApp help) always uses the business's model.
+ */
+const userKey = (userId: string) => `assistant-user:${userId}`;
+
+/** The model this person chose, or undefined when they have not, or it has since been retired (then the business's model applies). */
+export async function loadUserModel(tenantId: string, userId: string): Promise<SelectableModel | undefined> {
+  const row = await db.automationSetting.findUnique({ where: { tenantId_key: { tenantId, key: userKey(userId) } } });
+  const model = (row?.config as { model?: unknown } | null)?.model;
+  return isSelectableModel(model) ? model : undefined;
+}
+
+/** Saves this person's choice; null clears it, so the business's model applies again. */
+export async function saveUserModel(tenantId: string, userId: string, model: SelectableModel | null) {
+  const key = userKey(userId);
+  if (model === null) {
+    await db.automationSetting.deleteMany({ where: { tenantId, key } });
+    return;
+  }
+  const config = { model } as unknown as Prisma.InputJsonValue;
+  await db.automationSetting.upsert({ where: { tenantId_key: { tenantId, key } }, create: { tenantId, key, config, updatedById: userId }, update: { config, updatedById: userId } });
+}
+
+/** The model a call should use: the person's own when the business allows that and they chose one, else the business's (undefined means the default). */
+export async function effectiveModel(tenantId: string, userId?: string | null, settings?: AssistantSettings): Promise<SelectableModel | undefined> {
+  const s = settings ?? (await loadAssistantSettings(tenantId));
+  if (userId && s.userModelChoice === true) {
+    const own = await loadUserModel(tenantId, userId);
+    if (own) return own;
+  }
+  return s.model;
+}
+

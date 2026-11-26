@@ -62,7 +62,7 @@ describe("recording and summing usage", () => {
     });
     expect(cost).toBe(Math.ceil(1000 * 2 + 100 * 10 + 500 * 0.2));
     expect(db.aiUsage.create).toHaveBeenCalledWith({
-      data: { tenantId: "t1", userId: "u1", conversationId: "c1", model: IVY_MODEL, inputTokens: 1000, outputTokens: 100, cacheReadTokens: 500, cacheWriteTokens: 0, costMicros: cost, purpose: "CHAT" },
+      data: { tenantId: "t1", userId: "u1", conversationId: "c1", model: IVY_MODEL, inputTokens: 1000, outputTokens: 100, cacheReadTokens: 500, cacheWriteTokens: 0, costMicros: cost, purpose: "CHAT", platformKey: false, creditMicros: 0 },
     });
   });
 

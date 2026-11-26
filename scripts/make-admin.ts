@@ -7,7 +7,7 @@
 // Public sign-up is closed, so use --create for the very first admin, then set a password with
 // "Forgot password" on the sign-in page. Run this against the production DATABASE_URL.
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 import { DEFAULT_TENANT_ID } from "../src/lib/tenant";
 
 const args = process.argv.slice(2);
@@ -33,7 +33,7 @@ const mfaReset = resetMfa
   : {};
 
 // The owner connection when there is one: the restricted app role (DATABASE_URL) cannot see users outside a business.
-const db = new PrismaClient({ datasourceUrl: process.env.PLATFORM_DATABASE_URL || undefined });
+const db = createPrismaClient({ url: process.env.PLATFORM_DATABASE_URL || undefined });
 const run = name
   ? db.user.upsert({
       where: { email },

@@ -48,7 +48,7 @@ export default function TermsPage() {
       </LegalSection>
 
       <LegalSection n={6} title="The AI assistant">
-        <P>If you switch on the assistant, it uses an AI model through your own account with the model provider. It can be wrong. It suggests actions and drafts, and nothing it suggests changes your records or is sent to a customer until a person on your team approves it. You are responsible for checking what you approve and send.</P>
+        <P>If you switch on the assistant, it uses an AI model, either through your own account with the model provider or, if your plan includes AI or you have bought AI credit, through our account. It can be wrong. It suggests actions and drafts, and nothing it suggests changes your records or is sent to a customer until a person on your team approves it. You are responsible for checking what you approve and send.</P>
       </LegalSection>
 
       <LegalSection n={7} title="Plans, trials and fees">
@@ -56,6 +56,8 @@ export default function TermsPage() {
           <li>A new business starts on a free trial. When a trial ends, or a subscription is cancelled or unpaid, the workspace becomes read-only: you can view and export your data but not change it, until you subscribe.</li>
           <li>Paid plans are billed in advance through our payment provider at the price shown when you subscribe. Prices may change for future periods with notice. Taxes are added where they apply.</li>
           <li>You can cancel at any time; access continues to the end of the period you have paid for. Fees already paid are not refunded unless the law requires it or we agree otherwise.</li>
+          <li>Some plans include an amount of AI use each month. It renews at the start of each month (UTC) and does not carry over. When it is used up, the assistant keeps working only on AI credit you have bought, and otherwise pauses until the next month, unless you save your own AI provider key. Use is measured from token counts and is an estimate.</li>
+          <li>AI credit is bought with a one-time payment, is used after the monthly amount, and is for the assistant only. It cannot be exchanged for money or transferred to another business. [Owner to decide: whether credit expires, and whether unused credit is refundable.]</li>
         </List>
       </LegalSection>
 

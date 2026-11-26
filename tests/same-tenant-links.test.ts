@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { dmmfModels } from "./helpers/dmmf";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { TENANTLESS_MODELS, createTwoTenants, testDatabaseUrl, type TwoTenants } from "./helpers/two-tenants";
 
@@ -7,7 +7,7 @@ import { TENANTLESS_MODELS, createTwoTenants, testDatabaseUrl, type TwoTenants }
 // catalog test below until its trigger exists. Needs TEST_DATABASE_URL (CI has it); without it the suite skips.
 
 const closed = new Set<string>(TENANTLESS_MODELS);
-const links = Prisma.dmmf.datamodel.models
+const links = dmmfModels
   .filter((m) => !closed.has(m.name))
   .flatMap((m) => m.fields.filter((f) => f.relationFromFields?.length === 1 && !closed.has(f.type)).map((f) => ({ child: m.name, column: f.relationFromFields![0], parent: f.type })));
 

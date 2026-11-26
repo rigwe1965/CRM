@@ -5,7 +5,8 @@
 // connects as PLATFORM_DATABASE_URL (the owner role, which row-level security does not bind) when that is set,
 // otherwise DATABASE_URL, which as the restricted app role would see nothing. Nothing is changed or deleted.
 import "dotenv/config";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 
 const closed = new Set(["Tenant", "Account", "Session", "VerificationToken", "JobRun"]);
 const links = Prisma.dmmf.datamodel.models
@@ -14,7 +15,7 @@ const links = Prisma.dmmf.datamodel.models
 
 async function main() {
   const url = process.env.PLATFORM_DATABASE_URL || undefined;
-  const db = new PrismaClient({ datasourceUrl: url });
+  const db = createPrismaClient({ url: url });
   let bad = 0;
   try {
     const [me] = await db.$queryRaw<{ bypass: boolean; owner: boolean }[]>`

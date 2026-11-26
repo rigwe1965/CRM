@@ -13,6 +13,6 @@ export const SUBPROCESSORS: Subprocessor[] = [
   { name: "Stripe", role: "takes subscription payments, and lets a business take payments from its own customers through its own account", optional: true },
   { name: "Cloudflare (Turnstile)", role: "checks that a sign-up is not from a bot" },
   { name: "Meta (WhatsApp Business)", role: "carries WhatsApp messages for businesses that connect their number", optional: true },
-  { name: "Anthropic", role: "runs the AI assistant, through the business's own account", optional: true },
+  { name: "Anthropic", role: "runs the AI assistant: through the business's own account, or, where its plan includes AI or it buys AI credit, through the service's account [lawyer: confirm roles and Anthropic's terms on retention and training]", optional: true },
   { name: "Error reporting service", role: "receives crash reports with personal details removed, when the platform has one configured", optional: true },
 ];

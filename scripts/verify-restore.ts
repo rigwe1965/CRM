@@ -2,12 +2,12 @@
 //   npm run db:verify -- "<live url>" "<restored url>"     compares the two and exits 1 on any difference
 //   npm run db:verify -- "<url>"                           just prints the counts
 // Read-only. Uses the owner role, so row-level security does not hide rows from the count.
-import { PrismaClient } from "@prisma/client";
+import { createPrismaClient } from "../src/lib/prisma-client";
 
 const TABLES = ["Tenant", "User", "Contact", "Organization", "Deal", "DealItem", "Payment", "PaymentLink", "Instalment", "Invoice", "Activity", "Task", "AuditLog"];
 
 async function counts(url: string) {
-  const prisma = new PrismaClient({ datasourceUrl: url });
+  const prisma = createPrismaClient({ url: url });
   try {
     const out: Record<string, number> = {};
     for (const t of TABLES) {
