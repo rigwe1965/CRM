@@ -286,7 +286,7 @@ function InvoiceForm({ invoice, initialItems, reading, onClose }: { invoice?: In
         <p className="text-xs text-muted-foreground">Line totals and the sheet total are worked out for you.</p>
       </div>
 
-      <div className="space-y-2">
+      <div className="stack-y-2">
         <Label>Customer orders this stock is for</Label>
         {dealOptions.length === 0 ? (
           <p className="text-sm text-muted-foreground">No deals to link yet.</p>

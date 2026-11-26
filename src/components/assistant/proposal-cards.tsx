@@ -43,7 +43,7 @@ const nice = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g,
 /** The server builds this link from record ids; anything that is not an in-app path is ignored. */
 const safeHref = (h: string) => (h.startsWith("/") && !h.startsWith("//") ? h : "/");
 
-const field = "h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
+const field = "h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring";
 
 function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; busy: boolean; onApprove: (edits: Record<string, string | null>) => void; onDecline: () => void; onNavigate: () => void }) {
   const [editing, setEditing] = useState(false);
@@ -117,7 +117,7 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
         {p.preview.lines.map((l, i) => (
           <div key={i} className="contents">
             <dt className="text-xs text-muted-foreground">{l.label}</dt>
-            <dd className="break-words">{l.value}</dd>
+            <dd className="wrap-break-word">{l.value}</dd>
           </div>
         ))}
       </dl>
@@ -125,7 +125,7 @@ function Card({ p, busy, onApprove, onDecline, onNavigate }: { p: ProposalCard; 
       {p.preview.draft && sendable ? (
         <textarea aria-label="Message to send" className={cn(field, "h-28 py-1")} value={draftText} maxLength={1000} onChange={(e) => setDraftText(e.target.value)} />
       ) : (
-        p.preview.draft && <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-md border bg-muted/50 p-2 font-sans text-sm">{p.preview.draft.text}</pre>
+        p.preview.draft && <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap wrap-break-word rounded-md border bg-muted/50 p-2 font-sans text-sm">{p.preview.draft.text}</pre>
       )}
       {p.preview.warning && (
         <p className="flex gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">

@@ -4,6 +4,9 @@ All notable changes to the CRM. Follows [Keep a Changelog](https://keepachangelo
 
 ## [Unreleased]
 
+### Changed
+- Tailwind CSS 3 → 4 (`@tailwindcss/postcss`, theme in `src/app/globals.css` with `@theme inline`, `tailwind.config.ts` removed). `tailwindcss-animate` replaced by `tw-animate-css` (the dialog, menu and sheet animations). New `stack-y-*` utility (Tailwind 3 spacing) where a field label is inline: v4's `space-y` would have removed the gap under it. Screens compared before and after in screenshots (25 pages, light, dark and mobile): no visible change.
+
 ### Added
 - LICENSE, SECURITY.md, this changelog and a pull request template (project standard).
 - CI now runs on every pull request (the repository is public), with branch protection on `main`: `verify` and `security` must pass.

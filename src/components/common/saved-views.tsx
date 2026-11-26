@@ -42,7 +42,7 @@ export function SavedViews({ current, onApply }: { current: Query; onApply: (q: 
         const active = same(v.query, current);
         return (
           <span key={v.id} className="inline-flex items-center">
-            <button type="button" onClick={() => onApply(v.query)} aria-pressed={active} className="rounded-l-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button type="button" onClick={() => onApply(v.query)} aria-pressed={active} className="rounded-l-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
               <Badge variant={active ? "default" : "outline"} className={cn("cursor-pointer rounded-r-none border-r-0", !active && "text-muted-foreground hover:text-foreground")}>
                 {v.name}
               </Badge>
@@ -52,7 +52,7 @@ export function SavedViews({ current, onApply }: { current: Query; onApply: (q: 
               aria-label={`Delete saved view ${v.name}`}
               disabled={del.isPending}
               onClick={() => del.mutate(v.id, { onError: (e) => toast.error(errorMessage(e)) })}
-              className="rounded-r-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-r-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Badge variant={active ? "default" : "outline"} className="cursor-pointer rounded-l-none px-1.5 text-muted-foreground hover:text-destructive">
                 <X className="h-3 w-3" />

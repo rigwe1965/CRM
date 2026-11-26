@@ -726,7 +726,7 @@ function ScheduleEditor({ dealId, view, onDone }: { dealId: string; view: Paymen
         </Button>
       </div>
 
-      <div className="space-y-2">
+      <div className="stack-y-2">
         <Label>Instalments</Label>
         {rows.length === 0 && <p className="text-sm text-muted-foreground">No instalments. Saving now clears the schedule.</p>}
         {rows.map((r, n) => (

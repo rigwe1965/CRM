@@ -174,7 +174,7 @@ function InstalmentEmailsCard({ initial, wouldSend, whatsappWouldSend }: { initi
       <CardContent className="space-y-4">
         <SwitchRow checked={draft.enabled} onChange={(enabled) => setDraft((d) => ({ ...d, enabled }))} label="Send payment reminders to customers" />
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-1.5 text-sm">
+          <label className="stack-y-1.5 text-sm">
             <span className="font-medium">Mode</span>
             <Select value={draft.mode} onValueChange={(m) => setDraft((d) => ({ ...d, mode: m as "TEST" | "LIVE" }))}>
               <SelectTrigger aria-label="Mode">
@@ -186,12 +186,12 @@ function InstalmentEmailsCard({ initial, wouldSend, whatsappWouldSend }: { initi
               </SelectContent>
             </Select>
           </label>
-          <label className="space-y-1.5 text-sm">
+          <label className="stack-y-1.5 text-sm">
             <span className="font-medium">Sender name</span>
             <Input value={draft.brandName} maxLength={60} onChange={(e) => setDraft((d) => ({ ...d, brandName: e.target.value }))} />
           </label>
         </div>
-        <label className="block space-y-1.5 text-sm">
+        <label className="block stack-y-1.5 text-sm">
           <span className="font-medium">{live ? "Send samples to" : "Send test emails to"}</span>
           <Input type="email" placeholder="you@example.com" value={draft.testEmail} onChange={(e) => setDraft((d) => ({ ...d, testEmail: e.target.value }))} />
           <span className="block text-xs text-muted-foreground">
@@ -239,11 +239,11 @@ function InstalmentEmailsCard({ initial, wouldSend, whatsappWouldSend }: { initi
             Sent on the same days as the emails, only to customers whose contact has &quot;agreed to receive WhatsApp messages&quot; ticked and a WhatsApp-ready phone number. WhatsApp only lets a business start a conversation with a message template Meta has approved, so create the three templates in Meta first (the steps and wording are in HANDOVER.md) and enter their names below. In test mode every message goes to the test number.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm">
+            <label className="stack-y-1.5 text-sm">
               <span className="font-medium">{live ? "WhatsApp test number" : "Send WhatsApp tests to"}</span>
               <Input placeholder="+2348012345678" value={wa.testPhone} onChange={(e) => setWa({ testPhone: e.target.value })} />
             </label>
-            <label className="space-y-1.5 text-sm">
+            <label className="stack-y-1.5 text-sm">
               <span className="font-medium">Template language</span>
               <Input placeholder="en" value={wa.language} maxLength={6} onChange={(e) => setWa({ language: e.target.value })} />
             </label>
@@ -256,7 +256,7 @@ function InstalmentEmailsCard({ initial, wouldSend, whatsappWouldSend }: { initi
                 ["OVERDUE_2", "Template: second overdue notice"],
               ] as const
             ).map(([k, label]) => (
-              <label key={k} className="space-y-1.5 text-sm">
+              <label key={k} className="stack-y-1.5 text-sm">
                 <span className="font-medium">{label}</span>
                 <Input aria-label={label} value={wa.templates[k]} maxLength={200} onChange={(e) => setWa({ templates: { ...wa.templates, [k]: e.target.value } })} />
               </label>

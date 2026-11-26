@@ -128,7 +128,7 @@ export function SignInForm() {
           setMode(mode === "password" ? "magic" : "password");
           setError(null);
         }}
-        className="w-full text-center text-sm text-primary hover:underline disabled:opacity-60"
+        className="block w-full text-center text-sm text-primary hover:underline disabled:opacity-60"
       >
         {mode === "password" ? "Use a magic link instead" : "Use a password instead"}
       </button>

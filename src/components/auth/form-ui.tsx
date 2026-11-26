@@ -27,7 +27,7 @@ export function Field({
           type={type}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
-          className="block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-sm focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring disabled:bg-muted aria-[invalid=true]:border-destructive"
+          className="block w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-xs focus:border-ring focus:outline-hidden focus:ring-1 focus:ring-ring disabled:bg-muted aria-invalid:border-destructive"
           {...props}
         />
       )}
@@ -54,7 +54,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending && (
         <span

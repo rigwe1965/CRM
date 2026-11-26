@@ -162,7 +162,7 @@ export function AppShell({ children, support = { email: null, statusUrl: null } 
       </Sheet>
 
       <div className="lg:pl-60 print:pl-0">
-        <header className="sticky top-0 z-20 flex h-14 print:hidden items-center justify-between border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-20 flex h-14 print:hidden items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm sm:px-6">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu />
           </Button>

@@ -271,7 +271,7 @@ export function AskIvy() {
       </Button>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full max-w-full gap-0 px-0 pt-0 sm:w-[28rem]" onCloseAutoFocus={(e) => (e.preventDefault(), trigger.current?.focus())}>
+        <SheetContent side="right" className="w-full max-w-full gap-0 px-0 pt-0 sm:w-md" onCloseAutoFocus={(e) => (e.preventDefault(), trigger.current?.focus())}>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div>
               <SheetTitle className="flex items-center gap-2 text-base"><Sparkles className="size-4" /> AI assistant</SheetTitle>
@@ -436,7 +436,7 @@ export function AskIvy() {
                     disabled={!ready || locked}
                     placeholder={ready ? "Ask AI…" : "AI is not available yet"}
                     aria-label="Your question for AI"
-                    className="min-h-[2.5rem] flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                    className="min-h-10 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                   />
                   {streaming ? (
                     <Button type="button" size="icon" variant="outline" aria-label="Stop" onClick={() => abort.current?.abort()}><Square className="size-4" /></Button>

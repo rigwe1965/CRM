@@ -36,7 +36,7 @@ export function TagPicker({ value, onChange }: { value: string[]; onChange: (ids
           {tags.data.map((t) => {
             const on = value.includes(t.id);
             return (
-              <button key={t.id} type="button" aria-pressed={on} onClick={() => toggle(t.id)} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button key={t.id} type="button" aria-pressed={on} onClick={() => toggle(t.id)} className="rounded-full focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                 <Badge variant={on ? "default" : "outline"} className={cn("cursor-pointer", !on && "text-muted-foreground hover:text-foreground")}>
                   {t.name}
                 </Badge>
