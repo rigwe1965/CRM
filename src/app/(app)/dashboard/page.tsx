@@ -48,7 +48,7 @@ function StatCard({
   href: string;
 }) {
   return (
-    <Link href={href} className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <Link href={href} className="block rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
       <Card className="transition-shadow hover:shadow-md">
         <CardContent className="flex items-start justify-between p-5">
           <div>

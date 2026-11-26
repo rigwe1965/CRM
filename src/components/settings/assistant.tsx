@@ -179,7 +179,7 @@ export function AssistantCard() {
             </p>
             <div className="grid gap-2">
               {data.modelOptions.map((m) => (
-                <label key={m.id} className="flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm has-[:checked]:border-primary">
+                <label key={m.id} className="flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm has-checked:border-primary">
                   <input
                     type="radio"
                     name="assistant-model"

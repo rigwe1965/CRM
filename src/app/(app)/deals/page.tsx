@@ -114,7 +114,7 @@ function DealCard({
       {...listeners}
       onClick={onEdit}
       className={cn(
-        "cursor-grab rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing",
+        "cursor-grab rounded-lg border bg-card p-3 shadow-xs transition-shadow hover:shadow-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing",
         isDragging && "opacity-40",
       )}
     >
@@ -123,7 +123,7 @@ function DealCard({
         menu={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="-mr-1.5 -mt-1 h-6 w-6 shrink-0 [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9" aria-label={`Actions for ${deal.title}`} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="-mr-1.5 -mt-1 h-6 w-6 shrink-0 pointer-coarse:h-9 pointer-coarse:w-9" aria-label={`Actions for ${deal.title}`} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
@@ -178,14 +178,14 @@ function Column({
           <h2 className="text-sm font-semibold">{stage.label}</h2>
           <span className="rounded-full bg-background px-1.5 text-xs text-muted-foreground tabular-nums">{deals.length}</span>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6 [@media(pointer:coarse)]:h-9 [@media(pointer:coarse)]:w-9" onClick={onAdd} aria-label={`Add deal to ${stage.label}`}>
+        <Button variant="ghost" size="icon" className="h-6 w-6 pointer-coarse:h-9 pointer-coarse:w-9" onClick={onAdd} aria-label={`Add deal to ${stage.label}`}>
           <Plus />
         </Button>
       </header>
       <p className="px-3 pb-2 text-xs text-muted-foreground tabular-nums">{moneyMap(dealsMoney(deals))}</p>
       <div
         ref={setNodeRef}
-        className={cn("flex min-h-[8rem] flex-1 flex-col gap-2 rounded-b-xl px-2 pb-2 transition-colors", isOver && "bg-accent")}
+        className={cn("flex min-h-32 flex-1 flex-col gap-2 rounded-b-xl px-2 pb-2 transition-colors", isOver && "bg-accent")}
       >
         {children}
         {deals.length === 0 && (

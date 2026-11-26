@@ -30,7 +30,7 @@ type Draft = { key: string; category: string; title: string; body: string; basis
 
 const EMPTY: Draft = { key: "", category: "FAQ", title: "", body: "", basis: "INFO", keywords: "" };
 const nice = (s: string) => s.toLowerCase().replaceAll("_", " ");
-const selectClass = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm";
+const selectClass = "h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs";
 
 /** Admin: the written policy and FAQs AI answers from. Edits take effect at once; every change keeps the earlier text in a version history. */
 export function KnowledgeCard() {
@@ -127,7 +127,7 @@ export function KnowledgeCard() {
               </FormField>
             </div>
             <FormField label="Answer">
-              <textarea className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm" value={editing.draft.body} onChange={(e) => set({ body: e.target.value })} />
+              <textarea className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs" value={editing.draft.body} onChange={(e) => set({ body: e.target.value })} />
             </FormField>
             <FormField label="Words customers use" hint="Comma separated, e.g. swap, change length, send back.">
               <Input value={editing.draft.keywords} onChange={(e) => set({ keywords: e.target.value })} />
